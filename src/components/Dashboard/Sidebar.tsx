@@ -1,18 +1,19 @@
 import React, { useState } from 'react';
-import { 
-  LayoutDashboard, 
-  Users, 
+import {
+  LayoutDashboard,
+  Users,
   Building2,
-  Calendar, 
-  DollarSign, 
-  Briefcase, 
-  TrendingUp, 
-  Bell, 
+  Calendar,
+  DollarSign,
+  Briefcase,
+  TrendingUp,
+  Bell,
   Settings,
   ChevronLeft,
   ChevronRight,
   LogOut
 } from 'lucide-react';
+import { useAuth } from '../Auth/AuthContext';
 
 interface SidebarProps {
   activeTab: string;
@@ -21,6 +22,13 @@ interface SidebarProps {
 
 export default function Sidebar({ activeTab, onTabChange }: SidebarProps) {
   const [collapsed, setCollapsed] = useState(false);
+  const { logout, user } = useAuth();
+
+  const handleLogout = async () => {
+    if (confirm('Are you sure you want to logout?')) {
+      await logout();
+    }
+  };
 
   const menuItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -35,10 +43,9 @@ export default function Sidebar({ activeTab, onTabChange }: SidebarProps) {
   ];
 
   return (
-    <aside 
-      className={`bg-card border-r border-border h-screen sticky top-0 transition-all duration-300 ${
-        collapsed ? 'w-20' : 'w-64'
-      }`}
+    <aside
+      className={`bg-card border-r border-border h-screen sticky top-0 transition-all duration-300 ${collapsed ? 'w-20' : 'w-64'
+        }`}
     >
       <div className="flex flex-col h-full">
         {/* Logo Section */}
@@ -61,20 +68,19 @@ export default function Sidebar({ activeTab, onTabChange }: SidebarProps) {
 
         {/* Navigation Menu */}
         <nav className="flex-1 p-4 overflow-y-auto">
-          <ul className="space-y-2 p-0">
+          <ul className="space-y-2 p-0 m-0 pl-0" style={{ paddingLeft: "0px !important" }}>
             {menuItems.map((item) => {
               const Icon = item.icon;
               const isActive = activeTab === item.id;
-              
+
               return (
                 <li key={item.id}>
                   <button
                     onClick={() => onTabChange(item.id)}
-                    className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all ${
-                      isActive
-                        ? 'bg-primary text-primary-foreground shadow-md'
-                        : 'hover:bg-accent text-foreground'
-                    }`}
+                    className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all ${isActive
+                      ? 'bg-primary text-primary-foreground shadow-md'
+                      : 'hover:bg-accent text-foreground'
+                      }`}
                     title={collapsed ? item.label : ''}
                   >
                     <Icon size={20} />
@@ -90,12 +96,22 @@ export default function Sidebar({ activeTab, onTabChange }: SidebarProps) {
 
         {/* User Section */}
         <div className="p-4 border-t border-border">
-          <button className="w-full flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-accent transition-colors">
+          {!collapsed && user && (
+            <div className="mb-3 px-4 py-2 bg-muted rounded-lg">
+              <p className="text-xs text-muted-foreground">Logged in as</p>
+              <p className="text-sm font-semibold text-black truncate">{user.full_name}</p>
+              <p className="text-xs text-muted-foreground truncate">{user.role}</p>
+            </div>
+          )}
+          <button
+            onClick={handleLogout}
+            className="w-full flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-destructive hover:text-destructive-foreground transition-colors"
+          >
             <LogOut size={20} />
             {!collapsed && <span className="font-medium">Logout</span>}
           </button>
         </div>
       </div>
-    </aside>
+    </aside >
   );
 }

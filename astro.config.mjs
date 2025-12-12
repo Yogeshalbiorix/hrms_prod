@@ -1,4 +1,4 @@
-import {defineConfig} from 'astro/config';
+import { defineConfig } from 'astro/config';
 import cloudflare from '@astrojs/cloudflare';
 import react from '@astrojs/react';
 import tailwindcss from '@tailwindcss/vite';
@@ -22,7 +22,7 @@ function patchViteErrorOverlay() {
  * Astro integration to inject development-only scripts
  */
 function injectDevScript(options = {}) {
-  const {scriptPath} = options;
+  const { scriptPath } = options;
 
   if (!scriptPath) {
     throw new Error('injectDevScript requires a scriptPath');
@@ -31,7 +31,7 @@ function injectDevScript(options = {}) {
   return {
     name: 'inject-dev-script',
     hooks: {
-      'astro:config:setup': ({injectScript, command, logger}) => {
+      'astro:config:setup': ({ injectScript, command, logger }) => {
         if (command === 'dev') {
           logger.info(`Injecting dev script: ${scriptPath}`);
 
@@ -57,12 +57,12 @@ export default defineConfig({
   },
   adapter: cloudflare({
     platformProxy: {
-      enabled: false,
+      enabled: true,
     },
   }),
   integrations: [
     react(),
-    injectDevScript({scriptPath: '/generated/dev-only.js'}),
+    injectDevScript({ scriptPath: '/generated/dev-only.js' }),
   ],
   vite: {
     plugins: [tailwindcss(), patchViteErrorOverlay()],
@@ -83,8 +83,8 @@ export default defineConfig({
       // Without this, MessageChannel from node:worker_threads needs to be polyfilled.
       alias: import.meta.env.PROD
         ? {
-            'react-dom/server': 'react-dom/server.edge',
-          }
+          'react-dom/server': 'react-dom/server.edge',
+        }
         : undefined,
     },
   },

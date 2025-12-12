@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
 import Sidebar from './Sidebar';
 import Header from './Header';
-import DashboardOverview from './DashboardOverview';
+import DashboardOverviewDynamic from './DashboardOverviewDynamic';
 import EmployeeManagement from './EmployeeManagement';
 import DepartmentManagement from './DepartmentManagement';
-import AttendanceLeave from './AttendanceLeave';
-import PayrollManagement from './PayrollManagement';
+import AttendanceLeave from './AttendanceLeaveWrapper';
+import PayrollManagement from './PayrollManagementDynamic';
 import RecruitmentModule from './RecruitmentModule';
 import PerformanceManagement from './PerformanceManagement';
 import NotificationsActivity from './NotificationsActivity';
@@ -42,7 +42,7 @@ export default function HRMSDashboard() {
   const renderContent = () => {
     switch (activeTab) {
       case 'dashboard':
-        return <DashboardOverview />;
+        return <DashboardOverviewDynamic />;
       case 'employees':
         return <EmployeeManagement />;
       case 'departments':
@@ -60,7 +60,7 @@ export default function HRMSDashboard() {
       case 'settings':
         return <Settings />;
       default:
-        return <DashboardOverview />;
+        return <DashboardOverviewDynamic />;
     }
   };
 

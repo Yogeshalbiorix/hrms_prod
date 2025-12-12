@@ -1,8 +1,8 @@
 ---
 import MainLayout from '../layouts/main.astro';
-import HRMSDashboard from '../components/Dashboard/HRMSDashboard';
+import App from '../components/App';
 ---
 
 <MainLayout>
-  <HRMSDashboard client:only="react" />
+  <App client:only="react" />
 </MainLayout>

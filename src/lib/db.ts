@@ -65,7 +65,7 @@ export async function getAllEmployees(db: any, limit = 100, offset = 0): Promise
     ORDER BY e.created_at DESC
     LIMIT ? OFFSET ?
   `;
-  
+
   const result = await db.prepare(query).bind(limit, offset).all();
   return result.results || [];
 }
@@ -79,7 +79,7 @@ export async function getEmployeeById(db: any, id: number): Promise<EmployeeWith
     LEFT JOIN departments d ON e.department_id = d.id
     WHERE e.id = ?
   `;
-  
+
   const result = await db.prepare(query).bind(id).first();
   return result || null;
 }
@@ -93,13 +93,13 @@ export async function getEmployeeByEmployeeId(db: any, employeeId: string): Prom
     LEFT JOIN departments d ON e.department_id = d.id
     WHERE e.employee_id = ?
   `;
-  
+
   const result = await db.prepare(query).bind(employeeId).first();
   return result || null;
 }
 
 export async function searchEmployees(
-  db: any, 
+  db: any,
   searchTerm: string,
   departmentId?: number,
   status?: string
@@ -117,26 +117,26 @@ export async function searchEmployees(
       e.employee_id LIKE ?
     )
   `;
-  
+
   const params: any[] = [
     `%${searchTerm}%`,
     `%${searchTerm}%`,
     `%${searchTerm}%`,
     `%${searchTerm}%`
   ];
-  
+
   if (departmentId) {
     query += ` AND e.department_id = ?`;
     params.push(departmentId);
   }
-  
+
   if (status) {
     query += ` AND e.status = ?`;
     params.push(status);
   }
-  
+
   query += ` ORDER BY e.created_at DESC LIMIT 100`;
-  
+
   const result = await db.prepare(query).bind(...params).all();
   return result.results || [];
 }
@@ -145,9 +145,9 @@ export async function createEmployee(db: any, employee: Employee): Promise<{ id:
   // Get count for employee ID generation
   const countResult = await db.prepare('SELECT COUNT(*) as count FROM employees').first();
   const count = countResult?.count || 0;
-  
+
   const employeeId = employee.employee_id || generateEmployeeId(count);
-  
+
   const query = `
     INSERT INTO employees (
       employee_id, first_name, last_name, email, phone,
@@ -158,13 +158,13 @@ export async function createEmployee(db: any, employee: Employee): Promise<{ id:
       created_by, updated_by
     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `;
-  
+
   // Helper function to convert empty strings to null
   const toNull = (value: any) => {
     if (value === '' || value === undefined) return null;
     return value;
   };
-  
+
   const result = await db.prepare(query).bind(
     employeeId,
     employee.first_name,
@@ -191,7 +191,7 @@ export async function createEmployee(db: any, employee: Employee): Promise<{ id:
     toNull(employee.created_by) || 'system',
     toNull(employee.updated_by) || 'system'
   ).run();
-  
+
   return {
     id: result.meta.last_row_id,
     employee_id: employeeId
@@ -201,13 +201,13 @@ export async function createEmployee(db: any, employee: Employee): Promise<{ id:
 export async function updateEmployee(db: any, id: number, employee: Partial<Employee>): Promise<boolean> {
   const fields: string[] = [];
   const values: any[] = [];
-  
+
   // Helper function to convert empty strings to null
   const toNull = (value: any) => {
     if (value === '' || value === undefined) return null;
     return value;
   };
-  
+
   // Build dynamic update query
   if (employee.first_name !== undefined) {
     fields.push('first_name = ?');
@@ -289,19 +289,19 @@ export async function updateEmployee(db: any, id: number, employee: Partial<Empl
     fields.push('emergency_contact_relationship = ?');
     values.push(toNull(employee.emergency_contact_relationship));
   }
-  
+
   // Always update the updated_at and updated_by fields
   fields.push('updated_at = CURRENT_TIMESTAMP');
   fields.push('updated_by = ?');
   values.push(toNull(employee.updated_by) || 'system');
-  
+
   if (fields.length === 2) { // Only updated_at and updated_by
     return false;
   }
-  
+
   const query = `UPDATE employees SET ${fields.join(', ')} WHERE id = ?`;
   values.push(id);
-  
+
   const result = await db.prepare(query).bind(...values).run();
   return result.success;
 }
@@ -315,7 +315,7 @@ export async function deleteEmployee(db: any, id: number): Promise<boolean> {
         updated_at = CURRENT_TIMESTAMP
     WHERE id = ?
   `;
-  
+
   const result = await db.prepare(query).bind(id).run();
   return result.success;
 }
@@ -346,31 +346,31 @@ export async function createDepartment(db: any, department: Department): Promise
     INSERT INTO departments (name, description, manager_id)
     VALUES (?, ?, ?)
   `;
-  
+
   // Helper function to convert empty strings to null
   const toNull = (value: any) => {
     if (value === '' || value === undefined) return null;
     return value;
   };
-  
+
   const result = await db.prepare(query).bind(
     department.name,
     toNull(department.description),
     toNull(department.manager_id)
   ).run();
-  
+
   return result.meta.last_row_id;
 }
 
 export async function updateDepartment(db: any, id: number, department: Partial<Department>): Promise<boolean> {
   const fields: string[] = [];
   const values: any[] = [];
-  
+
   const toNull = (value: any) => {
     if (value === '' || value === undefined) return null;
     return value;
   };
-  
+
   if (department.name !== undefined) {
     fields.push('name = ?');
     values.push(department.name);
@@ -383,16 +383,16 @@ export async function updateDepartment(db: any, id: number, department: Partial<
     fields.push('manager_id = ?');
     values.push(toNull(department.manager_id));
   }
-  
+
   fields.push('updated_at = CURRENT_TIMESTAMP');
-  
+
   if (fields.length === 1) {
     return false;
   }
-  
+
   const query = `UPDATE departments SET ${fields.join(', ')} WHERE id = ?`;
   values.push(id);
-  
+
   const result = await db.prepare(query).bind(...values).run();
   return result.success;
 }
@@ -425,7 +425,7 @@ export async function getEmployeeStats(db: any) {
       SUM(CASE WHEN status = 'terminated' THEN 1 ELSE 0 END) as terminated
     FROM employees
   `).first();
-  
+
   return stats;
 }
 
@@ -439,6 +439,781 @@ export async function getEmployeesByDepartment(db: any) {
     GROUP BY d.id, d.name
     ORDER BY count DESC
   `).all();
-  
+
   return result.results || [];
+}
+
+// Attendance Management
+
+export interface Attendance {
+  id?: number;
+  employee_id: number;
+  attendance_date: string;
+  check_in_time?: string;
+  check_out_time?: string;
+  status: 'present' | 'absent' | 'late' | 'half-day' | 'on-leave';
+  notes?: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface AttendanceWithEmployee extends Attendance {
+  employee_name?: string;
+  employee_code?: string;
+  department_name?: string;
+}
+
+export async function getAllAttendance(
+  db: any,
+  filters?: { date?: string; employee_id?: number; status?: string },
+  limit = 100,
+  offset = 0
+): Promise<AttendanceWithEmployee[]> {
+  let query = `
+    SELECT 
+      a.*,
+      (e.first_name || ' ' || e.last_name) as employee_name,
+      e.employee_id as employee_code,
+      d.name as department_name
+    FROM employee_attendance a
+    INNER JOIN employees e ON a.employee_id = e.id
+    LEFT JOIN departments d ON e.department_id = d.id
+    WHERE 1=1
+  `;
+
+  const bindings: any[] = [];
+
+  if (filters?.date) {
+    query += ` AND a.attendance_date = ?`;
+    bindings.push(filters.date);
+  }
+
+  if (filters?.employee_id) {
+    query += ` AND a.employee_id = ?`;
+    bindings.push(filters.employee_id);
+  }
+
+  if (filters?.status) {
+    query += ` AND a.status = ?`;
+    bindings.push(filters.status);
+  }
+
+  query += ` ORDER BY a.attendance_date DESC, a.check_in_time DESC LIMIT ? OFFSET ?`;
+  bindings.push(limit, offset);
+
+  const result = await db.prepare(query).bind(...bindings).all();
+  return result.results || [];
+}
+
+export async function getAttendanceById(db: any, id: number): Promise<AttendanceWithEmployee | null> {
+  const query = `
+    SELECT 
+      a.*,
+      (e.first_name || ' ' || e.last_name) as employee_name,
+      e.employee_id as employee_code,
+      d.name as department_name
+    FROM employee_attendance a
+    INNER JOIN employees e ON a.employee_id = e.id
+    LEFT JOIN departments d ON e.department_id = d.id
+    WHERE a.id = ?
+  `;
+
+  const result = await db.prepare(query).bind(id).first();
+  return result || null;
+}
+
+export async function createAttendance(db: any, attendance: Attendance): Promise<number> {
+  const query = `
+    INSERT INTO employee_attendance (
+      employee_id, attendance_date, check_in_time, check_out_time, 
+      status, notes
+    ) VALUES (?, ?, ?, ?, ?, ?)
+  `;
+
+  const result = await db.prepare(query).bind(
+    attendance.employee_id,
+    attendance.attendance_date,
+    attendance.check_in_time || null,
+    attendance.check_out_time || null,
+    attendance.status,
+    attendance.notes || null
+  ).run();
+
+  return result.meta.last_row_id;
+}
+
+export async function updateAttendance(db: any, id: number, attendance: Partial<Attendance>): Promise<boolean> {
+  const updates: string[] = [];
+  const bindings: any[] = [];
+
+  if (attendance.check_in_time !== undefined) {
+    updates.push('check_in_time = ?');
+    bindings.push(attendance.check_in_time);
+  }
+
+  if (attendance.check_out_time !== undefined) {
+    updates.push('check_out_time = ?');
+    bindings.push(attendance.check_out_time);
+  }
+
+  if (attendance.status) {
+    updates.push('status = ?');
+    bindings.push(attendance.status);
+  }
+
+  if (attendance.notes !== undefined) {
+    updates.push('notes = ?');
+    bindings.push(attendance.notes);
+  }
+
+  updates.push('updated_at = CURRENT_TIMESTAMP');
+  bindings.push(id);
+
+  const query = `UPDATE employee_attendance SET ${updates.join(', ')} WHERE id = ?`;
+  const result = await db.prepare(query).bind(...bindings).run();
+
+  return result.success;
+}
+
+export async function deleteAttendance(db: any, id: number): Promise<boolean> {
+  const query = `DELETE FROM employee_attendance WHERE id = ?`;
+  const result = await db.prepare(query).bind(id).run();
+  return result.success;
+}
+
+export async function getAttendanceStats(db: any, date?: string) {
+  let query = `
+    SELECT 
+      COUNT(*) as total,
+      SUM(CASE WHEN status = 'present' THEN 1 ELSE 0 END) as present,
+      SUM(CASE WHEN status = 'absent' THEN 1 ELSE 0 END) as absent,
+      SUM(CASE WHEN status = 'late' THEN 1 ELSE 0 END) as late,
+      SUM(CASE WHEN status = 'half-day' THEN 1 ELSE 0 END) as half_day,
+      SUM(CASE WHEN status = 'on-leave' THEN 1 ELSE 0 END) as on_leave
+    FROM employee_attendance
+  `;
+
+  const bindings: any[] = [];
+
+  if (date) {
+    query += ` WHERE attendance_date = ?`;
+    bindings.push(date);
+  }
+
+  const result = await db.prepare(query).bind(...bindings).first();
+  return result;
+}
+
+// Leave Management
+
+export interface Leave {
+  id?: number;
+  employee_id: number;
+  leave_type: 'sick' | 'vacation' | 'personal' | 'maternity' | 'paternity' | 'unpaid';
+  start_date: string;
+  end_date: string;
+  total_days: number;
+  reason?: string;
+  status: 'pending' | 'approved' | 'rejected' | 'cancelled';
+  approved_by?: string;
+  approval_date?: string;
+  notes?: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface LeaveWithEmployee extends Leave {
+  employee_name?: string;
+  employee_code?: string;
+  department_name?: string;
+}
+
+export async function getAllLeaves(
+  db: any,
+  filters?: { employee_id?: number; status?: string; leave_type?: string },
+  limit = 100,
+  offset = 0
+): Promise<LeaveWithEmployee[]> {
+  let query = `
+    SELECT 
+      l.*,
+      (e.first_name || ' ' || e.last_name) as employee_name,
+      e.employee_id as employee_code,
+      d.name as department_name
+    FROM employee_leave_history l
+    INNER JOIN employees e ON l.employee_id = e.id
+    LEFT JOIN departments d ON e.department_id = d.id
+    WHERE 1=1
+  `;
+
+  const bindings: any[] = [];
+
+  if (filters?.employee_id) {
+    query += ` AND l.employee_id = ?`;
+    bindings.push(filters.employee_id);
+  }
+
+  if (filters?.status) {
+    query += ` AND l.status = ?`;
+    bindings.push(filters.status);
+  }
+
+  if (filters?.leave_type) {
+    query += ` AND l.leave_type = ?`;
+    bindings.push(filters.leave_type);
+  }
+
+  query += ` ORDER BY l.created_at DESC LIMIT ? OFFSET ?`;
+  bindings.push(limit, offset);
+
+  const result = await db.prepare(query).bind(...bindings).all();
+  return result.results || [];
+}
+
+export async function getLeaveById(db: any, id: number): Promise<LeaveWithEmployee | null> {
+  const query = `
+    SELECT 
+      l.*,
+      (e.first_name || ' ' || e.last_name) as employee_name,
+      e.employee_id as employee_code,
+      d.name as department_name
+    FROM employee_leave_history l
+    INNER JOIN employees e ON l.employee_id = e.id
+    LEFT JOIN departments d ON e.department_id = d.id
+    WHERE l.id = ?
+  `;
+
+  const result = await db.prepare(query).bind(id).first();
+  return result || null;
+}
+
+export async function createLeave(db: any, leave: Leave): Promise<number> {
+  const query = `
+    INSERT INTO employee_leave_history (
+      employee_id, leave_type, start_date, end_date, total_days,
+      reason, status, notes
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  `;
+
+  const result = await db.prepare(query).bind(
+    leave.employee_id,
+    leave.leave_type,
+    leave.start_date,
+    leave.end_date,
+    leave.total_days,
+    leave.reason || null,
+    leave.status,
+    leave.notes || null
+  ).run();
+
+  return result.meta.last_row_id;
+}
+
+export async function updateLeave(db: any, id: number, leave: Partial<Leave>): Promise<boolean> {
+  const updates: string[] = [];
+  const bindings: any[] = [];
+
+  if (leave.leave_type) {
+    updates.push('leave_type = ?');
+    bindings.push(leave.leave_type);
+  }
+
+  if (leave.start_date) {
+    updates.push('start_date = ?');
+    bindings.push(leave.start_date);
+  }
+
+  if (leave.end_date) {
+    updates.push('end_date = ?');
+    bindings.push(leave.end_date);
+  }
+
+  if (leave.total_days !== undefined) {
+    updates.push('total_days = ?');
+    bindings.push(leave.total_days);
+  }
+
+  if (leave.reason !== undefined) {
+    updates.push('reason = ?');
+    bindings.push(leave.reason);
+  }
+
+  if (leave.status) {
+    updates.push('status = ?');
+    bindings.push(leave.status);
+  }
+
+  if (leave.approved_by !== undefined) {
+    updates.push('approved_by = ?');
+    bindings.push(leave.approved_by);
+  }
+
+  if (leave.approval_date !== undefined) {
+    updates.push('approval_date = ?');
+    bindings.push(leave.approval_date);
+  }
+
+  if (leave.notes !== undefined) {
+    updates.push('notes = ?');
+    bindings.push(leave.notes);
+  }
+
+  updates.push('updated_at = CURRENT_TIMESTAMP');
+  bindings.push(id);
+
+  const query = `UPDATE employee_leave_history SET ${updates.join(', ')} WHERE id = ?`;
+  const result = await db.prepare(query).bind(...bindings).run();
+
+  return result.success;
+}
+
+export async function deleteLeave(db: any, id: number): Promise<boolean> {
+  const query = `DELETE FROM employee_leave_history WHERE id = ?`;
+  const result = await db.prepare(query).bind(id).run();
+  return result.success;
+}
+
+export async function getLeaveStats(db: any) {
+  const stats = await db.prepare(`
+    SELECT 
+      COUNT(*) as total,
+      SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) as pending,
+      SUM(CASE WHEN status = 'approved' THEN 1 ELSE 0 END) as approved,
+      SUM(CASE WHEN status = 'rejected' THEN 1 ELSE 0 END) as rejected,
+      SUM(CASE WHEN status = 'cancelled' THEN 1 ELSE 0 END) as cancelled
+    FROM employee_leave_history
+  `).first();
+
+  return stats;
+}
+
+// Payroll Management
+
+export interface Payroll {
+  id?: number;
+  employee_id: number;
+  pay_period_start: string;
+  pay_period_end: string;
+  pay_date: string;
+  base_salary: number;
+  bonuses: number;
+  deductions: number;
+  tax: number;
+  net_salary: number;
+  status: 'draft' | 'pending' | 'approved' | 'paid' | 'cancelled';
+  payment_method?: string;
+  notes?: string;
+  created_at?: string;
+  updated_at?: string;
+  created_by?: string;
+  approved_by?: string;
+}
+
+export interface PayrollWithEmployee extends Payroll {
+  employee_name?: string;
+  employee_code?: string;
+  department_name?: string;
+  position?: string;
+}
+
+export async function getAllPayrolls(
+  db: any,
+  filters?: { employee_id?: number; status?: string; pay_period?: string },
+  limit = 100,
+  offset = 0
+): Promise<PayrollWithEmployee[]> {
+  let query = `
+    SELECT 
+      p.*,
+      (e.first_name || ' ' || e.last_name) as employee_name,
+      e.employee_id as employee_code,
+      d.name as department_name,
+      e.position
+    FROM payroll p
+    INNER JOIN employees e ON p.employee_id = e.id
+    LEFT JOIN departments d ON e.department_id = d.id
+    WHERE 1=1
+  `;
+
+  const bindings: any[] = [];
+
+  if (filters?.employee_id) {
+    query += ` AND p.employee_id = ?`;
+    bindings.push(filters.employee_id);
+  }
+
+  if (filters?.status) {
+    query += ` AND p.status = ?`;
+    bindings.push(filters.status);
+  }
+
+  if (filters?.pay_period) {
+    query += ` AND (p.pay_period_start <= ? AND p.pay_period_end >= ?)`;
+    bindings.push(filters.pay_period, filters.pay_period);
+  }
+
+  query += ` ORDER BY p.pay_date DESC, p.created_at DESC LIMIT ? OFFSET ?`;
+  bindings.push(limit, offset);
+
+  const result = await db.prepare(query).bind(...bindings).all();
+  return result.results || [];
+}
+
+export async function getPayrollById(db: any, id: number): Promise<PayrollWithEmployee | null> {
+  const query = `
+    SELECT 
+      p.*,
+      (e.first_name || ' ' || e.last_name) as employee_name,
+      e.employee_id as employee_code,
+      d.name as department_name,
+      e.position
+    FROM payroll p
+    INNER JOIN employees e ON p.employee_id = e.id
+    LEFT JOIN departments d ON e.department_id = d.id
+    WHERE p.id = ?
+  `;
+
+  const result = await db.prepare(query).bind(id).first();
+  return result || null;
+}
+
+export async function createPayroll(db: any, payroll: Payroll): Promise<number> {
+  const query = `
+    INSERT INTO payroll (
+      employee_id, pay_period_start, pay_period_end, pay_date,
+      base_salary, bonuses, deductions, tax, net_salary,
+      status, payment_method, notes, created_by
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `;
+
+  const result = await db.prepare(query).bind(
+    payroll.employee_id,
+    payroll.pay_period_start,
+    payroll.pay_period_end,
+    payroll.pay_date,
+    payroll.base_salary,
+    payroll.bonuses || 0,
+    payroll.deductions || 0,
+    payroll.tax || 0,
+    payroll.net_salary,
+    payroll.status,
+    payroll.payment_method || null,
+    payroll.notes || null,
+    payroll.created_by || null
+  ).run();
+
+  return result.meta.last_row_id;
+}
+
+export async function updatePayroll(db: any, id: number, payroll: Partial<Payroll>): Promise<boolean> {
+  const updates: string[] = [];
+  const bindings: any[] = [];
+
+  if (payroll.pay_period_start) {
+    updates.push('pay_period_start = ?');
+    bindings.push(payroll.pay_period_start);
+  }
+
+  if (payroll.pay_period_end) {
+    updates.push('pay_period_end = ?');
+    bindings.push(payroll.pay_period_end);
+  }
+
+  if (payroll.pay_date) {
+    updates.push('pay_date = ?');
+    bindings.push(payroll.pay_date);
+  }
+
+  if (payroll.base_salary !== undefined) {
+    updates.push('base_salary = ?');
+    bindings.push(payroll.base_salary);
+  }
+
+  if (payroll.bonuses !== undefined) {
+    updates.push('bonuses = ?');
+    bindings.push(payroll.bonuses);
+  }
+
+  if (payroll.deductions !== undefined) {
+    updates.push('deductions = ?');
+    bindings.push(payroll.deductions);
+  }
+
+  if (payroll.tax !== undefined) {
+    updates.push('tax = ?');
+    bindings.push(payroll.tax);
+  }
+
+  if (payroll.net_salary !== undefined) {
+    updates.push('net_salary = ?');
+    bindings.push(payroll.net_salary);
+  }
+
+  if (payroll.status) {
+    updates.push('status = ?');
+    bindings.push(payroll.status);
+  }
+
+  if (payroll.payment_method !== undefined) {
+    updates.push('payment_method = ?');
+    bindings.push(payroll.payment_method);
+  }
+
+  if (payroll.notes !== undefined) {
+    updates.push('notes = ?');
+    bindings.push(payroll.notes);
+  }
+
+  if (payroll.approved_by !== undefined) {
+    updates.push('approved_by = ?');
+    bindings.push(payroll.approved_by);
+  }
+
+  updates.push('updated_at = CURRENT_TIMESTAMP');
+  bindings.push(id);
+
+  const query = `UPDATE payroll SET ${updates.join(', ')} WHERE id = ?`;
+  const result = await db.prepare(query).bind(...bindings).run();
+
+  return result.success;
+}
+
+export async function deletePayroll(db: any, id: number): Promise<boolean> {
+  const query = `DELETE FROM payroll WHERE id = ?`;
+  const result = await db.prepare(query).bind(id).run();
+  return result.success;
+}
+
+export async function getPayrollStats(db: any, filters?: { pay_period?: string }) {
+  let query = `
+    SELECT 
+      COUNT(*) as total,
+      SUM(CASE WHEN status = 'draft' THEN 1 ELSE 0 END) as draft,
+      SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) as pending,
+      SUM(CASE WHEN status = 'approved' THEN 1 ELSE 0 END) as approved,
+      SUM(CASE WHEN status = 'paid' THEN 1 ELSE 0 END) as paid,
+      SUM(CASE WHEN status = 'cancelled' THEN 1 ELSE 0 END) as cancelled,
+      SUM(base_salary) as total_base_salary,
+      SUM(bonuses) as total_bonuses,
+      SUM(deductions) as total_deductions,
+      SUM(tax) as total_tax,
+      SUM(net_salary) as total_net_salary
+    FROM payroll
+  `;
+
+  const bindings: any[] = [];
+
+  if (filters?.pay_period) {
+    query += ` WHERE (pay_period_start <= ? AND pay_period_end >= ?)`;
+    bindings.push(filters.pay_period, filters.pay_period);
+  }
+
+  const result = await db.prepare(query).bind(...bindings).first();
+  return result;
+}
+
+export async function generateBulkPayroll(db: any, payPeriod: { start: string; end: string; payDate: string }): Promise<number> {
+  // Get all active employees
+  const employees = await db.prepare(`
+    SELECT id, base_salary FROM employees WHERE status = 'active'
+  `).all();
+
+  let created = 0;
+
+  for (const emp of employees.results || []) {
+    const baseSalary = emp.base_salary || 0;
+    const tax = baseSalary * 0.1; // 10% tax
+    const netSalary = baseSalary - tax;
+
+    await createPayroll(db, {
+      employee_id: emp.id,
+      pay_period_start: payPeriod.start,
+      pay_period_end: payPeriod.end,
+      pay_date: payPeriod.payDate,
+      base_salary: baseSalary,
+      bonuses: 0,
+      deductions: 0,
+      tax,
+      net_salary: netSalary,
+      status: 'draft'
+    });
+
+    created++;
+  }
+
+  return created;
+}
+
+// ===========================================
+// AUTHENTICATION FUNCTIONS
+// ===========================================
+
+export interface User {
+  id?: number;
+  username: string;
+  email: string;
+  password_hash?: string;
+  full_name: string;
+  role: 'admin' | 'hr' | 'manager' | 'employee';
+  employee_id?: number;
+  is_active?: boolean;
+  last_login?: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface Session {
+  id?: number;
+  user_id: number;
+  session_token: string;
+  expires_at: string;
+  ip_address?: string;
+  user_agent?: string;
+  created_at?: string;
+}
+
+export interface LoginCredentials {
+  username: string;
+  password: string;
+}
+
+// Get user by username
+export async function getUserByUsername(db: any, username: string): Promise<User | null> {
+  try {
+    const result = await db
+      .prepare('SELECT * FROM users WHERE username = ? AND is_active = 1')
+      .bind(username)
+      .first();
+    return result || null;
+  } catch (error) {
+    console.error('Error fetching user:', error);
+    return null;
+  }
+}
+
+// Get user by email
+export async function getUserByEmail(db: any, email: string): Promise<User | null> {
+  try {
+    const result = await db
+      .prepare('SELECT * FROM users WHERE email = ? AND is_active = 1')
+      .bind(email)
+      .first();
+    return result || null;
+  } catch (error) {
+    console.error('Error fetching user:', error);
+    return null;
+  }
+}
+
+// Create new session
+export async function createSession(
+  db: any,
+  userId: number,
+  sessionToken: string,
+  expiresAt: string,
+  ipAddress?: string,
+  userAgent?: string
+): Promise<Session | null> {
+  try {
+    const result = await db
+      .prepare(
+        'INSERT INTO sessions (user_id, session_token, expires_at, ip_address, user_agent) VALUES (?, ?, ?, ?, ?)'
+      )
+      .bind(userId, sessionToken, expiresAt, ipAddress || null, userAgent || null)
+      .run();
+
+    if (result.success) {
+      // Update last login
+      await db
+        .prepare('UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE id = ?')
+        .bind(userId)
+        .run();
+
+      return {
+        id: result.meta.last_row_id,
+        user_id: userId,
+        session_token: sessionToken,
+        expires_at: expiresAt,
+        ip_address: ipAddress,
+        user_agent: userAgent,
+      };
+    }
+    return null;
+  } catch (error) {
+    console.error('Error creating session:', error);
+    return null;
+  }
+}
+
+// Get session by token
+export async function getSessionByToken(db: any, sessionToken: string): Promise<Session | null> {
+  try {
+    const result = await db
+      .prepare('SELECT * FROM sessions WHERE session_token = ? AND expires_at > CURRENT_TIMESTAMP')
+      .bind(sessionToken)
+      .first();
+    return result || null;
+  } catch (error) {
+    console.error('Error fetching session:', error);
+    return null;
+  }
+}
+
+// Delete session (logout)
+export async function deleteSession(db: any, sessionToken: string): Promise<boolean> {
+  try {
+    const result = await db
+      .prepare('DELETE FROM sessions WHERE session_token = ?')
+      .bind(sessionToken)
+      .run();
+    return result.success;
+  } catch (error) {
+    console.error('Error deleting session:', error);
+    return false;
+  }
+}
+
+// Delete all sessions for a user
+export async function deleteAllUserSessions(db: any, userId: number): Promise<boolean> {
+  try {
+    const result = await db
+      .prepare('DELETE FROM sessions WHERE user_id = ?')
+      .bind(userId)
+      .run();
+    return result.success;
+  } catch (error) {
+    console.error('Error deleting user sessions:', error);
+    return false;
+  }
+}
+
+// Clean up expired sessions
+export async function cleanupExpiredSessions(db: any): Promise<number> {
+  try {
+    const result = await db
+      .prepare('DELETE FROM sessions WHERE expires_at < CURRENT_TIMESTAMP')
+      .run();
+    return result.meta.changes || 0;
+  } catch (error) {
+    console.error('Error cleaning up sessions:', error);
+    return 0;
+  }
+}
+
+// Get user with session validation
+export async function getUserFromSession(db: any, sessionToken: string): Promise<User | null> {
+  try {
+    const session = await getSessionByToken(db, sessionToken);
+    if (!session) return null;
+
+    const user = await db
+      .prepare('SELECT id, username, email, full_name, role, employee_id, is_active, last_login FROM users WHERE id = ? AND is_active = 1')
+      .bind(session.user_id)
+      .first();
+
+    return user || null;
+  } catch (error) {
+    console.error('Error fetching user from session:', error);
+    return null;
+  }
 }
