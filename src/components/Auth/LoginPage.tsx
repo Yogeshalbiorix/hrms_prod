@@ -1,128 +1,235 @@
 import React, { useState } from 'react';
 import { useAuth } from './AuthContext';
-import { LogIn, User, Lock, AlertCircle, Loader2 } from 'lucide-react';
+import {
+  Form,
+  Input,
+  Button,
+  Card,
+  Typography,
+  Alert,
+  Space,
+  Divider,
+  Row,
+  Col
+} from 'antd';
+import {
+  UserOutlined,
+  LockOutlined,
+  LoginOutlined
+} from '@ant-design/icons';
+import RegisterPage from './RegisterPage';
+import ForgotPasswordPage from './ForgotPasswordPage';
+import ResetPasswordPage from './ResetPasswordPage';
+
+const { Title, Text, Link } = Typography;
+
+type ViewMode = 'login' | 'register' | 'forgot-password' | 'reset-password';
 
 export default function LoginPage() {
   const { login } = useAuth();
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
+  const [viewMode, setViewMode] = useState<ViewMode>('login');
+  const [form] = Form.useForm();
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  // Check if we're on reset password page (from URL)
+  React.useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('token')) {
+      setViewMode('reset-password');
+    }
+  }, []);
+
+  const handleSubmit = async (values: any) => {
     setError('');
-    setIsLoading(true);
+    setLoading(true);
 
-    const result = await login(username, password);
+    const result = await login(values.username, values.password);
 
     if (!result.success) {
       setError(result.error || 'Login failed');
     }
 
-    setIsLoading(false);
+    setLoading(false);
   };
 
+  // Show different views based on mode
+  if (viewMode === 'register') {
+    return (
+      <RegisterPage
+        onSuccess={() => setViewMode('login')}
+        onLoginClick={() => setViewMode('login')}
+      />
+    );
+  }
+
+  if (viewMode === 'forgot-password') {
+    return (
+      <ForgotPasswordPage
+        onBackToLogin={() => setViewMode('login')}
+      />
+    );
+  }
+
+  if (viewMode === 'reset-password') {
+    return (
+      <ResetPasswordPage
+        onSuccess={() => setViewMode('login')}
+        onBackToLogin={() => setViewMode('login')}
+      />
+    );
+  }
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 flex items-center justify-center p-4">
-      <div className="w-full max-w-md">
-        {/* Logo and Title */}
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-primary rounded-2xl shadow-lg mb-4">
-            <span className="text-primary-foreground font-bold text-2xl">HR</span>
+    <div style={{
+      minHeight: '100vh',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+      padding: '20px'
+    }}>
+      <Card
+        style={{
+          width: '100%',
+          maxWidth: 450,
+          boxShadow: '0 10px 40px rgba(0,0,0,0.1)',
+          borderRadius: 12
+        }}
+      >
+        <Space direction="vertical" size="large" style={{ width: '100%' }}>
+          {/* Logo and Title */}
+          <div style={{ textAlign: 'center' }}>
+            <div style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              width: 64,
+              height: 64,
+              background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+              borderRadius: 16,
+              marginBottom: 16,
+              boxShadow: '0 4px 12px rgba(102, 126, 234, 0.3)'
+            }}>
+              <span style={{ color: 'white', fontWeight: 'bold', fontSize: 28 }}>HR</span>
+            </div>
+            <Title level={2} style={{ marginBottom: 8 }}>
+              Welcome to HRMS
+            </Title>
+            <Text type="secondary">
+              Sign in to access your dashboard
+            </Text>
           </div>
-          <h1 className="text-3xl font-bold text-[#00e] mb-2">Welcome to HRMS</h1>
-          <p className="text-muted-foreground">Sign in to access your dashboard</p>
-        </div>
 
-        {/* Login Card */}
-        <div className="bg-card rounded-2xl shadow-xl border border-border p-8">
-          <form onSubmit={handleSubmit} className="space-y-6">
-            {/* Username Field */}
-            <div>
-              <label htmlFor="username" className="block text-sm font-medium text-black mb-2">
-                Username
-              </label>
-              <div className="relative">
-                <User className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={20} />
-                <input
-                  id="username"
-                  type="text"
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
-                  className="w-full pl-11 pr-4 py-3 border border-input rounded-lg focus:outline-none focus:ring-2 focus:ring-primary bg-background text-black"
-                  placeholder="Enter your username"
-                  required
-                  disabled={isLoading}
-                />
-              </div>
-            </div>
+          {/* Error Alert */}
+          {error && (
+            <Alert
+              message="Login Failed"
+              description={error}
+              type="error"
+              showIcon
+              closable
+              onClose={() => setError('')}
+            />
+          )}
 
-            {/* Password Field */}
-            <div>
-              <label htmlFor="password" className="block text-sm font-medium text-black mb-2">
-                Password
-              </label>
-              <div className="relative">
-                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={20} />
-                <input
-                  id="password"
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="w-full pl-11 pr-4 py-3 border border-input rounded-lg focus:outline-none focus:ring-2 focus:ring-primary bg-background text-foreground"
-                  placeholder="Enter your password"
-                  required
-                  disabled={isLoading}
-                />
-              </div>
-            </div>
-
-            {/* Error Message */}
-            {error && (
-              <div className="flex items-center gap-2 p-4 bg-destructive/10 border border-destructive/20 rounded-lg text-destructive">
-                <AlertCircle size={20} />
-                <p className="text-sm font-medium">{error}</p>
-              </div>
-            )}
-
-            {/* Login Button */}
-            <button
-              type="submit"
-              disabled={isLoading}
-              className="w-full py-3 px-4 bg-primary text-primary-foreground rounded-lg font-medium hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+          {/* Login Form */}
+          <Form
+            form={form}
+            name="login"
+            onFinish={handleSubmit}
+            layout="vertical"
+            size="large"
+          >
+            <Form.Item
+              name="username"
+              label="Username"
+              rules={[{ required: true, message: 'Please enter your username' }]}
             >
-              {isLoading ? (
-                <>
-                  <Loader2 size={20} className="animate-spin" />
-                  <span>Signing in...</span>
-                </>
-              ) : (
-                <>
-                  <LogIn size={20} />
-                  <span>Sign In</span>
-                </>
-              )}
-            </button>
-          </form>
+              <Input
+                prefix={<UserOutlined />}
+                placeholder="Enter your username"
+                autoFocus
+              />
+            </Form.Item>
 
-          {/* Demo Credentials Info */}
-          <div className="mt-6 p-4 bg-muted rounded-lg">
-            <p className="text-sm text-muted-foreground text-center mb-2">
-              <strong>Demo Credentials:</strong>
-            </p>
-            <div className="text-xs text-muted-foreground space-y-1 text-center">
-              <p>Username: <span className="font-mono font-semibold">admin</span></p>
-              <p>Password: <span className="font-mono font-semibold">admin123</span></p>
-            </div>
-          </div>
-        </div>
+            <Form.Item
+              name="password"
+              label="Password"
+              rules={[{ required: true, message: 'Please enter your password' }]}
+            >
+              <Input.Password
+                prefix={<LockOutlined />}
+                placeholder="Enter your password"
+              />
+            </Form.Item>
+
+            <Form.Item>
+              <Row justify="space-between" align="middle">
+                <Col>
+                  {/* Future: Remember me checkbox */}
+                </Col>
+                <Col>
+                  <Link onClick={() => setViewMode('forgot-password')}>
+                    Forgot password?
+                  </Link>
+                </Col>
+              </Row>
+            </Form.Item>
+
+            <Form.Item>
+              <Button
+                type="primary"
+                htmlType="submit"
+                loading={loading}
+                icon={<LoginOutlined />}
+                block
+                size="large"
+                style={{
+                  height: 48,
+                  fontSize: 16,
+                  fontWeight: 600
+                }}
+              >
+                Sign In
+              </Button>
+            </Form.Item>
+          </Form>
+
+          {/* Demo Credentials */}
+          <Alert
+            message="Demo Credentials"
+            description={
+              <Space direction="vertical" size="small">
+                <Text>Username: <Text code strong>admin</Text></Text>
+                <Text>Password: <Text code strong>admin123</Text></Text>
+              </Space>
+            }
+            type="info"
+            showIcon
+          />
+
+          <Divider plain>
+            <Text type="secondary">Don't have an account?</Text>
+          </Divider>
+
+          <Button
+            type="default"
+            onClick={() => setViewMode('register')}
+            block
+            size="large"
+          >
+            Create Account
+          </Button>
+        </Space>
 
         {/* Footer */}
-        <div className="text-center mt-6 text-sm text-muted-foreground">
-          <p>© 2025 HRMS. All rights reserved.</p>
+        <div style={{ textAlign: 'center', marginTop: 24 }}>
+          <Text type="secondary" style={{ fontSize: 12 }}>
+            © 2025 HRMS. All rights reserved.
+          </Text>
         </div>
-      </div>
+      </Card>
     </div>
   );
 }

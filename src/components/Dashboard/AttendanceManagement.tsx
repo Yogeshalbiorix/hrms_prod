@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Calendar, Clock, Users, Plus, Filter, Download, Search, Edit, Trash2, Check, X } from 'lucide-react';
+import { Modal } from 'antd';
 
 interface AttendanceRecord {
   id: number;
@@ -48,8 +49,13 @@ export default function AttendanceManagement() {
       if (filterDate) params.append('date', filterDate);
       if (filterStatus) params.append('status', filterStatus);
 
-      const response = await fetch(`/api/attendance?${params}`);
-      const data = await response.json();
+      const sessionToken = localStorage.getItem('sessionToken');
+      const response = await fetch(`/api/attendance?${params}`, {
+        headers: {
+          'Authorization': `Bearer ${sessionToken}`
+        }
+      });
+      const data = await response.json() as { success: boolean; data: any[] };
 
       if (data.success) {
         setAttendanceRecords(data.data);
@@ -66,7 +72,12 @@ export default function AttendanceManagement() {
       const params = new URLSearchParams({ stats: 'true' });
       if (filterDate) params.append('date', filterDate);
 
-      const response = await fetch(`/api/attendance?${params}`);
+      const sessionToken = localStorage.getItem('sessionToken');
+      const response = await fetch(`/api/attendance?${params}`, {
+        headers: {
+          'Authorization': `Bearer ${sessionToken}`
+        }
+      });
       const data = await response.json() as any;
 
       if (data.success) {
@@ -79,7 +90,12 @@ export default function AttendanceManagement() {
 
   const fetchEmployees = async () => {
     try {
-      const response = await fetch('/api/employees');
+      const sessionToken = localStorage.getItem('sessionToken');
+      const response = await fetch('/api/employees', {
+        headers: {
+          'Authorization': `Bearer ${sessionToken}`
+        }
+      });
       const data = await response.json() as any;
 
       if (data.success) {
@@ -92,9 +108,13 @@ export default function AttendanceManagement() {
 
   const handleAddAttendance = async (formData: any) => {
     try {
+      const sessionToken = localStorage.getItem('sessionToken');
       const response = await fetch('/api/attendance', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${sessionToken}`
+        },
         body: JSON.stringify(formData)
       });
 
@@ -105,11 +125,17 @@ export default function AttendanceManagement() {
         fetchAttendance();
         fetchStats();
       } else {
-        alert(data.error || 'Failed to add attendance');
+        Modal.error({
+          title: 'Error',
+          content: data.error || 'Failed to add attendance',
+        });
       }
     } catch (error) {
       console.error('Error adding attendance:', error);
-      alert('Failed to add attendance');
+      Modal.error({
+        title: 'Error',
+        content: 'Failed to add attendance',
+      });
     }
   };
 
@@ -117,9 +143,13 @@ export default function AttendanceManagement() {
     if (!selectedRecord) return;
 
     try {
+      const sessionToken = localStorage.getItem('sessionToken');
       const response = await fetch(`/api/attendance/${selectedRecord.id}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${sessionToken}`
+        },
         body: JSON.stringify(formData)
       });
 
@@ -131,36 +161,59 @@ export default function AttendanceManagement() {
         fetchAttendance();
         fetchStats();
       } else {
-        alert(data.error || 'Failed to update attendance');
+        Modal.error({
+          title: 'Error',
+          content: data.error || 'Failed to update attendance',
+        });
       }
     } catch (error) {
       console.error('Error updating attendance:', error);
-      alert('Failed to update attendance');
+      Modal.error({
+        title: 'Error',
+        content: 'Failed to update attendance',
+      });
     }
   };
 
   const handleDeleteAttendance = async (id: number) => {
-    if (!confirm('Are you sure you want to delete this attendance record?')) return;
+    Modal.confirm({
+      title: 'Confirm Delete',
+      content: 'Are you sure you want to delete this attendance record?',
+      okText: 'Yes, Delete',
+      cancelText: 'Cancel',
+      okButtonProps: { danger: true },
+      onOk: async () => {
+        try {
+          const sessionToken = localStorage.getItem('sessionToken');
+          const response = await fetch('/api/attendance', {
+            method: 'DELETE',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${sessionToken}`
+            },
+            body: JSON.stringify({ id })
+          });
 
-    try {
-      const response = await fetch('/api/attendance', {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id })
-      });
+          const data = await response.json() as any;
 
-      const data = await response.json() as any;
-
-      if (data.success) {
-        fetchAttendance();
-        fetchStats();
-      } else {
-        alert(data.error || 'Failed to delete attendance');
-      }
-    } catch (error) {
-      console.error('Error deleting attendance:', error);
-      alert('Failed to delete attendance');
-    }
+          if (data.success) {
+            fetchAttendance();
+            fetchStats();
+          } else {
+            Modal.error({
+              title: 'Error',
+              content: data.error || 'Failed to delete attendance',
+            });
+          }
+        } catch (error) {
+          console.error('Error deleting attendance:', error);
+          Modal.error({
+            title: 'Error',
+            content: 'Failed to delete attendance',
+          });
+        }
+      },
+    });
   };
 
   const getStatusBadgeClass = (status: string) => {

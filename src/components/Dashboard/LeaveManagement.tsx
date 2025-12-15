@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Calendar, Clock, Plus, Search, Edit, Trash2, Check, X, FileText } from 'lucide-react';
+import { Modal } from 'antd';
 
 interface LeaveRecord {
   id: number;
@@ -52,7 +53,12 @@ export default function LeaveManagement() {
       if (filterStatus) params.append('status', filterStatus);
       if (filterLeaveType) params.append('leave_type', filterLeaveType);
 
-      const response = await fetch(`/api/leaves?${params}`);
+      const sessionToken = localStorage.getItem('sessionToken');
+      const response = await fetch(`/api/leaves?${params}`, {
+        headers: {
+          'Authorization': `Bearer ${sessionToken}`
+        }
+      });
       const data = await response.json() as any;
 
       if (data.success) {
@@ -67,7 +73,12 @@ export default function LeaveManagement() {
 
   const fetchStats = async () => {
     try {
-      const response = await fetch('/api/leaves?stats=true');
+      const sessionToken = localStorage.getItem('sessionToken');
+      const response = await fetch('/api/leaves?stats=true', {
+        headers: {
+          'Authorization': `Bearer ${sessionToken}`
+        }
+      });
       const data = await response.json() as any;
 
       if (data.success) {
@@ -80,7 +91,12 @@ export default function LeaveManagement() {
 
   const fetchEmployees = async () => {
     try {
-      const response = await fetch('/api/employees');
+      const sessionToken = localStorage.getItem('sessionToken');
+      const response = await fetch('/api/employees', {
+        headers: {
+          'Authorization': `Bearer ${sessionToken}`
+        }
+      });
       const data = await response.json() as any;
 
       if (data.success) {
@@ -93,9 +109,13 @@ export default function LeaveManagement() {
 
   const handleAddLeave = async (formData: any) => {
     try {
+      const sessionToken = localStorage.getItem('sessionToken');
       const response = await fetch('/api/leaves', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${sessionToken}`
+        },
         body: JSON.stringify(formData)
       });
 
@@ -106,11 +126,17 @@ export default function LeaveManagement() {
         fetchLeaves();
         fetchStats();
       } else {
-        alert(data.error || 'Failed to create leave request');
+        Modal.error({
+          title: 'Error',
+          content: data.error || 'Failed to create leave request',
+        });
       }
     } catch (error) {
       console.error('Error creating leave:', error);
-      alert('Failed to create leave request');
+      Modal.error({
+        title: 'Error',
+        content: 'Failed to create leave request',
+      });
     }
   };
 
@@ -118,9 +144,13 @@ export default function LeaveManagement() {
     if (!selectedRecord) return;
 
     try {
+      const sessionToken = localStorage.getItem('sessionToken');
       const response = await fetch(`/api/leaves/${selectedRecord.id}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${sessionToken}`
+        },
         body: JSON.stringify(formData)
       });
 
@@ -132,43 +162,70 @@ export default function LeaveManagement() {
         fetchLeaves();
         fetchStats();
       } else {
-        alert(data.error || 'Failed to update leave request');
+        Modal.error({
+          title: 'Error',
+          content: data.error || 'Failed to update leave request',
+        });
       }
     } catch (error) {
       console.error('Error updating leave:', error);
-      alert('Failed to update leave request');
+      Modal.error({
+        title: 'Error',
+        content: 'Failed to update leave request',
+      });
     }
   };
 
   const handleDeleteLeave = async (id: number) => {
-    if (!confirm('Are you sure you want to delete this leave request?')) return;
+    Modal.confirm({
+      title: 'Confirm Delete',
+      content: 'Are you sure you want to delete this leave request?',
+      okText: 'Yes, Delete',
+      cancelText: 'Cancel',
+      okButtonProps: { danger: true },
+      onOk: async () => {
+        try {
+          const sessionToken = localStorage.getItem('sessionToken');
+          const response = await fetch('/api/leaves', {
+            method: 'DELETE',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${sessionToken}`
+            },
+            body: JSON.stringify({ id })
+          });
 
-    try {
-      const response = await fetch('/api/leaves', {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id })
-      });
+          const data = await response.json() as any;
 
-      const data = await response.json() as any;
-
-      if (data.success) {
-        fetchLeaves();
-        fetchStats();
-      } else {
-        alert(data.error || 'Failed to delete leave request');
-      }
-    } catch (error) {
-      console.error('Error deleting leave:', error);
-      alert('Failed to delete leave request');
-    }
+          if (data.success) {
+            fetchLeaves();
+            fetchStats();
+          } else {
+            Modal.error({
+              title: 'Error',
+              content: data.error || 'Failed to delete leave request',
+            });
+          }
+        } catch (error) {
+          console.error('Error deleting leave:', error);
+          Modal.error({
+            title: 'Error',
+            content: 'Failed to delete leave request',
+          });
+        }
+      },
+    });
   };
 
   const handleApproveReject = async (id: number, status: 'approved' | 'rejected') => {
     try {
+      const sessionToken = localStorage.getItem('sessionToken');
       const response = await fetch(`/api/leaves/${id}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${sessionToken}`
+        },
         body: JSON.stringify({
           status,
           approval_date: new Date().toISOString(),
@@ -182,11 +239,17 @@ export default function LeaveManagement() {
         fetchLeaves();
         fetchStats();
       } else {
-        alert(data.error || 'Failed to update leave status');
+        Modal.error({
+          title: 'Error',
+          content: data.error || 'Failed to update leave status',
+        });
       }
     } catch (error) {
       console.error('Error updating leave:', error);
-      alert('Failed to update leave status');
+      Modal.error({
+        title: 'Error',
+        content: 'Failed to update leave status',
+      });
     }
   };
 

@@ -1,18 +1,35 @@
 import React, { useState, useEffect } from 'react';
-import { Building2, Plus, Edit2, Trash2, Users, Search, AlertCircle } from 'lucide-react';
-import { Button } from '../ui/button';
-import { Input } from '../ui/input';
-import { Label } from '../ui/label';
-import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from '../ui/dialog';
+  Card,
+  Button,
+  Input,
+  Table,
+  Modal,
+  Form,
+  Space,
+  Tag,
+  Tooltip,
+  Typography,
+  Row,
+  Col,
+  Statistic,
+  Spin,
+  Empty
+} from 'antd';
+import {
+  PlusOutlined,
+  EditOutlined,
+  DeleteOutlined,
+  SearchOutlined,
+  TeamOutlined,
+  BankOutlined,
+  ExclamationCircleOutlined
+} from '@ant-design/icons';
+import type { ColumnsType } from 'antd/es/table';
 import { baseUrl } from '../../lib/base-url';
+
+const { Title, Text } = Typography;
+const { TextArea } = Input;
 
 interface Department {
   id: number;
@@ -29,8 +46,6 @@ export default function DepartmentManagement() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [showAddDialog, setShowAddDialog] = useState(false);
-  const [showEditDialog, setShowEditDialog] = useState(false);
-  const [selectedDepartment, setSelectedDepartment] = useState<Department | null>(null);
   const [formData, setFormData] = useState({
     name: '',
     description: '',
@@ -44,7 +59,7 @@ export default function DepartmentManagement() {
     try {
       setLoading(true);
       const response = await fetch(`${baseUrl}/api/departments`);
-      const data = await response.json();
+      const data = await response.json() as any;
       if (data.success) {
         setDepartments(data.data);
       } else {
@@ -60,7 +75,10 @@ export default function DepartmentManagement() {
   const handleAddDepartment = async () => {
     try {
       if (!formData.name.trim()) {
-        alert('Please enter a department name');
+        Modal.warning({
+          title: 'Validation Error',
+          content: 'Please enter a department name',
+        });
         return;
       }
 
@@ -70,45 +88,73 @@ export default function DepartmentManagement() {
         body: JSON.stringify(formData),
       });
 
-      const data = await response.json();
+      const data = await response.json() as any;
       if (data.success) {
         setShowAddDialog(false);
         resetForm();
         fetchDepartments();
-        alert('Department created successfully!');
+        Modal.success({
+          title: 'Success',
+          content: 'Department created successfully!',
+        });
       } else {
-        alert(data.error || 'Failed to create department');
+        Modal.error({
+          title: 'Error',
+          content: data.error || 'Failed to create department',
+        });
       }
     } catch (error) {
       console.error('Error creating department:', error);
-      alert('Failed to create department. Please try again.');
+      Modal.error({
+        title: 'Error',
+        content: 'Failed to create department. Please try again.',
+      });
     }
   };
 
   const handleDeleteDepartment = async (id: number, employeeCount: number) => {
     if (employeeCount > 0) {
-      alert(`Cannot delete department with ${employeeCount} employee(s). Please reassign employees first.`);
+      Modal.warning({
+        title: 'Cannot Delete Department',
+        content: `Cannot delete department with ${employeeCount} employee(s). Please reassign employees first.`,
+      });
       return;
     }
 
-    if (!confirm('Are you sure you want to delete this department?')) return;
+    Modal.confirm({
+      title: 'Confirm Delete',
+      content: 'Are you sure you want to delete this department?',
+      okText: 'Yes, Delete',
+      cancelText: 'Cancel',
+      okButtonProps: { danger: true },
+      onOk: async () => {
+        try {
+          const response = await fetch(`${baseUrl}/api/departments?id=${id}`, {
+            method: 'DELETE',
+          });
 
-    try {
-      const response = await fetch(`${baseUrl}/api/departments?id=${id}`, {
-        method: 'DELETE',
-      });
-
-      const data = await response.json();
-      if (data.success) {
-        fetchDepartments();
-        alert('Department deleted successfully');
-      } else {
-        alert(data.error || 'Failed to delete department');
-      }
-    } catch (error) {
-      console.error('Error deleting department:', error);
-      alert('Failed to delete department. Please try again.');
-    }
+          const data = await response.json() as any;
+          if (data.success) {
+            fetchDepartments();
+            Modal.success({
+              title: 'Success',
+              content: 'Department deleted successfully',
+            });
+          } else {
+            Modal.error({
+              title: 'Error',
+              content: data.error || 'Failed to delete department',
+            });
+          }
+        } catch (error) {
+          console.error('Error deleting department:', error);
+          Modal.error({
+            title: 'Error',
+            content: 'Failed to delete department. Please try again.',
+          });
+        }
+      },
+    });
   };
 
   const resetForm = () => {
@@ -122,191 +168,242 @@ export default function DepartmentManagement() {
     dept.name.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-3xl font-bold text-gray-900">Department Management</h2>
-          <p className="text-gray-600 mt-1">Organize and manage company departments</p>
-        </div>
-        <Button
-          onClick={() => {
-            resetForm();
-            setShowAddDialog(true);
-          }}
-          className="bg-blue-600 hover:bg-blue-700 text-white"
-        >
-          <Plus className="h-4 w-4 mr-2" />
-          Add Department
-        </Button>
-      </div>
-
-      {/* Stats Card */}
-      <Card className="border-blue-200 bg-gradient-to-br from-blue-50 to-white">
-        <CardContent className="pt-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-blue-600">Total Departments</p>
-              <p className="text-3xl font-bold text-blue-900">{departments.length}</p>
-              <p className="text-sm text-gray-600 mt-1">
-                {departments.reduce((sum, dept) => sum + (dept.employee_count || 0), 0)} total employees across all departments
-              </p>
-            </div>
-            <Building2 className="h-16 w-16 text-blue-600 opacity-20" />
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Search */}
-      <Card className="border-blue-200">
-        <CardContent className="pt-6">
-          <div className="relative">
-            <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-            <Input
-              placeholder="Search departments..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10 border-blue-200 focus:border-blue-400"
-            />
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Departments Grid */}
-      {loading ? (
-        <div className="flex items-center justify-center h-64">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-        </div>
-      ) : filteredDepartments.length === 0 ? (
-        <Card className="border-blue-200">
-          <CardContent className="py-12">
-            <div className="text-center">
-              <Building2 className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-              <p className="text-gray-600">No departments found</p>
-              <p className="text-sm text-gray-500 mt-2">
-                {searchTerm ? 'Try adjusting your search' : 'Create your first department to get started'}
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredDepartments.map((department) => (
-            <Card key={department.id} className="border-blue-200 hover:shadow-lg transition-shadow">
-              <CardHeader className="bg-gradient-to-r from-blue-50 to-blue-100 border-b border-blue-200">
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <CardTitle className="text-lg text-blue-900 flex items-center gap-2">
-                      <Building2 className="h-5 w-5" />
-                      {department.name}
-                    </CardTitle>
-                  </div>
-                  <div className="flex gap-1">
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="text-red-600 hover:bg-red-100 h-8 w-8 p-0"
-                      onClick={() => handleDeleteDepartment(department.id, department.employee_count || 0)}
-                      title="Delete Department"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent className="pt-4">
-                {department.description && (
-                  <p className="text-sm text-gray-600 mb-4">{department.description}</p>
-                )}
-                
-                <div className="flex items-center gap-2 text-sm">
-                  <Users className="h-4 w-4 text-blue-600" />
-                  <span className="font-semibold text-blue-900">
-                    {department.employee_count || 0}
-                  </span>
-                  <span className="text-gray-600">
-                    {department.employee_count === 1 ? 'Employee' : 'Employees'}
-                  </span>
-                </div>
-
-                {department.created_at && (
-                  <p className="text-xs text-gray-500 mt-3">
-                    Created: {new Date(department.created_at).toLocaleDateString()}
-                  </p>
-                )}
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      )}
-
-      {/* Add Department Dialog */}
-      <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle className="text-2xl text-blue-900 flex items-center gap-2">
-              <Building2 className="h-6 w-6" />
-              Add New Department
-            </DialogTitle>
-            <DialogDescription>Create a new department for your organization</DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label htmlFor="dept_name" className="text-blue-900">
-                Department Name <span className="text-red-500">*</span>
-              </Label>
-              <Input
-                id="dept_name"
-                value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                className="border-blue-200"
-                placeholder="e.g., Engineering, Sales, HR"
-                required
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="dept_description" className="text-blue-900">
-                Description
-              </Label>
-              <textarea
-                id="dept_description"
-                value={formData.description}
-                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                className="w-full px-4 py-2 border border-blue-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400 min-h-[100px]"
-                placeholder="Brief description of the department..."
-              />
-            </div>
-
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 flex items-start gap-2">
-              <AlertCircle className="h-5 w-5 text-blue-600 flex-shrink-0 mt-0.5" />
-              <div className="text-sm text-blue-900">
-                <p className="font-medium">Note:</p>
-                <p className="text-blue-700">After creating the department, you can assign employees to it through Employee Management.</p>
-              </div>
-            </div>
-          </div>
-
-          <DialogFooter>
+  const columns: ColumnsType<Department> = [
+    {
+      title: 'Department Name',
+      dataIndex: 'name',
+      key: 'name',
+      render: (name: string) => (
+        <Space>
+          <BankOutlined style={{ color: '#3b82f6', fontSize: 18 }} />
+          <Text strong style={{ color: '#1e40af' }}>{name}</Text>
+        </Space>
+      ),
+    },
+    {
+      title: 'Description',
+      dataIndex: 'description',
+      key: 'description',
+      render: (description: string) => description || <Text type="secondary">No description</Text>,
+    },
+    {
+      title: 'Employees',
+      dataIndex: 'employee_count',
+      key: 'employee_count',
+      align: 'center',
+      render: (count: number) => (
+        <Tag icon={<TeamOutlined />} color="blue">
+          {count || 0} {count === 1 ? 'Employee' : 'Employees'}
+        </Tag>
+      ),
+    },
+    {
+      title: 'Created Date',
+      dataIndex: 'created_at',
+      key: 'created_at',
+      render: (date: string) => date ? new Date(date).toLocaleDateString() : '-',
+    },
+    {
+      title: 'Actions',
+      key: 'actions',
+      align: 'center',
+      render: (_: any, record: Department) => (
+        <Space>
+          <Tooltip title="Delete Department">
             <Button
-              variant="outline"
-              onClick={() => {
-                setShowAddDialog(false);
-                resetForm();
+              type="text"
+              danger
+              icon={<DeleteOutlined />}
+              onClick={() => handleDeleteDepartment(record.id, record.employee_count || 0)}
+            />
+          </Tooltip>
+        </Space>
+      ),
+    },
+  ];
+
+  return (
+    <div style={{ padding: '24px', background: '#f5f5f5', minHeight: '100vh' }}>
+      {/* Header */}
+      <Row justify="space-between" align="middle" style={{ marginBottom: 24 }}>
+        <Col>
+          <Title level={2} style={{ margin: 0, color: '#1e40af' }}>
+            <BankOutlined style={{ marginRight: 8 }} />
+            Department Management
+          </Title>
+          <Text type="secondary">Organize and manage company departments</Text>
+        </Col>
+        <Col>
+          <Button
+            type="primary"
+            size="large"
+            icon={<PlusOutlined />}
+            onClick={() => {
+              resetForm();
+              setShowAddDialog(true);
+            }}
+            style={{ background: '#2563eb' }}
+          >
+            Add Department
+          </Button>
+        </Col>
+      </Row>
+
+      {/* Statistics Row */}
+      <Row gutter={16} style={{ marginBottom: 24 }}>
+        <Col xs={24} sm={12} lg={8}>
+          <Card>
+            <Statistic
+              title="Total Departments"
+              value={departments.length}
+              prefix={<BankOutlined />}
+              valueStyle={{ color: '#2563eb' }}
+            />
+          </Card>
+        </Col>
+        <Col xs={24} sm={12} lg={8}>
+          <Card>
+            <Statistic
+              title="Total Employees"
+              value={departments.reduce((sum, dept) => sum + (dept.employee_count || 0), 0)}
+              prefix={<TeamOutlined />}
+              valueStyle={{ color: '#059669' }}
+            />
+          </Card>
+        </Col>
+        <Col xs={24} sm={12} lg={8}>
+          <Card>
+            <Statistic
+              title="Average Team Size"
+              value={departments.length > 0
+                ? Math.round(departments.reduce((sum, dept) => sum + (dept.employee_count || 0), 0) / departments.length)
+                : 0
+              }
+              prefix={<TeamOutlined />}
+              valueStyle={{ color: '#dc2626' }}
+            />
+          </Card>
+        </Col>
+      </Row>
+
+      {/* Search and Table */}
+      <Card>
+        <Space direction="vertical" size="large" style={{ width: '100%' }}>
+          <Input
+            size="large"
+            placeholder="Search departments..."
+            prefix={<SearchOutlined />}
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            allowClear
+          />
+
+          {loading ? (
+            <div style={{ textAlign: 'center', padding: '60px 0' }}>
+              <Spin size="large" tip="Loading departments..." />
+            </div>
+          ) : (
+            <Table
+              columns={columns}
+              dataSource={filteredDepartments}
+              rowKey="id"
+              pagination={{
+                pageSize: 10,
+                showSizeChanger: true,
+                showTotal: (total) => `Total ${total} departments`,
               }}
-              className="border-gray-300"
-            >
-              Cancel
-            </Button>
-            <Button onClick={handleAddDepartment} className="bg-blue-600 hover:bg-blue-700 text-white">
-              <Plus className="h-4 w-4 mr-2" />
-              Create Department
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+              locale={{
+                emptyText: (
+                  <Empty
+                    image={Empty.PRESENTED_IMAGE_SIMPLE}
+                    description={
+                      searchTerm
+                        ? 'No departments found matching your search'
+                        : 'No departments yet. Create your first department!'
+                    }
+                  >
+                    {!searchTerm && (
+                      <Button
+                        type="primary"
+                        icon={<PlusOutlined />}
+                        onClick={() => {
+                          resetForm();
+                          setShowAddDialog(true);
+                        }}
+                      >
+                        Add Department
+                      </Button>
+                    )}
+                  </Empty>
+                ),
+              }}
+            />
+          )}
+        </Space>
+      </Card>
+
+      {/* Add Department Modal */}
+      <Modal
+        title={
+          <Space>
+            <BankOutlined style={{ color: '#2563eb' }} />
+            <span>Add New Department</span>
+          </Space>
+        }
+        open={showAddDialog}
+        onOk={handleAddDepartment}
+        onCancel={() => {
+          setShowAddDialog(false);
+          resetForm();
+        }}
+        okText="Create Department"
+        cancelText="Cancel"
+        width={600}
+        okButtonProps={{ size: 'large', icon: <PlusOutlined /> }}
+        cancelButtonProps={{ size: 'large' }}
+      >
+        <Form layout="vertical" style={{ marginTop: 24 }}>
+          <Form.Item
+            label={<span style={{ fontWeight: 500 }}>Department Name <span style={{ color: '#ef4444' }}>*</span></span>}
+            required
+          >
+            <Input
+              size="large"
+              placeholder="e.g., Engineering, Sales, HR"
+              value={formData.name}
+              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+              prefix={<BankOutlined style={{ color: '#9ca3af' }} />}
+            />
+          </Form.Item>
+
+          <Form.Item
+            label={<span style={{ fontWeight: 500 }}>Description</span>}
+          >
+            <TextArea
+              rows={4}
+              placeholder="Brief description of the department..."
+              value={formData.description}
+              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+            />
+          </Form.Item>
+
+          <Card
+            size="small"
+            style={{ background: '#eff6ff', border: '1px solid #bfdbfe' }}
+          >
+            <Space align="start">
+              <ExclamationCircleOutlined style={{ color: '#2563eb', fontSize: 18 }} />
+              <div>
+                <Text strong style={{ color: '#1e40af' }}>Note:</Text>
+                <br />
+                <Text type="secondary">
+                  After creating the department, you can assign employees to it through Employee Management.
+                </Text>
+              </div>
+            </Space>
+          </Card>
+        </Form>
+      </Modal>
     </div>
   );
 }

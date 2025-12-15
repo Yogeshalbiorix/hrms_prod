@@ -19,6 +19,7 @@ import {
   SelectValue,
 } from '../ui/select';
 import { baseUrl } from '../../lib/base-url';
+import { Modal } from 'antd';
 
 interface JobOpening {
   id: string;
@@ -150,7 +151,10 @@ export default function RecruitmentModule() {
   const handlePostJob = async () => {
     try {
       if (!formData.title || !formData.department || !formData.location || !formData.experience) {
-        alert('Please fill in all required fields');
+        Modal.warning({
+          title: 'Validation Error',
+          content: 'Please fill in all required fields',
+        });
         return;
       }
 
@@ -165,13 +169,22 @@ export default function RecruitmentModule() {
         setShowPostJobDialog(false);
         resetForm();
         fetchJobs();
-        alert('Job posted successfully!');
+        Modal.success({
+          title: 'Success',
+          content: 'Job posted successfully!',
+        });
       } else {
-        alert(data.error || 'Failed to post job');
+        Modal.error({
+          title: 'Error',
+          content: data.error || 'Failed to post job',
+        });
       }
     } catch (error) {
       console.error('Error posting job:', error);
-      alert('Failed to post job. Please try again.');
+      Modal.error({
+        title: 'Error',
+        content: 'Failed to post job. Please try again.',
+      });
     }
   };
 
@@ -243,21 +256,19 @@ export default function RecruitmentModule() {
       <div className="flex gap-2 border-b border-border">
         <button
           onClick={() => setActiveTab('jobs')}
-          className={`px-6 py-3 font-medium transition-colors border-b-2 ${
-            activeTab === 'jobs'
+          className={`px-6 py-3 font-medium transition-colors border-b-2 ${activeTab === 'jobs'
               ? 'border-primary text-primary'
               : 'border-transparent text-muted-foreground hover:text-foreground'
-          }`}
+            }`}
         >
           Job Openings
         </button>
         <button
           onClick={() => setActiveTab('candidates')}
-          className={`px-6 py-3 font-medium transition-colors border-b-2 ${
-            activeTab === 'candidates'
+          className={`px-6 py-3 font-medium transition-colors border-b-2 ${activeTab === 'candidates'
               ? 'border-primary text-primary'
               : 'border-transparent text-muted-foreground hover:text-foreground'
-          }`}
+            }`}
         >
           Candidates
         </button>
@@ -329,7 +340,7 @@ export default function RecruitmentModule() {
                 className="pl-10 pr-4 py-2 w-full bg-background border border-input rounded-lg focus:outline-none focus:ring-2 focus:ring-ring"
               />
             </div>
-            <Button 
+            <Button
               onClick={() => {
                 resetForm();
                 setShowPostJobDialog(true);
@@ -348,7 +359,7 @@ export default function RecruitmentModule() {
             </div>
           ) : (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {jobs.filter(job => 
+              {jobs.filter(job =>
                 job.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
                 job.department.toLowerCase().includes(searchTerm.toLowerCase())
               ).map(job => (

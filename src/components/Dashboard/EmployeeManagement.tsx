@@ -1,26 +1,46 @@
 import React, { useState, useEffect } from 'react';
-import { Users, Search, Plus, Edit2, Trash2, Eye, Filter, Download, Upload, AlertCircle } from 'lucide-react';
-import { Button } from '../ui/button';
-import { Input } from '../ui/input';
-import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
-import { Badge } from '../ui/badge';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from '../ui/dialog';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '../ui/select';
-import { Label } from '../ui/label';
 import { baseUrl } from '../../lib/base-url';
+import {
+  Modal,
+  Tabs,
+  Form,
+  Input,
+  Select,
+  DatePicker,
+  InputNumber,
+  Divider,
+  Table,
+  Card,
+  Row,
+  Col,
+  Statistic,
+  Button,
+  Space,
+  Tag,
+  Tooltip,
+  Empty,
+  Spin,
+  message
+} from 'antd';
+import type { ColumnsType } from 'antd/es/table';
+import {
+  UserOutlined,
+  MailOutlined,
+  PhoneOutlined,
+  IdcardOutlined,
+  DollarOutlined,
+  EnvironmentOutlined,
+  ContactsOutlined,
+  PlusOutlined,
+  EditOutlined,
+  DeleteOutlined,
+  EyeOutlined,
+  SearchOutlined,
+  DownloadOutlined,
+  TeamOutlined,
+  ExclamationCircleOutlined
+} from '@ant-design/icons';
+import dayjs from 'dayjs';
 
 interface Employee {
   id: number;
@@ -92,10 +112,15 @@ export default function EmployeeManagement() {
   const fetchEmployees = async () => {
     try {
       setLoading(true);
-      const response = await fetch(`${baseUrl}/api/employees`);
-      const data = await response.json();
+      const sessionToken = localStorage.getItem('sessionToken');
+      const response = await fetch(`${baseUrl}/api/employees`, {
+        headers: {
+          'Authorization': `Bearer ${sessionToken}`
+        }
+      });
+      const data = await response.json() as { success: boolean; data?: any[]; error?: string };
       if (data.success) {
-        setEmployees(data.data);
+        setEmployees(data.data || []);
       } else {
         console.error('Failed to fetch employees:', data.error);
       }
@@ -108,10 +133,15 @@ export default function EmployeeManagement() {
 
   const fetchDepartments = async () => {
     try {
-      const response = await fetch(`${baseUrl}/api/departments`);
-      const data = await response.json();
+      const sessionToken = localStorage.getItem('sessionToken');
+      const response = await fetch(`${baseUrl}/api/departments`, {
+        headers: {
+          'Authorization': `Bearer ${sessionToken}`
+        }
+      });
+      const data = await response.json() as { success: boolean; data?: any[]; error?: string };
       if (data.success) {
-        setDepartments(data.data);
+        setDepartments(data.data || []);
       } else {
         console.error('Failed to fetch departments:', data.error);
       }
@@ -124,7 +154,10 @@ export default function EmployeeManagement() {
     try {
       // Validate required fields
       if (!formData.first_name || !formData.last_name || !formData.email || !formData.position || !formData.join_date) {
-        alert('Please fill in all required fields: First Name, Last Name, Email, Position, and Join Date');
+        Modal.warning({
+          title: 'Validation Error',
+          content: 'Please fill in all required fields: First Name, Last Name, Email, Position, and Join Date',
+        });
         return;
       }
 
@@ -134,24 +167,37 @@ export default function EmployeeManagement() {
         base_salary: formData.base_salary ? parseFloat(formData.base_salary) : 0,
       };
 
+      const sessionToken = localStorage.getItem('sessionToken');
       const response = await fetch(`${baseUrl}/api/employees`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${sessionToken}`
+        },
         body: JSON.stringify(payload),
       });
 
-      const data = await response.json();
+      const data = await response.json() as { success: boolean; error?: string };
       if (data.success) {
         setShowAddDialog(false);
         resetForm();
         fetchEmployees();
-        alert('Employee created successfully!');
+        Modal.success({
+          title: 'Success',
+          content: 'Employee created successfully!',
+        });
       } else {
-        alert(data.error || 'Failed to create employee');
+        Modal.error({
+          title: 'Error',
+          content: data.error || 'Failed to create employee',
+        });
       }
     } catch (error) {
       console.error('Error creating employee:', error);
-      alert('Failed to create employee. Please try again.');
+      Modal.error({
+        title: 'Error',
+        content: 'Failed to create employee. Please try again.',
+      });
     }
   };
 
@@ -165,47 +211,80 @@ export default function EmployeeManagement() {
         base_salary: formData.base_salary ? parseFloat(formData.base_salary) : undefined,
       };
 
+      const sessionToken = localStorage.getItem('sessionToken');
       const response = await fetch(`${baseUrl}/api/employees/${selectedEmployee.id}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${sessionToken}`
+        },
         body: JSON.stringify(payload),
       });
 
-      const data = await response.json();
+      const data = await response.json() as { success: boolean; error?: string };
       if (data.success) {
         setShowEditDialog(false);
         setSelectedEmployee(null);
         resetForm();
         fetchEmployees();
-        alert('Employee updated successfully!');
+        Modal.success({
+          title: 'Success',
+          content: 'Employee updated successfully!',
+        });
       } else {
-        alert(data.error || 'Failed to update employee');
+        Modal.error({
+          title: 'Error',
+          content: data.error || 'Failed to update employee',
+        });
       }
     } catch (error) {
       console.error('Error updating employee:', error);
-      alert('Failed to update employee. Please try again.');
+      Modal.error({
+        title: 'Error',
+        content: 'Failed to update employee. Please try again.',
+      });
     }
   };
 
   const handleDeleteEmployee = async (id: number) => {
-    if (!confirm('Are you sure you want to terminate this employee? This will set their status to "terminated".')) return;
+    Modal.confirm({
+      title: 'Confirm Termination',
+      content: 'Are you sure you want to terminate this employee? This will set their status to "terminated".',
+      okText: 'Yes, Terminate',
+      cancelText: 'Cancel',
+      okButtonProps: { danger: true },
+      onOk: async () => {
+        try {
+          const sessionToken = localStorage.getItem('sessionToken');
+          const response = await fetch(`${baseUrl}/api/employees/${id}`, {
+            method: 'DELETE',
+            headers: {
+              'Authorization': `Bearer ${sessionToken}`
+            }
+          });
 
-    try {
-      const response = await fetch(`${baseUrl}/api/employees/${id}`, {
-        method: 'DELETE',
-      });
-
-      const data = await response.json();
-      if (data.success) {
-        fetchEmployees();
-        alert('Employee terminated successfully');
-      } else {
-        alert(data.error || 'Failed to delete employee');
-      }
-    } catch (error) {
-      console.error('Error deleting employee:', error);
-      alert('Failed to delete employee. Please try again.');
-    }
+          const data = await response.json() as { success: boolean; error?: string };
+          if (data.success) {
+            fetchEmployees();
+            Modal.success({
+              title: 'Success',
+              content: 'Employee terminated successfully',
+            });
+          } else {
+            Modal.error({
+              title: 'Error',
+              content: data.error || 'Failed to delete employee',
+            });
+          }
+        } catch (error) {
+          console.error('Error deleting employee:', error);
+          Modal.error({
+            title: 'Error',
+            content: 'Failed to delete employee. Please try again.',
+          });
+        }
+      },
+    });
   };
 
   const openEditDialog = (employee: Employee) => {
@@ -275,812 +354,779 @@ export default function EmployeeManagement() {
     return matchesSearch && matchesStatus && matchesDepartment;
   });
 
-  const getStatusBadge = (status: string) => {
-    const variants: Record<string, string> = {
-      active: 'bg-blue-100 text-blue-800 border-blue-200',
-      'on-leave': 'bg-yellow-100 text-yellow-800 border-yellow-200',
-      inactive: 'bg-gray-100 text-gray-800 border-gray-200',
-      terminated: 'bg-red-100 text-red-800 border-red-200',
+  const getStatusTag = (status: string) => {
+    const colors: Record<string, string> = {
+      active: 'blue',
+      'on-leave': 'orange',
+      inactive: 'default',
+      terminated: 'red',
     };
-    return variants[status] || variants.active;
+    return <Tag color={colors[status] || 'blue'}>{status.toUpperCase()}</Tag>;
   };
 
+  const columns: ColumnsType<Employee> = [
+    {
+      title: 'Employee ID',
+      dataIndex: 'employee_id',
+      key: 'employee_id',
+      width: 120,
+      fixed: 'left',
+    },
+    {
+      title: 'Name',
+      key: 'name',
+      fixed: 'left',
+      width: 200,
+      render: (_, record) => (
+        <Space>
+          <UserOutlined />
+          <span>{`${record.first_name} ${record.last_name}`}</span>
+        </Space>
+      ),
+    },
+    {
+      title: 'Email',
+      dataIndex: 'email',
+      key: 'email',
+      width: 220,
+      render: (email) => (
+        <Space>
+          <MailOutlined />
+          <span>{email}</span>
+        </Space>
+      ),
+    },
+    {
+      title: 'Position',
+      dataIndex: 'position',
+      key: 'position',
+      width: 180,
+    },
+    {
+      title: 'Department',
+      dataIndex: 'department_name',
+      key: 'department_name',
+      width: 150,
+      render: (dept) => dept || 'N/A',
+    },
+    {
+      title: 'Status',
+      dataIndex: 'status',
+      key: 'status',
+      width: 120,
+      render: (status) => getStatusTag(status),
+    },
+    {
+      title: 'Join Date',
+      dataIndex: 'join_date',
+      key: 'join_date',
+      width: 120,
+      render: (date) => dayjs(date).format('MMM DD, YYYY'),
+    },
+    {
+      title: 'Actions',
+      key: 'actions',
+      fixed: 'right',
+      width: 150,
+      render: (_, record) => (
+        <Space size="small">
+          <Tooltip title="View">
+            <Button
+              type="text"
+              icon={<EyeOutlined />}
+              onClick={() => openViewDialog(record)}
+            />
+          </Tooltip>
+          <Tooltip title="Edit">
+            <Button
+              type="text"
+              icon={<EditOutlined />}
+              onClick={() => openEditDialog(record)}
+            />
+          </Tooltip>
+          <Tooltip title="Delete">
+            <Button
+              type="text"
+              danger
+              icon={<DeleteOutlined />}
+              onClick={() => handleDeleteEmployee(record.id)}
+            />
+          </Tooltip>
+        </Space>
+      ),
+    },
+  ];
+
   return (
-    <div className="space-y-6">
+    <div style={{ padding: '24px' }}>
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div style={{ marginBottom: 24, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div>
-          <h2 className="text-3xl font-bold text-gray-900">Employee Management</h2>
-          <p className="text-gray-600 mt-1">Manage your workforce efficiently</p>
+          <h2 style={{ fontSize: 28, fontWeight: 'bold', margin: 0 }}>Employee Management</h2>
+          <p style={{ color: '#666', marginTop: 4 }}>Manage your workforce efficiently</p>
         </div>
         <Button
+          type="primary"
+          icon={<PlusOutlined />}
+          size="large"
           onClick={() => {
             resetForm();
             setShowAddDialog(true);
           }}
-          className="bg-blue-600 hover:bg-blue-700 text-white"
         >
-          <Plus className="h-4 w-4 mr-2" />
           Add Employee
         </Button>
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card className="border-blue-200 bg-gradient-to-br from-blue-50 to-white">
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-blue-600">Total Employees</p>
-                <p className="text-2xl font-bold text-blue-900">{employees.length}</p>
-              </div>
-              <Users className="h-8 w-8 text-blue-600" />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="border-green-200 bg-gradient-to-br from-green-50 to-white">
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-green-600">Active</p>
-                <p className="text-2xl font-bold text-green-900">
-                  {employees.filter((e) => e.status === 'active').length}
-                </p>
-              </div>
-              <Users className="h-8 w-8 text-green-600" />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="border-yellow-200 bg-gradient-to-br from-yellow-50 to-white">
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-yellow-600">On Leave</p>
-                <p className="text-2xl font-bold text-yellow-900">
-                  {employees.filter((e) => e.status === 'on-leave').length}
-                </p>
-              </div>
-              <Users className="h-8 w-8 text-yellow-600" />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="border-purple-200 bg-gradient-to-br from-purple-50 to-white">
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-purple-600">Departments</p>
-                <p className="text-2xl font-bold text-purple-900">{departments.length}</p>
-              </div>
-              <Filter className="h-8 w-8 text-purple-600" />
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+      <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
+        <Col xs={24} sm={12} lg={6}>
+          <Card>
+            <Statistic
+              title="Total Employees"
+              value={employees.length}
+              prefix={<TeamOutlined />}
+              valueStyle={{ color: '#1890ff' }}
+            />
+          </Card>
+        </Col>
+        <Col xs={24} sm={12} lg={6}>
+          <Card>
+            <Statistic
+              title="Active"
+              value={employees.filter((e) => e.status === 'active').length}
+              prefix={<UserOutlined />}
+              valueStyle={{ color: '#52c41a' }}
+            />
+          </Card>
+        </Col>
+        <Col xs={24} sm={12} lg={6}>
+          <Card>
+            <Statistic
+              title="On Leave"
+              value={employees.filter((e) => e.status === 'on-leave').length}
+              valueStyle={{ color: '#faad14' }}
+            />
+          </Card>
+        </Col>
+        <Col xs={24} sm={12} lg={6}>
+          <Card>
+            <Statistic
+              title="Departments"
+              value={departments.length}
+              valueStyle={{ color: '#722ed1' }}
+            />
+          </Card>
+        </Col>
+      </Row>
 
       {/* Filters */}
-      <Card className="border-blue-200">
-        <CardContent className="pt-6">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div className="relative">
-              <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+      <Card style={{ marginBottom: 24 }}>
+        <Space direction="vertical" size="large" style={{ width: '100%' }}>
+          <Row gutter={16}>
+            <Col xs={24} sm={12} md={8}>
               <Input
                 placeholder="Search employees..."
+                prefix={<SearchOutlined />}
                 value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10 border-blue-200 focus:border-blue-400"
+                onChange={(e: any) => setSearchTerm(e.target.value)}
+                size="large"
               />
-            </div>
-
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="border-blue-200">
-                <SelectValue placeholder="Filter by status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Statuses</SelectItem>
-                <SelectItem value="active">Active</SelectItem>
-                <SelectItem value="on-leave">On Leave</SelectItem>
-                <SelectItem value="inactive">Inactive</SelectItem>
-                <SelectItem value="terminated">Terminated</SelectItem>
-              </SelectContent>
-            </Select>
-
-            <Select value={departmentFilter} onValueChange={setDepartmentFilter}>
-              <SelectTrigger className="border-blue-200">
-                <SelectValue placeholder="Filter by department" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Departments</SelectItem>
+            </Col>
+            <Col xs={24} sm={12} md={6}>
+              <Select
+                style={{ width: '100%' }}
+                value={statusFilter}
+                onChange={setStatusFilter}
+                size="large"
+                placeholder="Filter by status"
+              >
+                <Select.Option value="all">All Statuses</Select.Option>
+                <Select.Option value="active">Active</Select.Option>
+                <Select.Option value="on-leave">On Leave</Select.Option>
+                <Select.Option value="inactive">Inactive</Select.Option>
+                <Select.Option value="terminated">Terminated</Select.Option>
+              </Select>
+            </Col>
+            <Col xs={24} sm={12} md={6}>
+              <Select
+                style={{ width: '100%' }}
+                value={departmentFilter}
+                onChange={setDepartmentFilter}
+                size="large"
+                placeholder="Filter by department"
+              >
+                <Select.Option value="all">All Departments</Select.Option>
                 {departments.map((dept) => (
-                  <SelectItem key={dept.id} value={dept.id.toString()}>
+                  <Select.Option key={dept.id} value={dept.id.toString()}>
                     {dept.name}
-                  </SelectItem>
+                  </Select.Option>
                 ))}
-              </SelectContent>
-            </Select>
-
-            <Button variant="outline" className="border-blue-300 text-blue-600 hover:bg-blue-50">
-              <Download className="h-4 w-4 mr-2" />
-              Export
-            </Button>
-          </div>
-        </CardContent>
+              </Select>
+            </Col>
+            <Col xs={24} sm={12} md={4}>
+              <Button
+                icon={<DownloadOutlined />}
+                size="large"
+                style={{ width: '100%' }}
+              >
+                Export
+              </Button>
+            </Col>
+          </Row>
+        </Space>
       </Card>
 
       {/* Employee Table */}
-      <Card className="border-blue-200">
-        <CardHeader className="bg-gradient-to-r from-blue-50 to-blue-100 border-b border-blue-200">
-          <CardTitle className="text-blue-900">Employee Directory</CardTitle>
-        </CardHeader>
-        <CardContent className="p-0">
-          {loading ? (
-            <div className="flex items-center justify-center h-64">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-            </div>
-          ) : filteredEmployees.length === 0 ? (
-            <div className="text-center py-12">
-              <Users className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-              <p className="text-gray-600">No employees found</p>
-              <p className="text-sm text-gray-500 mt-2">Try adjusting your filters or add a new employee</p>
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-blue-50 border-b border-blue-200">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-blue-900 uppercase tracking-wider">
-                      Employee ID
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-blue-900 uppercase tracking-wider">
-                      Name
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-blue-900 uppercase tracking-wider">
-                      Email
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-blue-900 uppercase tracking-wider">
-                      Position
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-blue-900 uppercase tracking-wider">
-                      Department
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-blue-900 uppercase tracking-wider">
-                      Status
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-blue-900 uppercase tracking-wider">
-                      Actions
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {filteredEmployees.map((employee) => (
-                    <tr key={employee.id} className="hover:bg-blue-50 transition-colors">
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-blue-600">
-                        {employee.employee_id}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm font-medium text-gray-900">
-                          {employee.first_name} {employee.last_name}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                        {employee.email}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {employee.position}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                        {employee.department_name || 'N/A'}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <Badge className={getStatusBadge(employee.status)}>
-                          {employee.status}
-                        </Badge>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm">
-                        <div className="flex gap-2">
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => openViewDialog(employee)}
-                            className="text-blue-600 hover:bg-blue-100"
-                            title="View Details"
-                          >
-                            <Eye className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => openEditDialog(employee)}
-                            className="text-green-600 hover:bg-green-100"
-                            title="Edit Employee"
-                          >
-                            <Edit2 className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => handleDeleteEmployee(employee.id)}
-                            className="text-red-600 hover:bg-red-100"
-                            title="Terminate Employee"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </CardContent>
+      <Card>
+        <Table
+          columns={columns}
+          dataSource={filteredEmployees}
+          rowKey="id"
+          loading={loading}
+          scroll={{ x: 1300 }}
+          pagination={{
+            pageSize: 10,
+            showSizeChanger: true,
+            showTotal: (total) => `Total ${total} employees`,
+          }}
+          locale={{
+            emptyText: (
+              <Empty
+                description="No employees found"
+                image={Empty.PRESENTED_IMAGE_SIMPLE}
+              >
+                <Button type="primary" icon={<PlusOutlined />} onClick={() => { resetForm(); setShowAddDialog(true); }}>
+                  Add Employee
+                </Button>
+              </Empty>
+            ),
+          }}
+        />
       </Card>
 
-      {/* Add Employee Dialog */}
-      <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="text-2xl text-blue-900">Add New Employee</DialogTitle>
-            <DialogDescription>Fill in the employee details below. Fields marked with * are required.</DialogDescription>
-          </DialogHeader>
+      {/* Add Employee Modal - Redesigned with Ant Design */}
+      < Modal
+        title={
+          < div style={{ fontSize: '20px', fontWeight: 600, color: '#1e40af' }}>
+            <UserOutlined style={{ marginRight: 8 }} />
+            Add New Employee
+          </div >
+        }
+        open={showAddDialog}
+        onCancel={() => {
+          setShowAddDialog(false);
+          resetForm();
+        }}
+        onOk={handleAddEmployee}
+        width={900}
+        okText="Add Employee"
+        cancelText="Cancel"
+        okButtonProps={{ size: 'large', icon: <PlusOutlined /> }}
+        cancelButtonProps={{ size: 'large' }}
+        styles={{
+          body: { maxHeight: '70vh', overflowY: 'auto', paddingTop: 24 }
+        }}
+      >
+        <Tabs
+          defaultActiveKey="personal"
+          type="card"
+          items={[
+            {
+              key: 'personal',
+              label: (
+                <span>
+                  <UserOutlined style={{ marginRight: 4 }} />
+                  Personal Info
+                </span>
+              ),
+              children: (
+                <div style={{ padding: '16px 0' }}>
+                  <Form layout="vertical">
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                      <Form.Item
+                        label={<span style={{ fontWeight: 500 }}>First Name <span style={{ color: '#ef4444' }}>*</span></span>}
+                        required
+                      >
+                        <Input
+                          size="large"
+                          prefix={<UserOutlined style={{ color: '#9ca3af' }} />}
+                          placeholder="Enter first name"
+                          value={formData.first_name}
+                          onChange={(e: any) => setFormData({ ...formData, first_name: e.target.value })}
+                        />
+                      </Form.Item>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 py-4">
-            {/* Personal Information */}
-            <div className="space-y-4 md:col-span-2">
-              <h3 className="font-semibold text-blue-900 text-lg border-b border-blue-200 pb-2">
-                Personal Information
-              </h3>
-            </div>
+                      <Form.Item
+                        label={<span style={{ fontWeight: 500 }}>Last Name <span style={{ color: '#ef4444' }}>*</span></span>}
+                        required
+                      >
+                        <Input
+                          size="large"
+                          prefix={<UserOutlined style={{ color: '#9ca3af' }} />}
+                          placeholder="Enter last name"
+                          value={formData.last_name}
+                          onChange={(e: any) => setFormData({ ...formData, last_name: e.target.value })}
+                        />
+                      </Form.Item>
 
-            <div className="space-y-2">
-              <Label htmlFor="first_name" className="text-blue-900">
-                First Name <span className="text-red-500">*</span>
-              </Label>
-              <Input
-                id="first_name"
-                value={formData.first_name}
-                onChange={(e) => setFormData({ ...formData, first_name: e.target.value })}
-                className="border-blue-200"
-                required
-              />
-            </div>
+                      <Form.Item
+                        label={<span style={{ fontWeight: 500 }}>Email <span style={{ color: '#ef4444' }}>*</span></span>}
+                        required
+                      >
+                        <Input
+                          size="large"
+                          type="email"
+                          prefix={<MailOutlined style={{ color: '#9ca3af' }} />}
+                          placeholder="employee@company.com"
+                          value={formData.email}
+                          onChange={(e: any) => setFormData({ ...formData, email: e.target.value })}
+                        />
+                      </Form.Item>
 
-            <div className="space-y-2">
-              <Label htmlFor="last_name" className="text-blue-900">
-                Last Name <span className="text-red-500">*</span>
-              </Label>
-              <Input
-                id="last_name"
-                value={formData.last_name}
-                onChange={(e) => setFormData({ ...formData, last_name: e.target.value })}
-                className="border-blue-200"
-                required
-              />
-            </div>
+                      <Form.Item label={<span style={{ fontWeight: 500 }}>Phone Number</span>}>
+                        <Input
+                          size="large"
+                          prefix={<PhoneOutlined style={{ color: '#9ca3af' }} />}
+                          placeholder="+1 (555) 123-4567"
+                          value={formData.phone}
+                          onChange={(e: any) => setFormData({ ...formData, phone: e.target.value })}
+                        />
+                      </Form.Item>
 
-            <div className="space-y-2">
-              <Label htmlFor="email" className="text-blue-900">
-                Email <span className="text-red-500">*</span>
-              </Label>
-              <Input
-                id="email"
-                type="email"
-                value={formData.email}
-                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                className="border-blue-200"
-                required
-              />
-            </div>
+                      <Form.Item label={<span style={{ fontWeight: 500 }}>Date of Birth</span>}>
+                        <DatePicker
+                          size="large"
+                          style={{ width: '100%' }}
+                          placeholder="Select date"
+                          value={formData.date_of_birth ? dayjs(formData.date_of_birth) : null}
+                          onChange={(date) => setFormData({ ...formData, date_of_birth: date ? date.format('YYYY-MM-DD') : '' })}
+                          format="YYYY-MM-DD"
+                        />
+                      </Form.Item>
 
-            <div className="space-y-2">
-              <Label htmlFor="phone" className="text-blue-900">
-                Phone
-              </Label>
-              <Input
-                id="phone"
-                value={formData.phone}
-                onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                className="border-blue-200"
-                placeholder="+1-234-567-8900"
-              />
-            </div>
+                      <Form.Item label={<span style={{ fontWeight: 500 }}>Gender</span>}>
+                        <Select
+                          size="large"
+                          placeholder="Select gender"
+                          value={formData.gender || undefined}
+                          onChange={(value: any) => setFormData({ ...formData, gender: value })}
+                        >
+                          <Select.Option value="male">Male</Select.Option>
+                          <Select.Option value="female">Female</Select.Option>
+                          <Select.Option value="other">Other</Select.Option>
+                        </Select>
+                      </Form.Item>
+                    </div>
+                  </Form>
+                </div>
+              ),
+            },
+            {
+              key: 'employment',
+              label: (
+                <span>
+                  <IdcardOutlined style={{ marginRight: 4 }} />
+                  Employment
+                </span>
+              ),
+              children: (
+                <div style={{ padding: '16px 0' }}>
+                  <Form layout="vertical">
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                      <Form.Item
+                        label={<span style={{ fontWeight: 500 }}>Position <span style={{ color: '#ef4444' }}>*</span></span>}
+                        required
+                      >
+                        <Input
+                          size="large"
+                          prefix={<IdcardOutlined style={{ color: '#9ca3af' }} />}
+                          placeholder="e.g., Software Engineer"
+                          value={formData.position}
+                          onChange={(e: any) => setFormData({ ...formData, position: e.target.value })}
+                        />
+                      </Form.Item>
 
-            <div className="space-y-2">
-              <Label htmlFor="date_of_birth" className="text-blue-900">
-                Date of Birth
-              </Label>
-              <Input
-                id="date_of_birth"
-                type="date"
-                value={formData.date_of_birth}
-                onChange={(e) => setFormData({ ...formData, date_of_birth: e.target.value })}
-                className="border-blue-200"
-              />
-            </div>
+                      <Form.Item label={<span style={{ fontWeight: 500 }}>Department</span>}>
+                        <Select
+                          size="large"
+                          placeholder={departments.length > 0 ? "Select department" : "No departments available"}
+                          value={formData.department_id || undefined}
+                          onChange={(value: any) => setFormData({ ...formData, department_id: value })}
+                        >
+                          {departments.map((dept) => (
+                            <Select.Option key={dept.id} value={dept.id.toString()}>
+                              {dept.name}
+                            </Select.Option>
+                          ))}
+                        </Select>
+                        {departments.length === 0 && (
+                          <div style={{ color: '#f59e0b', fontSize: 12, marginTop: 4, display: 'flex', alignItems: 'center', gap: 4 }}>
+                            <ExclamationCircleOutlined style={{ width: 12, height: 12 }} />
+                            Please create departments first
+                          </div>
+                        )}
+                      </Form.Item>
 
-            <div className="space-y-2">
-              <Label htmlFor="gender" className="text-blue-900">
-                Gender
-              </Label>
-              <Select value={formData.gender} onValueChange={(value) => setFormData({ ...formData, gender: value })}>
-                <SelectTrigger className="border-blue-200">
-                  <SelectValue placeholder="Select gender" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="male">Male</SelectItem>
-                  <SelectItem value="female">Female</SelectItem>
-                  <SelectItem value="other">Other</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+                      <Form.Item label={<span style={{ fontWeight: 500 }}>Employment Type</span>}>
+                        <Select
+                          size="large"
+                          value={formData.employment_type}
+                          onChange={(value: any) => setFormData({ ...formData, employment_type: value })}
+                        >
+                          <Select.Option value="full-time">Full-time</Select.Option>
+                          <Select.Option value="part-time">Part-time</Select.Option>
+                          <Select.Option value="contract">Contract</Select.Option>
+                          <Select.Option value="intern">Intern</Select.Option>
+                        </Select>
+                      </Form.Item>
 
-            {/* Employment Information */}
-            <div className="space-y-4 md:col-span-2 mt-4">
-              <h3 className="font-semibold text-blue-900 text-lg border-b border-blue-200 pb-2">
-                Employment Information
-              </h3>
-            </div>
+                      <Form.Item
+                        label={<span style={{ fontWeight: 500 }}>Join Date <span style={{ color: '#ef4444' }}>*</span></span>}
+                        required
+                      >
+                        <DatePicker
+                          size="large"
+                          style={{ width: '100%' }}
+                          placeholder="Select join date"
+                          value={formData.join_date ? dayjs(formData.join_date) : null}
+                          onChange={(date) => setFormData({ ...formData, join_date: date ? date.format('YYYY-MM-DD') : '' })}
+                          format="YYYY-MM-DD"
+                        />
+                      </Form.Item>
 
-            <div className="space-y-2">
-              <Label htmlFor="position" className="text-blue-900">
-                Position <span className="text-red-500">*</span>
-              </Label>
-              <Input
-                id="position"
-                value={formData.position}
-                onChange={(e) => setFormData({ ...formData, position: e.target.value })}
-                className="border-blue-200"
-                required
-                placeholder="e.g., Software Engineer"
-              />
-            </div>
+                      <Form.Item label={<span style={{ fontWeight: 500 }}>Base Salary (USD)</span>}>
+                        <InputNumber
+                          size="large"
+                          style={{ width: '100%' }}
+                          prefix={<DollarOutlined />}
+                          placeholder="50000"
+                          min={0}
+                          formatter={value => `$ ${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
+                          parser={value => value!.replace(/\$\s?|(,*)/g, '') as any}
+                          value={formData.base_salary ? parseFloat(formData.base_salary) : undefined}
+                          onChange={(value: any) => setFormData({ ...formData, base_salary: value?.toString() || '' })}
+                        />
+                      </Form.Item>
 
-            <div className="space-y-2">
-              <Label htmlFor="department_id" className="text-blue-900">
-                Department
-              </Label>
-              <Select
-                value={formData.department_id}
-                onValueChange={(value) => setFormData({ ...formData, department_id: value })}
-              >
-                <SelectTrigger className="border-blue-200">
-                  <SelectValue placeholder={departments.length > 0 ? "Select department" : "No departments available"} />
-                </SelectTrigger>
-                <SelectContent>
-                  {departments.length === 0 ? (
-                    <SelectItem value="none" disabled>No departments available</SelectItem>
-                  ) : (
-                    departments.map((dept) => (
-                      <SelectItem key={dept.id} value={dept.id.toString()}>
-                        {dept.name}
-                      </SelectItem>
-                    ))
-                  )}
-                </SelectContent>
-              </Select>
-              {departments.length === 0 && (
-                <p className="text-xs text-amber-600 flex items-center gap-1 mt-1">
-                  <AlertCircle className="h-3 w-3" />
-                  Please create departments first
-                </p>
-              )}
-            </div>
+                      <Form.Item label={<span style={{ fontWeight: 500 }}>Status</span>}>
+                        <Select
+                          size="large"
+                          value={formData.status}
+                          onChange={(value: any) => setFormData({ ...formData, status: value })}
+                        >
+                          <Select.Option value="active">
+                            <span style={{ color: '#10b981' }}>● Active</span>
+                          </Select.Option>
+                          <Select.Option value="on-leave">
+                            <span style={{ color: '#f59e0b' }}>● On Leave</span>
+                          </Select.Option>
+                          <Select.Option value="inactive">
+                            <span style={{ color: '#6b7280' }}>● Inactive</span>
+                          </Select.Option>
+                        </Select>
+                      </Form.Item>
+                    </div>
+                  </Form>
+                </div>
+              ),
+            },
+            {
+              key: 'address',
+              label: (
+                <span>
+                  <EnvironmentOutlined style={{ marginRight: 4 }} />
+                  Address & Contact
+                </span>
+              ),
+              children: (
+                <div style={{ padding: '16px 0' }}>
+                  <Form layout="vertical">
+                    <Divider orientationMargin={0} style={{ margin: '0 0 16px 0' }}>Address Information</Divider>
+                    <Form.Item label={<span style={{ fontWeight: 500 }}>Street Address</span>}>
+                      <Input
+                        size="large"
+                        prefix={<EnvironmentOutlined style={{ color: '#9ca3af' }} />}
+                        placeholder="123 Main Street, Apt 4B"
+                        value={formData.address}
+                        onChange={(e: any) => setFormData({ ...formData, address: e.target.value })}
+                      />
+                    </Form.Item>
 
-            <div className="space-y-2">
-              <Label htmlFor="employment_type" className="text-blue-900">
-                Employment Type
-              </Label>
-              <Select
-                value={formData.employment_type}
-                onValueChange={(value) => setFormData({ ...formData, employment_type: value })}
-              >
-                <SelectTrigger className="border-blue-200">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="full-time">Full-time</SelectItem>
-                  <SelectItem value="part-time">Part-time</SelectItem>
-                  <SelectItem value="contract">Contract</SelectItem>
-                  <SelectItem value="intern">Intern</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                      <Form.Item label={<span style={{ fontWeight: 500 }}>City</span>}>
+                        <Input
+                          size="large"
+                          placeholder="San Francisco"
+                          value={formData.city}
+                          onChange={(e: any) => setFormData({ ...formData, city: e.target.value })}
+                        />
+                      </Form.Item>
 
-            <div className="space-y-2">
-              <Label htmlFor="join_date" className="text-blue-900">
-                Join Date <span className="text-red-500">*</span>
-              </Label>
-              <Input
-                id="join_date"
-                type="date"
-                value={formData.join_date}
-                onChange={(e) => setFormData({ ...formData, join_date: e.target.value })}
-                className="border-blue-200"
-                required
-              />
-            </div>
+                      <Form.Item label={<span style={{ fontWeight: 500 }}>State</span>}>
+                        <Input
+                          size="large"
+                          placeholder="CA"
+                          value={formData.state}
+                          onChange={(e: any) => setFormData({ ...formData, state: e.target.value })}
+                        />
+                      </Form.Item>
 
-            <div className="space-y-2">
-              <Label htmlFor="base_salary" className="text-blue-900">
-                Base Salary (USD)
-              </Label>
-              <Input
-                id="base_salary"
-                type="number"
-                value={formData.base_salary}
-                onChange={(e) => setFormData({ ...formData, base_salary: e.target.value })}
-                className="border-blue-200"
-                placeholder="50000"
-              />
-            </div>
+                      <Form.Item label={<span style={{ fontWeight: 500 }}>Zip Code</span>}>
+                        <Input
+                          size="large"
+                          placeholder="94102"
+                          value={formData.zip_code}
+                          onChange={(e: any) => setFormData({ ...formData, zip_code: e.target.value })}
+                        />
+                      </Form.Item>
+                    </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="status" className="text-blue-900">
-                Status
-              </Label>
-              <Select value={formData.status} onValueChange={(value) => setFormData({ ...formData, status: value })}>
-                <SelectTrigger className="border-blue-200">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="active">Active</SelectItem>
-                  <SelectItem value="on-leave">On Leave</SelectItem>
-                  <SelectItem value="inactive">Inactive</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+                    <Divider orientationMargin={0} style={{ margin: '24px 0 16px 0' }}>Emergency Contact</Divider>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                      <Form.Item label={<span style={{ fontWeight: 500 }}>Contact Name</span>}>
+                        <Input
+                          size="large"
+                          prefix={<ContactsOutlined style={{ color: '#9ca3af' }} />}
+                          placeholder="John Doe"
+                          value={formData.emergency_contact_name}
+                          onChange={(e: any) => setFormData({ ...formData, emergency_contact_name: e.target.value })}
+                        />
+                      </Form.Item>
 
-            {/* Address */}
-            <div className="space-y-4 md:col-span-2 mt-4">
-              <h3 className="font-semibold text-blue-900 text-lg border-b border-blue-200 pb-2">
-                Address Information
-              </h3>
-            </div>
+                      <Form.Item label={<span style={{ fontWeight: 500 }}>Contact Phone</span>}>
+                        <Input
+                          size="large"
+                          prefix={<PhoneOutlined style={{ color: '#9ca3af' }} />}
+                          placeholder="+1 (555) 987-6543"
+                          value={formData.emergency_contact_phone}
+                          onChange={(e: any) => setFormData({ ...formData, emergency_contact_phone: e.target.value })}
+                        />
+                      </Form.Item>
+                    </div>
+                  </Form>
+                </div>
+              ),
+            },
+          ]}
+        />
+      </Modal >
 
-            <div className="space-y-2 md:col-span-2">
-              <Label htmlFor="address" className="text-blue-900">
-                Street Address
-              </Label>
-              <Input
-                id="address"
-                value={formData.address}
-                onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-                className="border-blue-200"
-                placeholder="123 Main Street"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="city" className="text-blue-900">
-                City
-              </Label>
-              <Input
-                id="city"
-                value={formData.city}
-                onChange={(e) => setFormData({ ...formData, city: e.target.value })}
-                className="border-blue-200"
-                placeholder="San Francisco"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="state" className="text-blue-900">
-                State
-              </Label>
-              <Input
-                id="state"
-                value={formData.state}
-                onChange={(e) => setFormData({ ...formData, state: e.target.value })}
-                className="border-blue-200"
-                placeholder="CA"
-              />
-            </div>
-
-            {/* Emergency Contact */}
-            <div className="space-y-4 md:col-span-2 mt-4">
-              <h3 className="font-semibold text-blue-900 text-lg border-b border-blue-200 pb-2">
-                Emergency Contact
-              </h3>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="emergency_contact_name" className="text-blue-900">
-                Contact Name
-              </Label>
-              <Input
-                id="emergency_contact_name"
-                value={formData.emergency_contact_name}
-                onChange={(e) => setFormData({ ...formData, emergency_contact_name: e.target.value })}
-                className="border-blue-200"
-                placeholder="John Doe"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="emergency_contact_phone" className="text-blue-900">
-                Contact Phone
-              </Label>
-              <Input
-                id="emergency_contact_phone"
-                value={formData.emergency_contact_phone}
-                onChange={(e) => setFormData({ ...formData, emergency_contact_phone: e.target.value })}
-                className="border-blue-200"
-                placeholder="+1-234-567-8900"
-              />
-            </div>
+      {/* Edit Employee Modal */}
+      <Modal
+        title={
+          <div style={{ fontSize: '20px', fontWeight: 600, color: '#1e40af' }}>
+            <EditOutlined style={{ marginRight: 8 }} />
+            Edit Employee
           </div>
-
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => {
-                setShowAddDialog(false);
-                resetForm();
-              }}
-              className="border-gray-300"
-            >
-              Cancel
-            </Button>
-            <Button onClick={handleAddEmployee} className="bg-blue-600 hover:bg-blue-700 text-white">
-              <Plus className="h-4 w-4 mr-2" />
-              Add Employee
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Edit Employee Dialog - Similar structure with pre-filled values */}
-      <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="text-2xl text-blue-900">Edit Employee</DialogTitle>
-            <DialogDescription>Update employee information</DialogDescription>
-          </DialogHeader>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 py-4">
-            {/* Personal Information */}
-            <div className="space-y-4 md:col-span-2">
-              <h3 className="font-semibold text-blue-900 text-lg border-b border-blue-200 pb-2">
-                Personal Information
-              </h3>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="edit_first_name" className="text-blue-900">
-                First Name
-              </Label>
-              <Input
-                id="edit_first_name"
-                value={formData.first_name}
-                onChange={(e) => setFormData({ ...formData, first_name: e.target.value })}
-                className="border-blue-200"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="edit_last_name" className="text-blue-900">
-                Last Name
-              </Label>
-              <Input
-                id="edit_last_name"
-                value={formData.last_name}
-                onChange={(e) => setFormData({ ...formData, last_name: e.target.value })}
-                className="border-blue-200"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="edit_email" className="text-blue-900">
-                Email
-              </Label>
-              <Input
-                id="edit_email"
-                type="email"
-                value={formData.email}
-                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                className="border-blue-200"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="edit_phone" className="text-blue-900">
-                Phone
-              </Label>
-              <Input
-                id="edit_phone"
-                value={formData.phone}
-                onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                className="border-blue-200"
-              />
-            </div>
-
-            {/* Employment Information */}
-            <div className="space-y-4 md:col-span-2 mt-4">
-              <h3 className="font-semibold text-blue-900 text-lg border-b border-blue-200 pb-2">
-                Employment Information
-              </h3>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="edit_position" className="text-blue-900">
-                Position
-              </Label>
-              <Input
-                id="edit_position"
-                value={formData.position}
-                onChange={(e) => setFormData({ ...formData, position: e.target.value })}
-                className="border-blue-200"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="edit_department_id" className="text-blue-900">
-                Department
-              </Label>
-              <Select
-                value={formData.department_id}
-                onValueChange={(value) => setFormData({ ...formData, department_id: value })}
-              >
-                <SelectTrigger className="border-blue-200">
-                  <SelectValue placeholder="Select department" />
-                </SelectTrigger>
-                <SelectContent>
+        }
+        open={showEditDialog}
+        onCancel={() => {
+          setShowEditDialog(false);
+          setSelectedEmployee(null);
+          resetForm();
+        }}
+        onOk={handleEditEmployee}
+        width={900}
+        okText="Update Employee"
+        cancelText="Cancel"
+        okButtonProps={{ size: 'large' }}
+        cancelButtonProps={{ size: 'large' }}
+      >
+        <Form layout="vertical" style={{ maxHeight: '60vh', overflowY: 'auto', paddingRight: 16 }}>
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item label="First Name" required>
+                <Input
+                  size="large"
+                  value={formData.first_name}
+                  onChange={(e: any) => setFormData({ ...formData, first_name: e.target.value })}
+                />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item label="Last Name" required>
+                <Input
+                  size="large"
+                  value={formData.last_name}
+                  onChange={(e: any) => setFormData({ ...formData, last_name: e.target.value })}
+                />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item label="Email" required>
+                <Input
+                  size="large"
+                  type="email"
+                  value={formData.email}
+                  onChange={(e: any) => setFormData({ ...formData, email: e.target.value })}
+                />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item label="Phone">
+                <Input
+                  size="large"
+                  value={formData.phone}
+                  onChange={(e: any) => setFormData({ ...formData, phone: e.target.value })}
+                />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item label="Position" required>
+                <Input
+                  size="large"
+                  value={formData.position}
+                  onChange={(e: any) => setFormData({ ...formData, position: e.target.value })}
+                />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item label="Department">
+                <Select
+                  size="large"
+                  value={formData.department_id}
+                  onChange={(value: any) => setFormData({ ...formData, department_id: value })}
+                >
                   {departments.map((dept) => (
-                    <SelectItem key={dept.id} value={dept.id.toString()}>
+                    <Select.Option key={dept.id} value={dept.id.toString()}>
                       {dept.name}
-                    </SelectItem>
+                    </Select.Option>
                   ))}
-                </SelectContent>
-              </Select>
-            </div>
+                </Select>
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item label="Employment Type">
+                <Select
+                  size="large"
+                  value={formData.employment_type}
+                  onChange={(value: any) => setFormData({ ...formData, employment_type: value })}
+                >
+                  <Select.Option value="full-time">Full-time</Select.Option>
+                  <Select.Option value="part-time">Part-time</Select.Option>
+                  <Select.Option value="contract">Contract</Select.Option>
+                  <Select.Option value="intern">Intern</Select.Option>
+                </Select>
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item label="Status">
+                <Select
+                  size="large"
+                  value={formData.status}
+                  onChange={(value: any) => setFormData({ ...formData, status: value })}
+                >
+                  <Select.Option value="active">Active</Select.Option>
+                  <Select.Option value="on-leave">On Leave</Select.Option>
+                  <Select.Option value="inactive">Inactive</Select.Option>
+                  <Select.Option value="terminated">Terminated</Select.Option>
+                </Select>
+              </Form.Item>
+            </Col>
+          </Row>
+        </Form>
+      </Modal>
 
-            <div className="space-y-2">
-              <Label htmlFor="edit_employment_type" className="text-blue-900">
-                Employment Type
-              </Label>
-              <Select
-                value={formData.employment_type}
-                onValueChange={(value) => setFormData({ ...formData, employment_type: value })}
-              >
-                <SelectTrigger className="border-blue-200">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="full-time">Full-time</SelectItem>
-                  <SelectItem value="part-time">Part-time</SelectItem>
-                  <SelectItem value="contract">Contract</SelectItem>
-                  <SelectItem value="intern">Intern</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="edit_base_salary" className="text-blue-900">
-                Base Salary
-              </Label>
-              <Input
-                id="edit_base_salary"
-                type="number"
-                value={formData.base_salary}
-                onChange={(e) => setFormData({ ...formData, base_salary: e.target.value })}
-                className="border-blue-200"
-              />
-            </div>
-
-            <div className="space-y-2 md:col-span-2">
-              <Label htmlFor="edit_status" className="text-blue-900">
-                Status
-              </Label>
-              <Select value={formData.status} onValueChange={(value) => setFormData({ ...formData, status: value })}>
-                <SelectTrigger className="border-blue-200">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="active">Active</SelectItem>
-                  <SelectItem value="on-leave">On Leave</SelectItem>
-                  <SelectItem value="inactive">Inactive</SelectItem>
-                  <SelectItem value="terminated">Terminated</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+      {/* View Employee Modal */}
+      <Modal
+        title={
+          <div style={{ fontSize: '20px', fontWeight: 600, color: '#1e40af' }}>
+            <EyeOutlined style={{ marginRight: 8 }} />
+            Employee Details
           </div>
-
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => {
-                setShowEditDialog(false);
-                setSelectedEmployee(null);
-                resetForm();
-              }}
-              className="border-gray-300"
-            >
-              Cancel
-            </Button>
-            <Button onClick={handleEditEmployee} className="bg-blue-600 hover:bg-blue-700 text-white">
-              <Edit2 className="h-4 w-4 mr-2" />
-              Update Employee
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* View Employee Dialog */}
-      <Dialog open={showViewDialog} onOpenChange={setShowViewDialog}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle className="text-2xl text-blue-900">Employee Details</DialogTitle>
-          </DialogHeader>
-
-          {selectedEmployee && (
-            <div className="space-y-6">
-              <div className="bg-gradient-to-r from-blue-50 to-blue-100 p-6 rounded-lg border border-blue-200">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h3 className="text-2xl font-bold text-blue-900">
-                      {selectedEmployee.first_name} {selectedEmployee.last_name}
-                    </h3>
-                    <p className="text-blue-600 font-medium">{selectedEmployee.position}</p>
-                  </div>
-                  <Badge className={getStatusBadge(selectedEmployee.status)}>{selectedEmployee.status}</Badge>
+        }
+        open={showViewDialog}
+        onCancel={() => setShowViewDialog(false)}
+        footer={[
+          <Button key="close" type="primary" onClick={() => setShowViewDialog(false)}>
+            Close
+          </Button>
+        ]}
+        width={700}
+      >
+        {selectedEmployee && (
+          <div>
+            <Card style={{ marginBottom: 24, background: 'linear-gradient(to right, #eff6ff, #dbeafe)', border: '1px solid #bfdbfe' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                  <h3 style={{ fontSize: 24, fontWeight: 'bold', color: '#1e40af', margin: 0 }}>
+                    {selectedEmployee.first_name} {selectedEmployee.last_name}
+                  </h3>
+                  <p style={{ color: '#2563eb', fontWeight: 500, marginTop: 4, marginBottom: 0 }}>
+                    {selectedEmployee.position}
+                  </p>
                 </div>
+                {getStatusTag(selectedEmployee.status)}
               </div>
+            </Card>
 
-              <div className="grid grid-cols-2 gap-4">
+            <Row gutter={[16, 16]}>
+              <Col span={12}>
                 <div>
-                  <p className="text-sm text-gray-600">Employee ID</p>
-                  <p className="font-semibold text-blue-900">{selectedEmployee.employee_id}</p>
+                  <p style={{ fontSize: 12, color: '#6b7280', marginBottom: 4 }}>Employee ID</p>
+                  <p style={{ fontWeight: 600, color: '#1e40af', marginBottom: 0 }}>{selectedEmployee.employee_id}</p>
                 </div>
+              </Col>
+              <Col span={12}>
                 <div>
-                  <p className="text-sm text-gray-600">Department</p>
-                  <p className="font-semibold text-blue-900">{selectedEmployee.department_name || 'N/A'}</p>
+                  <p style={{ fontSize: 12, color: '#6b7280', marginBottom: 4 }}>Department</p>
+                  <p style={{ fontWeight: 600, color: '#1e40af', marginBottom: 0 }}>
+                    {selectedEmployee.department_name || 'N/A'}
+                  </p>
                 </div>
+              </Col>
+              <Col span={12}>
                 <div>
-                  <p className="text-sm text-gray-600">Email</p>
-                  <p className="font-semibold text-blue-900">{selectedEmployee.email}</p>
+                  <p style={{ fontSize: 12, color: '#6b7280', marginBottom: 4 }}>Email</p>
+                  <p style={{ fontWeight: 600, color: '#1e40af', marginBottom: 0 }}>{selectedEmployee.email}</p>
                 </div>
+              </Col>
+              <Col span={12}>
                 <div>
-                  <p className="text-sm text-gray-600">Phone</p>
-                  <p className="font-semibold text-blue-900">{selectedEmployee.phone || 'N/A'}</p>
+                  <p style={{ fontSize: 12, color: '#6b7280', marginBottom: 4 }}>Phone</p>
+                  <p style={{ fontWeight: 600, color: '#1e40af', marginBottom: 0 }}>{selectedEmployee.phone || 'N/A'}</p>
                 </div>
+              </Col>
+              <Col span={12}>
                 <div>
-                  <p className="text-sm text-gray-600">Employment Type</p>
-                  <p className="font-semibold text-blue-900 capitalize">{selectedEmployee.employment_type || 'N/A'}</p>
+                  <p style={{ fontSize: 12, color: '#6b7280', marginBottom: 4 }}>Employment Type</p>
+                  <p style={{ fontWeight: 600, color: '#1e40af', textTransform: 'capitalize', marginBottom: 0 }}>
+                    {selectedEmployee.employment_type || 'N/A'}
+                  </p>
                 </div>
+              </Col>
+              <Col span={12}>
                 <div>
-                  <p className="text-sm text-gray-600">Join Date</p>
-                  <p className="font-semibold text-blue-900">{selectedEmployee.join_date || 'N/A'}</p>
+                  <p style={{ fontSize: 12, color: '#6b7280', marginBottom: 4 }}>Join Date</p>
+                  <p style={{ fontWeight: 600, color: '#1e40af', marginBottom: 0 }}>{selectedEmployee.join_date || 'N/A'}</p>
                 </div>
-                {selectedEmployee.base_salary && (
+              </Col>
+              {selectedEmployee.base_salary && (
+                <Col span={12}>
                   <div>
-                    <p className="text-sm text-gray-600">Base Salary</p>
-                    <p className="font-semibold text-blue-900">
+                    <p style={{ fontSize: 12, color: '#6b7280', marginBottom: 4 }}>Base Salary</p>
+                    <p style={{ fontWeight: 600, color: '#1e40af', marginBottom: 0 }}>
                       ${selectedEmployee.base_salary.toLocaleString()}
                     </p>
                   </div>
-                )}
-                {selectedEmployee.emergency_contact_name && (
-                  <div className="col-span-2">
-                    <p className="text-sm text-gray-600">Emergency Contact</p>
-                    <p className="font-semibold text-blue-900">
+                </Col>
+              )}
+              {selectedEmployee.emergency_contact_name && (
+                <Col span={24}>
+                  <div>
+                    <p style={{ fontSize: 12, color: '#6b7280', marginBottom: 4 }}>Emergency Contact</p>
+                    <p style={{ fontWeight: 600, color: '#1e40af', marginBottom: 0 }}>
                       {selectedEmployee.emergency_contact_name}
                       {selectedEmployee.emergency_contact_phone && ` - ${selectedEmployee.emergency_contact_phone}`}
                     </p>
                   </div>
-                )}
-              </div>
-            </div>
-          )}
-
-          <DialogFooter>
-            <Button onClick={() => setShowViewDialog(false)} className="bg-blue-600 hover:bg-blue-700 text-white">
-              Close
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </div>
+                </Col>
+              )}
+            </Row>
+          </div>
+        )}
+      </Modal>
+    </div >
   );
 }

@@ -5,14 +5,20 @@ import DashboardOverviewDynamic from './DashboardOverviewDynamic';
 import EmployeeManagement from './EmployeeManagement';
 import DepartmentManagement from './DepartmentManagement';
 import AttendanceLeave from './AttendanceLeaveWrapper';
+import AdminAttendanceView from './AdminAttendanceView';
 import PayrollManagement from './PayrollManagementDynamic';
 import RecruitmentModule from './RecruitmentModule';
 import PerformanceManagement from './PerformanceManagement';
 import NotificationsActivity from './NotificationsActivity';
 import Settings from './Settings';
+import ProfilePage from './ProfilePage';
 
 export default function HRMSDashboard() {
   const [activeTab, setActiveTab] = useState('dashboard');
+
+  const handleHeaderMenuClick = (menuKey: string) => {
+    setActiveTab(menuKey);
+  };
 
   const getPageTitle = () => {
     switch (activeTab) {
@@ -34,6 +40,8 @@ export default function HRMSDashboard() {
         return 'Notifications & Activity';
       case 'settings':
         return 'Settings';
+      case 'profile':
+        return 'My Profile';
       default:
         return 'Dashboard';
     }
@@ -48,7 +56,7 @@ export default function HRMSDashboard() {
       case 'departments':
         return <DepartmentManagement />;
       case 'attendance':
-        return <AttendanceLeave />;
+        return <AdminAttendanceView />;
       case 'payroll':
         return <PayrollManagement />;
       case 'recruitment':
@@ -59,6 +67,8 @@ export default function HRMSDashboard() {
         return <NotificationsActivity />;
       case 'settings':
         return <Settings />;
+      case 'profile':
+        return <ProfilePage />;
       default:
         return <DashboardOverviewDynamic />;
     }
@@ -72,7 +82,7 @@ export default function HRMSDashboard() {
       {/* Main Content */}
       <div className="flex-1 flex flex-col">
         {/* Header */}
-        <Header title={getPageTitle()} />
+        <Header title={getPageTitle()} onMenuClick={handleHeaderMenuClick} />
 
         {/* Content Area */}
         <main className="flex-1 p-8 overflow-y-auto">

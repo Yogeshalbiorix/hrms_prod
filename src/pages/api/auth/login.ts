@@ -1,16 +1,16 @@
 import type { APIRoute } from 'astro';
 import { getDB, getUserByUsername } from '../../../lib/db';
 import crypto from 'crypto';
+import bcrypt from 'bcryptjs';
 
-// Simple password comparison (in production, use bcrypt)
-function verifyPassword(password: string, hash: string): boolean {
-  // For demo purposes, we'll use a simple check
-  // In production, use bcrypt.compare(password, hash)
-  // The default admin password is 'admin123'
-  if (hash === '$2a$10$ZKzN/fJQqPYqE3P3JXj3DeVGJhM1LKz7x/x5xZ.vYXF6XJ9h6qPRm') {
-    return password === 'admin123';
+// Password verification using bcrypt
+async function verifyPassword(password: string, hash: string): Promise<boolean> {
+  try {
+    return await bcrypt.compare(password, hash);
+  } catch (error) {
+    console.error('Error verifying password:', error);
+    return false;
   }
-  return false;
 }
 
 // Generate session token
@@ -28,8 +28,10 @@ function getExpirationDate(): string {
 export const POST: APIRoute = async ({ request, locals }) => {
   try {
     const db = getDB(locals.runtime.env);
-    const body = await request.json();
+    const body = await request.json() as { username: string; password: string };
     const { username, password } = body;
+
+    console.log('Login attempt:', { username });
 
     // Validation
     if (!username || !password) {
@@ -41,6 +43,8 @@ export const POST: APIRoute = async ({ request, locals }) => {
 
     // Get user
     const user = await getUserByUsername(db, username);
+    console.log('User found:', user ? { id: user.id, username: user.username, has_password: !!user.password_hash } : 'Not found');
+
     if (!user) {
       return new Response(
         JSON.stringify({ error: 'Invalid username or password' }),
@@ -49,7 +53,10 @@ export const POST: APIRoute = async ({ request, locals }) => {
     }
 
     // Verify password
-    if (!verifyPassword(password, user.password_hash || '')) {
+    const isPasswordValid = await verifyPassword(password, user.password_hash || '');
+    console.log('Password valid:', isPasswordValid);
+
+    if (!isPasswordValid) {
       return new Response(
         JSON.stringify({ error: 'Invalid username or password' }),
         { status: 401, headers: { 'Content-Type': 'application/json' } }

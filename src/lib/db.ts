@@ -1091,20 +1091,6 @@ export async function getUserByUsername(db: any, username: string): Promise<User
   }
 }
 
-// Get user by email
-export async function getUserByEmail(db: any, email: string): Promise<User | null> {
-  try {
-    const result = await db
-      .prepare('SELECT * FROM users WHERE email = ? AND is_active = 1')
-      .bind(email)
-      .first();
-    return result || null;
-  } catch (error) {
-    console.error('Error fetching user:', error);
-    return null;
-  }
-}
-
 // Create new session
 export async function createSession(
   db: any,
@@ -1215,5 +1201,330 @@ export async function getUserFromSession(db: any, sessionToken: string): Promise
   } catch (error) {
     console.error('Error fetching user from session:', error);
     return null;
+  }
+}
+
+// Password Reset Token Management
+
+export interface PasswordResetToken {
+  id?: number;
+  user_id: number;
+  token: string;
+  expires_at: string;
+  used: boolean;
+  created_at?: string;
+}
+
+export async function createPasswordResetToken(
+  db: any,
+  userId: number,
+  token: string,
+  expiresAt: string
+): Promise<number | null> {
+  try {
+    const result = await db
+      .prepare('INSERT INTO password_reset_tokens (user_id, token, expires_at) VALUES (?, ?, ?)')
+      .bind(userId, token, expiresAt)
+      .run();
+    return result.meta.last_row_id;
+  } catch (error) {
+    console.error('Error creating password reset token:', error);
+    return null;
+  }
+}
+
+export async function getPasswordResetToken(db: any, token: string): Promise<PasswordResetToken | null> {
+  try {
+    const result = await db
+      .prepare('SELECT * FROM password_reset_tokens WHERE token = ? AND used = 0 AND expires_at > CURRENT_TIMESTAMP')
+      .bind(token)
+      .first();
+    return result || null;
+  } catch (error) {
+    console.error('Error fetching password reset token:', error);
+    return null;
+  }
+}
+
+export async function markPasswordResetTokenAsUsed(db: any, token: string): Promise<boolean> {
+  try {
+    const result = await db
+      .prepare('UPDATE password_reset_tokens SET used = 1 WHERE token = ?')
+      .bind(token)
+      .run();
+    return result.success;
+  } catch (error) {
+    console.error('Error marking token as used:', error);
+    return false;
+  }
+}
+
+export async function deletePasswordResetToken(db: any, token: string): Promise<boolean> {
+  try {
+    const result = await db
+      .prepare('DELETE FROM password_reset_tokens WHERE token = ?')
+      .bind(token)
+      .run();
+    return result.success;
+  } catch (error) {
+    console.error('Error deleting password reset token:', error);
+    return false;
+  }
+}
+
+// User Registration and Management
+
+export async function getUserByEmail(db: any, email: string): Promise<User | null> {
+  try {
+    const result = await db
+      .prepare('SELECT * FROM users WHERE email = ?')
+      .bind(email)
+      .first();
+    return result || null;
+  } catch (error) {
+    console.error('Error fetching user by email:', error);
+    return null;
+  }
+}
+
+export async function createUser(
+  db: any,
+  userData: {
+    username: string;
+    password_hash: string;
+    email: string;
+    full_name: string;
+    role?: string;
+    employee_id?: number;
+  }
+): Promise<number | null> {
+  try {
+    const result = await db
+      .prepare(
+        'INSERT INTO users (username, password_hash, email, full_name, role, employee_id, is_active) VALUES (?, ?, ?, ?, ?, ?, 1)'
+      )
+      .bind(
+        userData.username,
+        userData.password_hash,
+        userData.email,
+        userData.full_name,
+        userData.role || 'employee',
+        userData.employee_id || null
+      )
+      .run();
+    return result.meta.last_row_id;
+  } catch (error) {
+    console.error('Error creating user:', error);
+    return null;
+  }
+}
+
+export async function updateUserPassword(db: any, userId: number, passwordHash: string): Promise<boolean> {
+  try {
+    const result = await db
+      .prepare('UPDATE users SET password_hash = ?, last_password_change = CURRENT_TIMESTAMP WHERE id = ?')
+      .bind(passwordHash, userId)
+      .run();
+    return result.success;
+  } catch (error) {
+    console.error('Error updating user password:', error);
+    return false;
+  }
+}
+
+export async function updateUserProfile(
+  db: any,
+  userId: number,
+  updates: {
+    full_name?: string;
+    email?: string;
+    phone?: string;
+    profile_image?: string;
+  }
+): Promise<boolean> {
+  try {
+    const fields: string[] = [];
+    const values: any[] = [];
+
+    if (updates.full_name !== undefined) {
+      fields.push('full_name = ?');
+      values.push(updates.full_name);
+    }
+    if (updates.email !== undefined) {
+      fields.push('email = ?');
+      values.push(updates.email);
+    }
+    if (updates.phone !== undefined) {
+      fields.push('phone = ?');
+      values.push(updates.phone);
+    }
+    if (updates.profile_image !== undefined) {
+      fields.push('profile_image = ?');
+      values.push(updates.profile_image);
+    }
+
+    if (fields.length === 0) return false;
+
+    const query = `UPDATE users SET ${fields.join(', ')} WHERE id = ?`;
+    values.push(userId);
+
+    const result = await db.prepare(query).bind(...values).run();
+    return result.success;
+  } catch (error) {
+    console.error('Error updating user profile:', error);
+    return false;
+  }
+}
+
+export async function incrementFailedLoginAttempts(db: any, userId: number): Promise<boolean> {
+  try {
+    const result = await db
+      .prepare('UPDATE users SET failed_login_attempts = failed_login_attempts + 1 WHERE id = ?')
+      .bind(userId)
+      .run();
+    return result.success;
+  } catch (error) {
+    console.error('Error incrementing failed login attempts:', error);
+    return false;
+  }
+}
+
+export async function resetFailedLoginAttempts(db: any, userId: number): Promise<boolean> {
+  try {
+    const result = await db
+      .prepare('UPDATE users SET failed_login_attempts = 0, locked_until = NULL WHERE id = ?')
+      .bind(userId)
+      .run();
+    return result.success;
+  } catch (error) {
+    console.error('Error resetting failed login attempts:', error);
+    return false;
+  }
+}
+
+export async function lockUserAccount(db: any, userId: number, lockUntil: string): Promise<boolean> {
+  try {
+    const result = await db
+      .prepare('UPDATE users SET locked_until = ? WHERE id = ?')
+      .bind(lockUntil, userId)
+      .run();
+    return result.success;
+  } catch (error) {
+    console.error('Error locking user account:', error);
+    return false;
+  }
+}
+
+// User Permissions
+
+export interface UserPermission {
+  id?: number;
+  user_id: number;
+  permission_name: string;
+  granted_by?: number;
+  granted_at?: string;
+}
+
+export async function getUserPermissions(db: any, userId: number): Promise<string[]> {
+  try {
+    const result = await db
+      .prepare('SELECT permission_name FROM user_permissions WHERE user_id = ?')
+      .bind(userId)
+      .all();
+    return (result.results || []).map((row: any) => row.permission_name);
+  } catch (error) {
+    console.error('Error fetching user permissions:', error);
+    return [];
+  }
+}
+
+export async function grantPermission(
+  db: any,
+  userId: number,
+  permissionName: string,
+  grantedBy: number
+): Promise<boolean> {
+  try {
+    const result = await db
+      .prepare('INSERT OR REPLACE INTO user_permissions (user_id, permission_name, granted_by) VALUES (?, ?, ?)')
+      .bind(userId, permissionName, grantedBy)
+      .run();
+    return result.success;
+  } catch (error) {
+    console.error('Error granting permission:', error);
+    return false;
+  }
+}
+
+export async function revokePermission(db: any, userId: number, permissionName: string): Promise<boolean> {
+  try {
+    const result = await db
+      .prepare('DELETE FROM user_permissions WHERE user_id = ? AND permission_name = ?')
+      .bind(userId, permissionName)
+      .run();
+    return result.success;
+  } catch (error) {
+    console.error('Error revoking permission:', error);
+    return false;
+  }
+}
+
+// User Audit Log
+
+export interface AuditLogEntry {
+  id?: number;
+  user_id?: number;
+  action: string;
+  description?: string;
+  ip_address?: string;
+  user_agent?: string;
+  created_at?: string;
+}
+
+export async function createAuditLog(
+  db: any,
+  logEntry: {
+    user_id?: number;
+    action: string;
+    description?: string;
+    ip_address?: string;
+    user_agent?: string;
+  }
+): Promise<number | null> {
+  try {
+    const result = await db
+      .prepare(
+        'INSERT INTO user_audit_log (user_id, action, description, ip_address, user_agent) VALUES (?, ?, ?, ?, ?)'
+      )
+      .bind(
+        logEntry.user_id || null,
+        logEntry.action,
+        logEntry.description || null,
+        logEntry.ip_address || null,
+        logEntry.user_agent || null
+      )
+      .run();
+    return result.meta.last_row_id;
+  } catch (error) {
+    console.error('Error creating audit log:', error);
+    return null;
+  }
+}
+
+export async function getUserAuditLogs(
+  db: any,
+  userId: number,
+  limit = 50,
+  offset = 0
+): Promise<AuditLogEntry[]> {
+  try {
+    const result = await db
+      .prepare('SELECT * FROM user_audit_log WHERE user_id = ? ORDER BY created_at DESC LIMIT ? OFFSET ?')
+      .bind(userId, limit, offset)
+      .all();
+    return result.results || [];
+  } catch (error) {
+    console.error('Error fetching audit logs:', error);
+    return [];
   }
 }

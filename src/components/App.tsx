@@ -1,30 +1,51 @@
 import React from 'react';
+import { ConfigProvider, Spin } from 'antd';
+import { LoadingOutlined } from '@ant-design/icons';
 import { AuthProvider, useAuth } from './Auth/AuthContext';
 import LoginPage from './Auth/LoginPage';
 import HRMSDashboard from './Dashboard/HRMSDashboard';
-import { Loader2 } from 'lucide-react';
+import UserDashboard from './Dashboard/UserDashboard';
 
 function AppContent() {
   const { user, isLoading } = useAuth();
 
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="text-center">
-          <Loader2 size={48} className="animate-spin text-primary mx-auto mb-4" />
-          <p className="text-muted-foreground">Loading...</p>
+          <Spin indicator={<LoadingOutlined style={{ fontSize: 48 }} spin />} />
+          <p className="text-gray-600 mt-4">Loading...</p>
         </div>
       </div>
     );
   }
 
-  return user ? <HRMSDashboard /> : <LoginPage />;
+  // Route based on user role
+  if (user) {
+    if (user.role === 'admin') {
+      return <HRMSDashboard />;
+    } else {
+      return <UserDashboard />;
+    }
+  }
+
+  return <LoginPage />;
 }
 
 export default function App() {
   return (
-    <AuthProvider>
-      <AppContent />
-    </AuthProvider>
+    <ConfigProvider
+      theme={{
+        token: {
+          colorPrimary: '#1890ff',
+          borderRadius: 8,
+          controlHeight: 40,
+        },
+      }}
+    >
+      <AuthProvider>
+        <AppContent />
+      </AuthProvider>
+    </ConfigProvider>
   );
 }

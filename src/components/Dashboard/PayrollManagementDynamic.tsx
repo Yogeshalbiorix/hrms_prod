@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { DollarSign, Plus, Search, Edit, Trash2, Check, X, Download, Calendar, Users, TrendingUp, FileText } from 'lucide-react';
+import { Modal } from 'antd';
 
 interface PayrollRecord {
   id: number;
@@ -61,7 +62,7 @@ export default function PayrollManagementDynamic() {
       if (filterStatus) params.append('status', filterStatus);
 
       const response = await fetch(`/api/payroll?${params}`);
-      const data = await response.json();
+      const data = await response.json() as { success: boolean; data: any[] };
 
       if (data.success) {
         setPayrollRecords(data.data);
@@ -76,7 +77,7 @@ export default function PayrollManagementDynamic() {
   const fetchStats = async () => {
     try {
       const response = await fetch('/api/payroll?stats=true');
-      const data = await response.json();
+      const data = await response.json() as { success: boolean; data: any };
 
       if (data.success) {
         setStats(data.data);
@@ -89,7 +90,7 @@ export default function PayrollManagementDynamic() {
   const fetchEmployees = async () => {
     try {
       const response = await fetch('/api/employees');
-      const data = await response.json();
+      const data = await response.json() as { success: boolean; data: any[] };
 
       if (data.success) {
         setEmployees(data.data.filter((emp: any) => emp.status === 'active'));
@@ -107,18 +108,24 @@ export default function PayrollManagementDynamic() {
         body: JSON.stringify(formData)
       });
 
-      const data = await response.json();
+      const data = await response.json() as { success: boolean; error?: string };
 
       if (data.success) {
         setShowAddModal(false);
         fetchPayroll();
         fetchStats();
       } else {
-        alert(data.error || 'Failed to create payroll record');
+        Modal.error({
+          title: 'Error',
+          content: data.error || 'Failed to create payroll record',
+        });
       }
     } catch (error) {
       console.error('Error creating payroll:', error);
-      alert('Failed to create payroll record');
+      Modal.error({
+        title: 'Error',
+        content: 'Failed to create payroll record',
+      });
     }
   };
 
@@ -130,19 +137,28 @@ export default function PayrollManagementDynamic() {
         body: JSON.stringify({ ...formData, action: 'generate_bulk' })
       });
 
-      const data = await response.json();
+      const data = await response.json() as { success: boolean; message?: string; error?: string };
 
       if (data.success) {
         setShowBulkModal(false);
         fetchPayroll();
         fetchStats();
-        alert(data.message);
+        Modal.success({
+          title: 'Success',
+          content: data.message,
+        });
       } else {
-        alert(data.error || 'Failed to generate bulk payroll');
+        Modal.error({
+          title: 'Error',
+          content: data.error || 'Failed to generate bulk payroll',
+        });
       }
     } catch (error) {
       console.error('Error generating bulk payroll:', error);
-      alert('Failed to generate bulk payroll');
+      Modal.error({
+        title: 'Error',
+        content: 'Failed to generate bulk payroll',
+      });
     }
   };
 
@@ -156,7 +172,7 @@ export default function PayrollManagementDynamic() {
         body: JSON.stringify(formData)
       });
 
-      const data = await response.json();
+      const data = await response.json() as { success: boolean; error?: string };
 
       if (data.success) {
         setShowEditModal(false);
@@ -164,36 +180,55 @@ export default function PayrollManagementDynamic() {
         fetchPayroll();
         fetchStats();
       } else {
-        alert(data.error || 'Failed to update payroll record');
+        Modal.error({
+          title: 'Error',
+          content: data.error || 'Failed to update payroll record',
+        });
       }
     } catch (error) {
       console.error('Error updating payroll:', error);
-      alert('Failed to update payroll record');
+      Modal.error({
+        title: 'Error',
+        content: 'Failed to update payroll record',
+      });
     }
   };
 
   const handleDeletePayroll = async (id: number) => {
-    if (!confirm('Are you sure you want to delete this payroll record?')) return;
+    Modal.confirm({
+      title: 'Confirm Delete',
+      content: 'Are you sure you want to delete this payroll record?',
+      okText: 'Yes, Delete',
+      cancelText: 'Cancel',
+      okButtonProps: { danger: true },
+      onOk: async () => {
+        try {
+          const response = await fetch('/api/payroll', {
+            method: 'DELETE',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id })
+          });
 
-    try {
-      const response = await fetch('/api/payroll', {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id })
-      });
+          const data = await response.json() as { success: boolean; error?: string };
 
-      const data = await response.json();
-
-      if (data.success) {
-        fetchPayroll();
-        fetchStats();
-      } else {
-        alert(data.error || 'Failed to delete payroll record');
-      }
-    } catch (error) {
-      console.error('Error deleting payroll:', error);
-      alert('Failed to delete payroll record');
-    }
+          if (data.success) {
+            fetchPayroll();
+            fetchStats();
+          } else {
+            Modal.error({
+              title: 'Error',
+              content: data.error || 'Failed to delete payroll record',
+            });
+          }
+        } catch (error) {
+          console.error('Error deleting payroll:', error);
+          Modal.error({
+            title: 'Error',
+            content: 'Failed to delete payroll record',
+          });
+        }
+      },
+    });
   };
 
   const handleStatusChange = async (id: number, newStatus: string) => {
@@ -204,17 +239,23 @@ export default function PayrollManagementDynamic() {
         body: JSON.stringify({ status: newStatus })
       });
 
-      const data = await response.json();
+      const data = await response.json() as { success: boolean; error?: string };
 
       if (data.success) {
         fetchPayroll();
         fetchStats();
       } else {
-        alert(data.error || 'Failed to update status');
+        Modal.error({
+          title: 'Error',
+          content: data.error || 'Failed to update status',
+        });
       }
     } catch (error) {
       console.error('Error updating status:', error);
-      alert('Failed to update status');
+      Modal.error({
+        title: 'Error',
+        content: 'Failed to update status',
+      });
     }
   };
 

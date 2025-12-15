@@ -1,60 +1,217 @@
-import React from 'react';
-import { Search, Bell, Settings, User, Mail } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Input, Badge, Avatar, Space, Typography, Dropdown, Tooltip, message } from 'antd';
+import type { MenuProps } from 'antd';
+import {
+  SearchOutlined,
+  BellOutlined,
+  MailOutlined,
+  SettingOutlined,
+  UserOutlined,
+  LogoutOutlined,
+  ProfileOutlined,
+} from '@ant-design/icons';
+import { useAuth } from '../Auth/AuthContext';
+
+const { Title, Text } = Typography;
 
 interface HeaderProps {
   title: string;
+  onMenuClick?: (key: string) => void;
 }
 
-export default function Header({ title }: HeaderProps) {
+interface UserProfile {
+  id: number;
+  username: string;
+  email: string;
+  full_name: string;
+  role: string;
+  employee_id?: number;
+  emp_code?: string;
+  position?: string;
+}
+
+interface Notification {
+  id: number;
+  type: string;
+  message: string;
+  read: boolean;
+  created_at: string;
+}
+
+export default function Header({ title, onMenuClick }: HeaderProps) {
+  const { user: authUser, logout } = useAuth();
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [messages, setMessages] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    fetchUserProfile();
+    fetchNotifications();
+  }, []);
+
+  const fetchUserProfile = async () => {
+    try {
+      const sessionToken = localStorage.getItem('sessionToken');
+      const response = await fetch('/api/auth/profile', {
+        headers: {
+          'Authorization': `Bearer ${sessionToken}`
+        }
+      });
+      const data = await response.json() as { success: boolean; user?: UserProfile; error?: string };
+
+      if (data.success && data.user) {
+        setUserProfile(data.user);
+      }
+    } catch (error) {
+      console.error('Error fetching profile:', error);
+    }
+  };
+
+  const fetchNotifications = async () => {
+    try {
+      const sessionToken = localStorage.getItem('sessionToken');
+      const response = await fetch('/api/notifications', {
+        headers: {
+          'Authorization': `Bearer ${sessionToken}`
+        }
+      });
+      const data = await response.json() as { success: boolean; data?: Notification[] };
+
+      if (data.success && data.data) {
+        setNotifications(data.data.filter(n => !n.read).slice(0, 5));
+      }
+    } catch (error) {
+      // Notifications optional
+    }
+  };
+
+  const handleMenuClick = async (key: string) => {
+    switch (key) {
+      case 'profile':
+        if (onMenuClick) onMenuClick('profile');
+        break;
+      case 'settings':
+        if (onMenuClick) onMenuClick('settings');
+        break;
+      case 'logout':
+        try {
+          await logout();
+          window.location.href = '/';
+        } catch (error) {
+          message.error('Logout failed');
+        }
+        break;
+    }
+  };
+
+  const userMenuItems: MenuProps['items'] = [
+    {
+      key: 'profile',
+      icon: <ProfileOutlined />,
+      label: 'Profile',
+      onClick: () => handleMenuClick('profile'),
+    },
+    {
+      key: 'settings',
+      icon: <SettingOutlined />,
+      label: 'Settings',
+      onClick: () => handleMenuClick('settings'),
+    },
+    {
+      type: 'divider',
+    },
+    {
+      key: 'logout',
+      icon: <LogoutOutlined />,
+      label: 'Logout',
+      danger: true,
+      onClick: () => handleMenuClick('logout'),
+    },
+  ];
+
+  const displayUser = userProfile || authUser;
+  const unreadCount = notifications.length;
+  const messagesCount = messages.length;
+
   return (
-    <header className="bg-card border-b border-border sticky top-0 z-10">
+    <header className="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 sticky top-0 z-10">
       <div className="flex items-center justify-between px-8 py-4">
         {/* Title */}
         <div>
-          <h1 className="font-heading text-2xl font-bold">{title}</h1>
-          <p className="text-muted-foreground text-sm">Welcome back, Admin</p>
+          <Title level={3} className="!mb-0">
+            {title}
+          </Title>
+          <Text type="secondary" className="text-sm">
+            Welcome back, {userProfile?.full_name || authUser?.full_name || 'Admin'}
+          </Text>
         </div>
 
         {/* Right Section */}
-        <div className="flex items-center gap-4">
+        <Space size="middle">
           {/* Search Bar */}
-          <div className="relative hidden md:block">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground" size={18} />
-            <input
-              type="text"
-              placeholder="Search employees, reports..."
-              className="pl-10 pr-4 py-2 w-80 bg-background border border-input rounded-lg focus:outline-none focus:ring-2 focus:ring-ring"
-            />
-          </div>
+          <Input
+            prefix={<SearchOutlined />}
+            placeholder="Search employees, reports..."
+            className="w-80 hidden md:block"
+            size="large"
+            allowClear
+          />
 
           {/* Notification Icon */}
-          <button className="relative p-2 hover:bg-accent rounded-lg transition-colors">
-            <Bell size={20} />
-            <span className="absolute top-1 right-1 w-2 h-2 bg-destructive rounded-full"></span>
-          </button>
+          <Tooltip title="Notifications">
+            <Badge count={unreadCount} size="small" overflowCount={99}>
+              <Avatar
+                icon={<BellOutlined />}
+                className="cursor-pointer hover:bg-blue-50"
+                style={{ backgroundColor: '#f0f5ff', color: '#1890ff' }}
+                onClick={() => onMenuClick?.('notifications')}
+              />
+            </Badge>
+          </Tooltip>
 
           {/* Messages Icon */}
-          <button className="relative p-2 hover:bg-accent rounded-lg transition-colors">
-            <Mail size={20} />
-            <span className="absolute top-1 right-1 w-2 h-2 bg-destructive rounded-full"></span>
-          </button>
+          <Tooltip title="Messages">
+            <Badge count={messagesCount} size="small" overflowCount={99}>
+              <Avatar
+                icon={<MailOutlined />}
+                className="cursor-pointer hover:bg-blue-50"
+                style={{ backgroundColor: '#f0f5ff', color: '#1890ff' }}
+              />
+            </Badge>
+          </Tooltip>
 
           {/* Settings Icon */}
-          <button className="p-2 hover:bg-accent rounded-lg transition-colors">
-            <Settings size={20} />
-          </button>
+          <Tooltip title="Settings">
+            <Avatar
+              icon={<SettingOutlined />}
+              className="cursor-pointer hover:bg-blue-50"
+              style={{ backgroundColor: '#f0f5ff', color: '#1890ff' }}
+              onClick={() => handleMenuClick('settings')}
+            />
+          </Tooltip>
 
           {/* User Profile */}
-          <button className="flex items-center gap-3 px-3 py-2 hover:bg-accent rounded-lg transition-colors">
-            <div className="w-10 h-10 bg-primary rounded-full flex items-center justify-center">
-              <User size={20} className="text-primary-foreground" />
-            </div>
-            <div className="text-left hidden lg:block">
-              <p className="font-medium text-sm">John Doe</p>
-              <p className="text-xs text-muted-foreground">HR Manager</p>
-            </div>
-          </button>
-        </div>
+          <Dropdown menu={{ items: userMenuItems }} placement="bottomRight" trigger={['click']}>
+            <Space className="cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 px-3 py-2 rounded-lg transition-colors">
+              <Avatar
+                icon={<UserOutlined />}
+                style={{ backgroundColor: '#1890ff' }}
+                size="large"
+              >
+                {displayUser?.full_name?.charAt(0) || displayUser?.username?.charAt(0) || 'U'}
+              </Avatar>
+              <div className="text-left hidden lg:block">
+                <Text strong className="block text-sm">
+                  {displayUser?.full_name || displayUser?.username || 'User'}
+                </Text>
+                <Text type="secondary" className="text-xs capitalize">
+                  {displayUser?.position || displayUser?.role || 'Employee'}
+                </Text>
+              </div>
+            </Space>
+          </Dropdown>
+        </Space>
       </div>
     </header>
   );

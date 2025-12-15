@@ -64,7 +64,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
 
       if (response.ok) {
-        const data = await response.json();
+        const data = await response.json() as { authenticated: boolean; user: any };
         if (data.authenticated) {
           setUser(data.user);
           return true;
@@ -87,14 +87,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         body: JSON.stringify({ username, password }),
       });
 
-      const data = await response.json();
+      const data = await response.json() as { success: boolean; sessionToken?: string; user?: any; error?: string };
 
       if (response.ok && data.success) {
         // Store session data
-        localStorage.setItem('sessionToken', data.sessionToken);
+        localStorage.setItem('sessionToken', data.sessionToken!);
         localStorage.setItem('user', JSON.stringify(data.user));
 
-        setSessionToken(data.sessionToken);
+        setSessionToken(data.sessionToken!);
         setUser(data.user);
 
         return { success: true };

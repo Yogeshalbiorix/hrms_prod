@@ -1,5 +1,9 @@
 import React from 'react';
+import { Card, Statistic, Space, Typography } from 'antd';
+import { ArrowUpOutlined, ArrowDownOutlined } from '@ant-design/icons';
 import { LucideIcon } from 'lucide-react';
+
+const { Text } = Typography;
 
 interface StatsCardProps {
   title: string;
@@ -10,40 +14,73 @@ interface StatsCardProps {
   color?: 'blue' | 'green' | 'yellow' | 'red' | 'purple';
 }
 
-export default function StatsCard({ 
-  title, 
-  value, 
-  change, 
-  trend, 
+export default function StatsCard({
+  title,
+  value,
+  change,
+  trend,
   icon: Icon,
-  color = 'blue' 
+  color = 'blue'
 }: StatsCardProps) {
-  const colorClasses = {
-    blue: 'bg-blue-100 text-blue-600 dark:bg-blue-950 dark:text-blue-400',
-    green: 'bg-green-100 text-green-600 dark:bg-green-950 dark:text-green-400',
-    yellow: 'bg-yellow-100 text-yellow-600 dark:bg-yellow-950 dark:text-yellow-400',
-    red: 'bg-red-100 text-red-600 dark:bg-red-950 dark:text-red-400',
-    purple: 'bg-purple-100 text-purple-600 dark:bg-purple-950 dark:text-purple-400',
+  const colorConfig = {
+    blue: { bg: '#e6f4ff', color: '#1890ff' },
+    green: { bg: '#f6ffed', color: '#52c41a' },
+    yellow: { bg: '#fffbe6', color: '#faad14' },
+    red: { bg: '#fff1f0', color: '#ff4d4f' },
+    purple: { bg: '#f9f0ff', color: '#722ed1' },
   };
 
+  const config = colorConfig[color];
+
   return (
-    <div className="bg-card border border-border rounded-xl p-6 hover:shadow-lg transition-shadow">
+    <Card
+      bordered={false}
+      className="shadow-sm hover:shadow-md transition-shadow"
+      bodyStyle={{ padding: '24px' }}
+    >
       <div className="flex items-start justify-between">
         <div className="flex-1">
-          <p className="text-muted-foreground text-sm font-medium mb-1">{title}</p>
-          <h3 className="text-3xl font-bold font-heading mb-2">{value}</h3>
+          <Text type="secondary" className="text-sm">
+            {title}
+          </Text>
+          <Statistic
+            value={value}
+            valueStyle={{ fontSize: '32px', fontWeight: 'bold', marginTop: '8px' }}
+          />
           {change && (
-            <p className={`text-sm font-medium ${
-              trend === 'up' ? 'text-green-600' : 'text-red-600'
-            }`}>
-              {trend === 'up' ? '↑' : '↓'} {change}
-            </p>
+            <Space size={4} className="mt-2">
+              {trend === 'up' ? (
+                <ArrowUpOutlined style={{ color: '#52c41a' }} />
+              ) : (
+                <ArrowDownOutlined style={{ color: '#ff4d4f' }} />
+              )}
+              <Text
+                style={{
+                  color: trend === 'up' ? '#52c41a' : '#ff4d4f',
+                  fontSize: '14px',
+                  fontWeight: 500,
+                }}
+              >
+                {change}
+              </Text>
+            </Space>
           )}
         </div>
-        <div className={`w-12 h-12 rounded-lg flex items-center justify-center ${colorClasses[color]}`}>
+        <div
+          style={{
+            width: '48px',
+            height: '48px',
+            borderRadius: '8px',
+            backgroundColor: config.bg,
+            color: config.color,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
           <Icon size={24} />
         </div>
       </div>
-    </div>
+    </Card>
   );
 }

@@ -1,19 +1,24 @@
 import React, { useState } from 'react';
+import { Menu, Avatar, Typography, Space, Tooltip, Button, Modal } from 'antd';
+import type { MenuProps } from 'antd';
 import {
-  LayoutDashboard,
-  Users,
-  Building2,
-  Calendar,
-  DollarSign,
-  Briefcase,
-  TrendingUp,
-  Bell,
-  Settings,
-  ChevronLeft,
-  ChevronRight,
-  LogOut
-} from 'lucide-react';
+  DashboardOutlined,
+  TeamOutlined,
+  BankOutlined,
+  CalendarOutlined,
+  DollarOutlined,
+  SolutionOutlined,
+  RiseOutlined,
+  BellOutlined,
+  SettingOutlined,
+  MenuFoldOutlined,
+  MenuUnfoldOutlined,
+  LogoutOutlined,
+  UserOutlined,
+} from '@ant-design/icons';
 import { useAuth } from '../Auth/AuthContext';
+
+const { Text } = Typography;
 
 interface SidebarProps {
   activeTab: string;
@@ -25,93 +30,144 @@ export default function Sidebar({ activeTab, onTabChange }: SidebarProps) {
   const { logout, user } = useAuth();
 
   const handleLogout = async () => {
-    if (confirm('Are you sure you want to logout?')) {
-      await logout();
-    }
+    Modal.confirm({
+      title: 'Confirm Logout',
+      content: 'Are you sure you want to logout?',
+      okText: 'Yes, Logout',
+      cancelText: 'Cancel',
+      onOk: async () => {
+        await logout();
+      },
+    });
   };
 
-  const menuItems = [
-    { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
-    { id: 'employees', label: 'Employees', icon: Users },
-    { id: 'departments', label: 'Departments', icon: Building2 },
-    { id: 'attendance', label: 'Attendance & Leave', icon: Calendar },
-    { id: 'payroll', label: 'Payroll', icon: DollarSign },
-    { id: 'recruitment', label: 'Recruitment', icon: Briefcase },
-    { id: 'performance', label: 'Performance', icon: TrendingUp },
-    { id: 'notifications', label: 'Notifications', icon: Bell },
-    { id: 'settings', label: 'Settings', icon: Settings },
+  const menuItems: MenuProps['items'] = [
+    {
+      key: 'dashboard',
+      icon: <DashboardOutlined />,
+      label: 'Dashboard',
+    },
+    {
+      key: 'employees',
+      icon: <TeamOutlined />,
+      label: 'Employees',
+    },
+    {
+      key: 'departments',
+      icon: <BankOutlined />,
+      label: 'Departments',
+    },
+    {
+      key: 'attendance',
+      icon: <CalendarOutlined />,
+      label: 'Attendance & Leave',
+    },
+    {
+      key: 'payroll',
+      icon: <DollarOutlined />,
+      label: 'Payroll',
+    },
+    {
+      key: 'recruitment',
+      icon: <SolutionOutlined />,
+      label: 'Recruitment',
+    },
+    {
+      key: 'performance',
+      icon: <RiseOutlined />,
+      label: 'Performance',
+    },
+    {
+      key: 'notifications',
+      icon: <BellOutlined />,
+      label: 'Notifications',
+    },
+    {
+      key: 'settings',
+      icon: <SettingOutlined />,
+      label: 'Settings',
+    },
   ];
+
+  const handleMenuClick: MenuProps['onClick'] = (e) => {
+    onTabChange(e.key);
+  };
 
   return (
     <aside
-      className={`bg-card border-r border-border h-screen sticky top-0 transition-all duration-300 ${collapsed ? 'w-20' : 'w-64'
+      className={`bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800 h-screen sticky top-0 transition-all duration-300 ${collapsed ? 'w-20' : 'w-64'
         }`}
+      style={{ boxShadow: '2px 0 8px rgba(0,0,0,0.05)' }}
     >
       <div className="flex flex-col h-full">
         {/* Logo Section */}
-        <div className="p-6 border-b border-border flex items-center justify-between">
+        <div className="p-4 border-b border-gray-200 dark:border-gray-800 flex items-center justify-between">
           {!collapsed && (
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
-                <span className="text-primary-foreground font-bold">HR</span>
-              </div>
-              <span className="font-heading font-bold text-xl">HRMS</span>
-            </div>
+            <Space align="center">
+              <Avatar
+                style={{ backgroundColor: '#1890ff' }}
+                size="large"
+                icon={<TeamOutlined />}
+              />
+              <Text strong className="text-lg">
+                HRMS
+              </Text>
+            </Space>
           )}
-          <button
-            onClick={() => setCollapsed(!collapsed)}
-            className="p-2 hover:bg-accent rounded-lg transition-colors"
-          >
-            {collapsed ? <ChevronRight size={20} /> : <ChevronLeft size={20} />}
-          </button>
+          <Tooltip title={collapsed ? 'Expand' : 'Collapse'} placement="right">
+            <Button
+              type="text"
+              icon={collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
+              onClick={() => setCollapsed(!collapsed)}
+            />
+          </Tooltip>
         </div>
 
         {/* Navigation Menu */}
-        <nav className="flex-1 p-4 overflow-y-auto">
-          <ul className="space-y-2 p-0 m-0 pl-0" style={{ paddingLeft: "0px !important" }}>
-            {menuItems.map((item) => {
-              const Icon = item.icon;
-              const isActive = activeTab === item.id;
-
-              return (
-                <li key={item.id}>
-                  <button
-                    onClick={() => onTabChange(item.id)}
-                    className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all ${isActive
-                      ? 'bg-primary text-primary-foreground shadow-md'
-                      : 'hover:bg-accent text-foreground'
-                      }`}
-                    title={collapsed ? item.label : ''}
-                  >
-                    <Icon size={20} />
-                    {!collapsed && (
-                      <span className="font-medium">{item.label}</span>
-                    )}
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
-        </nav>
+        <div className="flex-1 overflow-y-auto">
+          <Menu
+            mode="inline"
+            selectedKeys={[activeTab]}
+            onClick={handleMenuClick}
+            inlineCollapsed={collapsed}
+            items={menuItems}
+            className="border-0"
+            style={{ height: '100%', borderRight: 0 }}
+          />
+        </div>
 
         {/* User Section */}
-        <div className="p-4 border-t border-border">
+        <div className="p-4 border-t border-gray-200 dark:border-gray-800">
           {!collapsed && user && (
-            <div className="mb-3 px-4 py-2 bg-muted rounded-lg">
-              <p className="text-xs text-muted-foreground">Logged in as</p>
-              <p className="text-sm font-semibold text-black truncate">{user.full_name}</p>
-              <p className="text-xs text-muted-foreground truncate">{user.role}</p>
+            <div className="mb-3 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+              <Space vertical size={0} className="w-full">
+                <Text type="secondary" className="text-xs">
+                  Logged in as
+                </Text>
+                <Tooltip title={user.full_name}>
+                  <Text strong className="text-sm block truncate">
+                    {user.full_name}
+                  </Text>
+                </Tooltip>
+                <Text type="secondary" className="text-xs capitalize">
+                  {user.role}
+                </Text>
+              </Space>
             </div>
           )}
-          <button
-            onClick={handleLogout}
-            className="w-full flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-destructive hover:text-destructive-foreground transition-colors"
-          >
-            <LogOut size={20} />
-            {!collapsed && <span className="font-medium">Logout</span>}
-          </button>
+          <Tooltip title={collapsed ? 'Logout' : ''} placement="right">
+            <Button
+              danger
+              type="text"
+              icon={<LogoutOutlined />}
+              onClick={handleLogout}
+              className="w-full"
+            >
+              {!collapsed && 'Logout'}
+            </Button>
+          </Tooltip>
         </div>
       </div>
-    </aside >
+    </aside>
   );
 }

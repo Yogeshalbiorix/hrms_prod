@@ -85,7 +85,7 @@ export const PUT: APIRoute = async ({ params, request, locals }) => {
       });
     }
 
-    const body = await request.json();
+    const body = await request.json() as Partial<Payroll>;
 
     const payroll: Partial<Payroll> = {
       pay_period_start: body.pay_period_start,
