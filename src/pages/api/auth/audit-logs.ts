@@ -31,7 +31,7 @@ export const GET: APIRoute = async ({ request, locals, cookies }) => {
     const offset = parseInt(url.searchParams.get('offset') || '0');
 
     // Get user's audit logs
-    const logs = await getUserAuditLogs(db, user.id, limit, offset);
+    const logs = await getUserAuditLogs(db, user.id!, limit, offset);
 
     return new Response(
       JSON.stringify({

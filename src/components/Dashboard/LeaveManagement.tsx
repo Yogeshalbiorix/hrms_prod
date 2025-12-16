@@ -1,6 +1,21 @@
 import React, { useState, useEffect } from 'react';
-import { Calendar, Clock, Plus, Search, Edit, Trash2, Check, X, FileText } from 'lucide-react';
-import { Modal } from 'antd';
+import { Card, Table, Tag, Space, Button, DatePicker, Select, Statistic, Row, Col, Modal, Form, Input, message, Tooltip, Empty } from 'antd';
+import {
+  CalendarOutlined,
+  CheckCircleOutlined,
+  CloseCircleOutlined,
+  ClockCircleOutlined,
+  PlusOutlined,
+  EditOutlined,
+  DeleteOutlined,
+  SearchOutlined,
+  ReloadOutlined,
+  ExclamationCircleOutlined,
+  UserOutlined,
+  FileTextOutlined
+} from '@ant-design/icons';
+import type { ColumnsType } from 'antd/es/table';
+import dayjs from 'dayjs';
 
 interface LeaveRecord {
   id: number;
@@ -31,7 +46,7 @@ interface LeaveStats {
 export default function LeaveManagement() {
   const [leaveRecords, setLeaveRecords] = useState<LeaveRecord[]>([]);
   const [stats, setStats] = useState<LeaveStats | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [selectedRecord, setSelectedRecord] = useState<LeaveRecord | null>(null);
@@ -39,6 +54,9 @@ export default function LeaveManagement() {
   const [filterLeaveType, setFilterLeaveType] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [employees, setEmployees] = useState<any[]>([]);
+  const [form] = Form.useForm();
+
+  const { RangePicker } = DatePicker;
 
   useEffect(() => {
     fetchLeaves();
@@ -100,7 +118,9 @@ export default function LeaveManagement() {
       const data = await response.json() as any;
 
       if (data.success) {
-        setEmployees(data.data);
+        // Filter out terminated employees from leave management
+        const activeEmployees = data.data.filter((emp: any) => emp.status !== 'terminated');
+        setEmployees(activeEmployees);
       }
     } catch (error) {
       console.error('Error fetching employees:', error);
@@ -253,38 +273,167 @@ export default function LeaveManagement() {
     }
   };
 
-  const getStatusBadgeClass = (status: string) => {
-    switch (status) {
-      case 'approved':
-        return 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400';
-      case 'rejected':
-        return 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400';
-      case 'pending':
-        return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400';
-      case 'cancelled':
-        return 'bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-400';
-      default:
-        return 'bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-400';
-    }
+  const getStatusTag = (status: string) => {
+    const config: Record<string, { color: string; icon: any }> = {
+      approved: { color: 'success', icon: <CheckCircleOutlined /> },
+      rejected: { color: 'error', icon: <CloseCircleOutlined /> },
+      pending: { color: 'warning', icon: <ClockCircleOutlined /> },
+      cancelled: { color: 'default', icon: <CloseCircleOutlined /> }
+    };
+    const { color, icon } = config[status] || config['pending'];
+    return (
+      <Tag color={color} icon={icon}>
+        {status.toUpperCase()}
+      </Tag>
+    );
   };
 
-  const getLeaveTypeBadgeClass = (type: string) => {
-    switch (type) {
-      case 'sick':
-        return 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400';
-      case 'vacation':
-        return 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400';
-      case 'personal':
-        return 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400';
-      case 'maternity':
-      case 'paternity':
-        return 'bg-pink-100 text-pink-800 dark:bg-pink-900/30 dark:text-pink-400';
-      case 'unpaid':
-        return 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400';
-      default:
-        return 'bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-400';
-    }
+  const getLeaveTypeTag = (type: string) => {
+    const colors: Record<string, string> = {
+      sick: 'red',
+      vacation: 'blue',
+      personal: 'purple',
+      maternity: 'magenta',
+      paternity: 'cyan',
+      unpaid: 'orange'
+    };
+    return <Tag color={colors[type] || 'default'}>{type.toUpperCase()}</Tag>;
   };
+
+  const columns: ColumnsType<LeaveRecord> = [
+    {
+      title: 'Employee',
+      key: 'employee',
+      width: 220,
+      fixed: 'left',
+      render: (_, record) => (
+        <div>
+          <div style={{ fontWeight: 600, color: '#1890ff' }}>
+            <UserOutlined style={{ marginRight: 6 }} />
+            {record.employee_name}
+          </div>
+          <div style={{ fontSize: 12, color: '#8c8c8c' }}>{record.employee_code}</div>
+        </div>
+      ),
+      sorter: (a, b) => a.employee_name.localeCompare(b.employee_name),
+    },
+    {
+      title: 'Department',
+      dataIndex: 'department_name',
+      key: 'department',
+      width: 150,
+      ellipsis: true,
+    },
+    {
+      title: 'Leave Type',
+      dataIndex: 'leave_type',
+      key: 'leave_type',
+      width: 120,
+      render: (type: string) => getLeaveTypeTag(type),
+      filters: [
+        { text: 'Sick', value: 'sick' },
+        { text: 'Vacation', value: 'vacation' },
+        { text: 'Personal', value: 'personal' },
+        { text: 'Maternity', value: 'maternity' },
+        { text: 'Paternity', value: 'paternity' },
+        { text: 'Unpaid', value: 'unpaid' },
+      ],
+      onFilter: (value, record) => record.leave_type === value,
+    },
+    {
+      title: 'Start Date',
+      dataIndex: 'start_date',
+      key: 'start_date',
+      width: 120,
+      render: (date: string) => dayjs(date).format('MMM DD, YYYY'),
+      sorter: (a, b) => new Date(a.start_date).getTime() - new Date(b.start_date).getTime(),
+    },
+    {
+      title: 'End Date',
+      dataIndex: 'end_date',
+      key: 'end_date',
+      width: 120,
+      render: (date: string) => dayjs(date).format('MMM DD, YYYY'),
+    },
+    {
+      title: 'Days',
+      dataIndex: 'total_days',
+      key: 'total_days',
+      width: 80,
+      align: 'center' as const,
+      render: (days: number) => <Tag color="blue">{days}</Tag>,
+    },
+    {
+      title: 'Status',
+      dataIndex: 'status',
+      key: 'status',
+      width: 120,
+      render: (status: string) => getStatusTag(status),
+      filters: [
+        { text: 'Pending', value: 'pending' },
+        { text: 'Approved', value: 'approved' },
+        { text: 'Rejected', value: 'rejected' },
+        { text: 'Cancelled', value: 'cancelled' },
+      ],
+      onFilter: (value, record) => record.status === value,
+    },
+    {
+      title: 'Reason',
+      dataIndex: 'reason',
+      key: 'reason',
+      width: 200,
+      ellipsis: true,
+      render: (reason: string) => reason || '-',
+    },
+    {
+      title: 'Actions',
+      key: 'actions',
+      width: 150,
+      fixed: 'right',
+      render: (_, record) => (
+        <Space>
+          {record.status === 'pending' && (
+            <>
+              <Tooltip title="Approve">
+                <Button
+                  type="text"
+                  style={{ color: '#52c41a' }}
+                  icon={<CheckCircleOutlined />}
+                  onClick={() => handleApproveReject(record.id, 'approved')}
+                />
+              </Tooltip>
+              <Tooltip title="Reject">
+                <Button
+                  type="text"
+                  danger
+                  icon={<CloseCircleOutlined />}
+                  onClick={() => handleApproveReject(record.id, 'rejected')}
+                />
+              </Tooltip>
+            </>
+          )}
+          <Tooltip title="Edit">
+            <Button
+              type="text"
+              icon={<EditOutlined />}
+              onClick={() => {
+                setSelectedRecord(record);
+                setShowEditModal(true);
+              }}
+            />
+          </Tooltip>
+          <Tooltip title="Delete">
+            <Button
+              type="text"
+              danger
+              icon={<DeleteOutlined />}
+              onClick={() => handleDeleteLeave(record.id)}
+            />
+          </Tooltip>
+        </Space>
+      ),
+    },
+  ];
 
   const filteredRecords = leaveRecords.filter(record =>
     record.employee_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -293,406 +442,280 @@ export default function LeaveManagement() {
   );
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-heading font-bold">Leave Management</h1>
-          <p className="text-muted-foreground mt-1">Manage employee leave requests</p>
-        </div>
-        <button
-          onClick={() => setShowAddModal(true)}
-          className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors"
-        >
-          <Plus className="w-4 h-4" />
-          New Leave Request
-        </button>
-      </div>
+    <div style={{ padding: '24px' }}>
+      {/* Statistics */}
+      <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
+        <Col xs={24} sm={12} md={6} lg={4} xl={4}>
+          <Card>
+            <Statistic
+              title="Total"
+              value={stats?.total || 0}
+              prefix={<FileTextOutlined />}
+              valueStyle={{ color: '#1890ff' }}
+            />
+          </Card>
+        </Col>
+        <Col xs={24} sm={12} md={6} lg={5} xl={5}>
+          <Card>
+            <Statistic
+              title="Pending"
+              value={stats?.pending || 0}
+              prefix={<ClockCircleOutlined />}
+              valueStyle={{ color: '#faad14' }}
+            />
+          </Card>
+        </Col>
+        <Col xs={24} sm={12} md={6} lg={5} xl={5}>
+          <Card>
+            <Statistic
+              title="Approved"
+              value={stats?.approved || 0}
+              prefix={<CheckCircleOutlined />}
+              valueStyle={{ color: '#52c41a' }}
+            />
+          </Card>
+        </Col>
+        <Col xs={24} sm={12} md={6} lg={5} xl={5}>
+          <Card>
+            <Statistic
+              title="Rejected"
+              value={stats?.rejected || 0}
+              prefix={<CloseCircleOutlined />}
+              valueStyle={{ color: '#ff4d4f' }}
+            />
+          </Card>
+        </Col>
+        <Col xs={24} sm={12} md={6} lg={5} xl={5}>
+          <Card>
+            <Statistic
+              title="Cancelled"
+              value={stats?.cancelled || 0}
+              prefix={<ExclamationCircleOutlined />}
+              valueStyle={{ color: '#8c8c8c' }}
+            />
+          </Card>
+        </Col>
+      </Row>
 
-      {/* Stats Cards */}
-      {stats && (
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-          <div className="bg-card border border-border rounded-lg p-4">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
-                <FileText className="w-5 h-5 text-blue-600 dark:text-blue-400" />
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Total</p>
-                <p className="text-2xl font-bold">{stats.total}</p>
-              </div>
-            </div>
-          </div>
-          <div className="bg-card border border-border rounded-lg p-4">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-yellow-100 dark:bg-yellow-900/30 flex items-center justify-center">
-                <Clock className="w-5 h-5 text-yellow-600 dark:text-yellow-400" />
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Pending</p>
-                <p className="text-2xl font-bold">{stats.pending}</p>
-              </div>
-            </div>
-          </div>
-          <div className="bg-card border border-border rounded-lg p-4">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
-                <Check className="w-5 h-5 text-green-600 dark:text-green-400" />
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Approved</p>
-                <p className="text-2xl font-bold">{stats.approved}</p>
-              </div>
-            </div>
-          </div>
-          <div className="bg-card border border-border rounded-lg p-4">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-red-100 dark:bg-red-900/30 flex items-center justify-center">
-                <X className="w-5 h-5 text-red-600 dark:text-red-400" />
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Rejected</p>
-                <p className="text-2xl font-bold">{stats.rejected}</p>
-              </div>
-            </div>
-          </div>
-          <div className="bg-card border border-border rounded-lg p-4">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-gray-100 dark:bg-gray-900/30 flex items-center justify-center">
-                <X className="w-5 h-5 text-gray-600 dark:text-gray-400" />
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Cancelled</p>
-                <p className="text-2xl font-bold">{stats.cancelled}</p>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Filters */}
-      <div className="bg-card border border-border rounded-lg p-4">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div>
-            <label className="block text-sm font-medium mb-2">Status</label>
-            <select
-              value={filterStatus}
-              onChange={(e) => setFilterStatus(e.target.value)}
-              className="w-full px-3 py-2 bg-background border border-input rounded-lg"
+      {/* Filters and Actions */}
+      <Card style={{ marginBottom: 24 }}>
+        <Row gutter={[16, 16]} align="middle">
+          <Col xs={24} sm={12} md={6}>
+            <Select
+              style={{ width: '100%' }}
+              placeholder="All Statuses"
+              value={filterStatus || undefined}
+              onChange={setFilterStatus}
+              allowClear
             >
-              <option value="">All Statuses</option>
-              <option value="pending">Pending</option>
-              <option value="approved">Approved</option>
-              <option value="rejected">Rejected</option>
-              <option value="cancelled">Cancelled</option>
-            </select>
-          </div>
-          <div>
-            <label className="block text-sm font-medium mb-2">Leave Type</label>
-            <select
-              value={filterLeaveType}
-              onChange={(e) => setFilterLeaveType(e.target.value)}
-              className="w-full px-3 py-2 bg-background border border-input rounded-lg"
+              <Select.Option value="pending">Pending</Select.Option>
+              <Select.Option value="approved">Approved</Select.Option>
+              <Select.Option value="rejected">Rejected</Select.Option>
+              <Select.Option value="cancelled">Cancelled</Select.Option>
+            </Select>
+          </Col>
+          <Col xs={24} sm={12} md={6}>
+            <Select
+              style={{ width: '100%' }}
+              placeholder="All Leave Types"
+              value={filterLeaveType || undefined}
+              onChange={setFilterLeaveType}
+              allowClear
             >
-              <option value="">All Types</option>
-              <option value="sick">Sick Leave</option>
-              <option value="vacation">Vacation</option>
-              <option value="personal">Personal</option>
-              <option value="maternity">Maternity</option>
-              <option value="paternity">Paternity</option>
-              <option value="unpaid">Unpaid</option>
-            </select>
-          </div>
-          <div>
-            <label className="block text-sm font-medium mb-2">Search</label>
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search by name or employee ID..."
-                className="w-full pl-10 pr-3 py-2 bg-background border border-input rounded-lg"
+              <Select.Option value="sick">Sick Leave</Select.Option>
+              <Select.Option value="vacation">Vacation</Select.Option>
+              <Select.Option value="personal">Personal</Select.Option>
+              <Select.Option value="maternity">Maternity</Select.Option>
+              <Select.Option value="paternity">Paternity</Select.Option>
+              <Select.Option value="unpaid">Unpaid</Select.Option>
+            </Select>
+          </Col>
+          <Col xs={24} sm={12} md={8}>
+            <Input
+              placeholder="Search by name or employee ID..."
+              prefix={<SearchOutlined />}
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              allowClear
+            />
+          </Col>
+          <Col xs={24} sm={12} md={4}>
+            <Space>
+              <Button
+                type="primary"
+                icon={<PlusOutlined />}
+                onClick={() => setShowAddModal(true)}
+              >
+                New Leave
+              </Button>
+              <Button
+                icon={<ReloadOutlined />}
+                onClick={() => {
+                  fetchLeaves();
+                  fetchStats();
+                }}
               />
-            </div>
-          </div>
-        </div>
-      </div>
+            </Space>
+          </Col>
+        </Row>
+      </Card>
 
       {/* Leave Requests Table */}
-      <div className="bg-card border border-border rounded-lg overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead className="bg-muted/50 border-b border-border">
-              <tr>
-                <th className="px-4 py-3 text-left text-sm font-semibold">Employee</th>
-                <th className="px-4 py-3 text-left text-sm font-semibold">Department</th>
-                <th className="px-4 py-3 text-left text-sm font-semibold">Leave Type</th>
-                <th className="px-4 py-3 text-left text-sm font-semibold">Start Date</th>
-                <th className="px-4 py-3 text-left text-sm font-semibold">End Date</th>
-                <th className="px-4 py-3 text-left text-sm font-semibold">Days</th>
-                <th className="px-4 py-3 text-left text-sm font-semibold">Status</th>
-                <th className="px-4 py-3 text-left text-sm font-semibold">Reason</th>
-                <th className="px-4 py-3 text-right text-sm font-semibold">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border">
-              {loading ? (
-                <tr>
-                  <td colSpan={9} className="px-4 py-8 text-center text-muted-foreground">
-                    Loading...
-                  </td>
-                </tr>
-              ) : filteredRecords.length === 0 ? (
-                <tr>
-                  <td colSpan={9} className="px-4 py-8 text-center text-muted-foreground">
-                    No leave requests found
-                  </td>
-                </tr>
-              ) : (
-                filteredRecords.map((record) => (
-                  <tr key={record.id} className="hover:bg-muted/30">
-                    <td className="px-4 py-3">
-                      <div>
-                        <p className="font-medium">{record.employee_name}</p>
-                        <p className="text-sm text-muted-foreground">{record.employee_code}</p>
-                      </div>
-                    </td>
-                    <td className="px-4 py-3 text-sm">{record.department_name || 'N/A'}</td>
-                    <td className="px-4 py-3">
-                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getLeaveTypeBadgeClass(record.leave_type)}`}>
-                        {record.leave_type.charAt(0).toUpperCase() + record.leave_type.slice(1)}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-sm">{new Date(record.start_date).toLocaleDateString()}</td>
-                    <td className="px-4 py-3 text-sm">{new Date(record.end_date).toLocaleDateString()}</td>
-                    <td className="px-4 py-3 text-sm font-medium">{record.total_days}</td>
-                    <td className="px-4 py-3">
-                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusBadgeClass(record.status)}`}>
-                        {record.status.charAt(0).toUpperCase() + record.status.slice(1)}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-sm max-w-xs truncate">{record.reason || '-'}</td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center justify-end gap-2">
-                        {record.status === 'pending' && (
-                          <>
-                            <button
-                              onClick={() => handleApproveReject(record.id, 'approved')}
-                              className="p-2 hover:bg-green-100 dark:hover:bg-green-900/30 text-green-600 dark:text-green-400 rounded-lg transition-colors"
-                              title="Approve"
-                            >
-                              <Check className="w-4 h-4" />
-                            </button>
-                            <button
-                              onClick={() => handleApproveReject(record.id, 'rejected')}
-                              className="p-2 hover:bg-red-100 dark:hover:bg-red-900/30 text-red-600 dark:text-red-400 rounded-lg transition-colors"
-                              title="Reject"
-                            >
-                              <X className="w-4 h-4" />
-                            </button>
-                          </>
-                        )}
-                        <button
-                          onClick={() => {
-                            setSelectedRecord(record);
-                            setShowEditModal(true);
-                          }}
-                          className="p-2 hover:bg-muted rounded-lg transition-colors"
-                          title="Edit"
-                        >
-                          <Edit className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => handleDeleteLeave(record.id)}
-                          className="p-2 hover:bg-destructive/10 text-destructive rounded-lg transition-colors"
-                          title="Delete"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* Add Leave Modal */}
-      {showAddModal && (
-        <LeaveModal
-          employees={employees}
-          onClose={() => setShowAddModal(false)}
-          onSubmit={handleAddLeave}
-        />
-      )}
-
-      {/* Edit Leave Modal */}
-      {showEditModal && selectedRecord && (
-        <LeaveModal
-          employees={employees}
-          record={selectedRecord}
-          onClose={() => {
-            setShowEditModal(false);
-            setSelectedRecord(null);
+      <Card>
+        <Table
+          columns={columns}
+          dataSource={filteredRecords}
+          rowKey="id"
+          loading={loading}
+          pagination={{
+            pageSize: 10,
+            showSizeChanger: true,
+            showTotal: (total, range) => `${range[0]}-${range[1]} of ${total} items`,
+            pageSizeOptions: ['10', '20', '50', '100'],
           }}
-          onSubmit={handleUpdateLeave}
+          scroll={{ x: 1200 }}
+          locale={{
+            emptyText: (
+              <Empty
+                image={Empty.PRESENTED_IMAGE_SIMPLE}
+                description={
+                  <div>
+                    <p>No leave requests found</p>
+                    {leaveRecords.length === 0 && !loading && (
+                      <Button
+                        type="primary"
+                        style={{ marginTop: 16 }}
+                        onClick={async () => {
+                          try {
+                            const response = await fetch('/api/test/seed-attendance', {
+                              method: 'POST',
+                              headers: {
+                                'Authorization': `Bearer ${localStorage.getItem('sessionToken')}`
+                              }
+                            });
+                            const result = await response.json() as { success: boolean; error?: string };
+                            if (result.success) {
+                              message.success('Sample data created successfully!');
+                              fetchLeaves();
+                              fetchStats();
+                            } else {
+                              message.error(result.error || 'Failed to seed data');
+                            }
+                          } catch (err) {
+                            message.error('Error seeding data');
+                          }
+                        }}
+                      >
+                        Generate Sample Data
+                      </Button>
+                    )}
+                  </div>
+                }
+              />
+            ),
+          }}
         />
-      )}
-    </div>
-  );
-}
+      </Card>
 
-// Leave Modal Component
-function LeaveModal({ employees, record, onClose, onSubmit }: any) {
-  const [formData, setFormData] = useState({
-    employee_id: record?.employee_id || '',
-    leave_type: record?.leave_type || 'vacation',
-    start_date: record?.start_date || '',
-    end_date: record?.end_date || '',
-    reason: record?.reason || '',
-    status: record?.status || 'pending',
-    notes: record?.notes || ''
-  });
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    onSubmit(formData);
-  };
-
-  return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-card border border-border rounded-lg max-w-md w-full max-h-[90vh] overflow-y-auto">
-        <div className="p-6 border-b border-border">
-          <h2 className="text-xl font-heading font-bold">
-            {record ? 'Edit Leave Request' : 'New Leave Request'}
-          </h2>
-        </div>
-
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
-          {!record && (
-            <div>
-              <label className="block text-sm font-medium mb-2">
-                Employee <span className="text-destructive">*</span>
-              </label>
-              <select
-                required
-                value={formData.employee_id}
-                onChange={(e) => setFormData({ ...formData, employee_id: e.target.value })}
-                className="w-full px-3 py-2 bg-background border border-input rounded-lg"
-              >
-                <option value="">Select Employee</option>
-                {employees.map((emp: any) => (
-                  <option key={emp.id} value={emp.id}>
-                    {emp.first_name} {emp.last_name} ({emp.employee_id})
-                  </option>
-                ))}
-              </select>
-            </div>
+      {/* Add/Edit Leave Modal */}
+      <Modal
+        title={selectedRecord ? 'Edit Leave Request' : 'New Leave Request'}
+        open={showAddModal || showEditModal}
+        onCancel={() => {
+          setShowAddModal(false);
+          setShowEditModal(false);
+          setSelectedRecord(null);
+          form.resetFields();
+        }}
+        onOk={() => form.submit()}
+        width={600}
+      >
+        <Form
+          form={form}
+          layout="vertical"
+          onFinish={selectedRecord ? handleUpdateLeave : handleAddLeave}
+          initialValues={selectedRecord || {
+            leave_type: 'vacation',
+            status: 'pending'
+          }}
+        >
+          {!selectedRecord && (
+            <Form.Item
+              label="Employee"
+              name="employee_id"
+              rules={[{ required: true, message: 'Please select an employee' }]}
+            >
+              <Select
+                showSearch
+                placeholder="Select Employee"
+                optionFilterProp="children"
+                filterOption={(input, option) =>
+                  (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+                }
+                options={employees.map((emp: any) => ({
+                  value: emp.id,
+                  label: `${emp.first_name} ${emp.last_name} (${emp.employee_id})`
+                }))}
+              />
+            </Form.Item>
           )}
 
-          <div>
-            <label className="block text-sm font-medium mb-2">
-              Leave Type <span className="text-destructive">*</span>
-            </label>
-            <select
-              required
-              value={formData.leave_type}
-              onChange={(e) => setFormData({ ...formData, leave_type: e.target.value })}
-              className="w-full px-3 py-2 bg-background border border-input rounded-lg"
-            >
-              <option value="sick">Sick Leave</option>
-              <option value="vacation">Vacation</option>
-              <option value="personal">Personal</option>
-              <option value="maternity">Maternity</option>
-              <option value="paternity">Paternity</option>
-              <option value="unpaid">Unpaid</option>
-            </select>
-          </div>
+          <Form.Item
+            label="Leave Type"
+            name="leave_type"
+            rules={[{ required: true, message: 'Please select leave type' }]}
+          >
+            <Select>
+              <Select.Option value="sick">Sick Leave</Select.Option>
+              <Select.Option value="vacation">Vacation</Select.Option>
+              <Select.Option value="personal">Personal</Select.Option>
+              <Select.Option value="maternity">Maternity</Select.Option>
+              <Select.Option value="paternity">Paternity</Select.Option>
+              <Select.Option value="unpaid">Unpaid</Select.Option>
+            </Select>
+          </Form.Item>
 
-          <div>
-            <label className="block text-sm font-medium mb-2">
-              Start Date <span className="text-destructive">*</span>
-            </label>
-            <input
-              type="date"
-              required
-              value={formData.start_date}
-              onChange={(e) => setFormData({ ...formData, start_date: e.target.value })}
-              className="w-full px-3 py-2 bg-background border border-input rounded-lg"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium mb-2">
-              End Date <span className="text-destructive">*</span>
-            </label>
-            <input
-              type="date"
-              required
-              value={formData.end_date}
-              onChange={(e) => setFormData({ ...formData, end_date: e.target.value })}
-              className="w-full px-3 py-2 bg-background border border-input rounded-lg"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium mb-2">Reason</label>
-            <textarea
-              value={formData.reason}
-              onChange={(e) => setFormData({ ...formData, reason: e.target.value })}
-              className="w-full px-3 py-2 bg-background border border-input rounded-lg"
-              rows={3}
-              placeholder="Reason for leave..."
-            />
-          </div>
-
-          {record && (
-            <div>
-              <label className="block text-sm font-medium mb-2">Status</label>
-              <select
-                value={formData.status}
-                onChange={(e) => setFormData({ ...formData, status: e.target.value })}
-                className="w-full px-3 py-2 bg-background border border-input rounded-lg"
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item
+                label="Start Date"
+                name="start_date"
+                rules={[{ required: true, message: 'Please select start date' }]}
               >
-                <option value="pending">Pending</option>
-                <option value="approved">Approved</option>
-                <option value="rejected">Rejected</option>
-                <option value="cancelled">Cancelled</option>
-              </select>
-            </div>
+                <DatePicker style={{ width: '100%' }} format="YYYY-MM-DD" />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item
+                label="End Date"
+                name="end_date"
+                rules={[{ required: true, message: 'Please select end date' }]}
+              >
+                <DatePicker style={{ width: '100%' }} format="YYYY-MM-DD" />
+              </Form.Item>
+            </Col>
+          </Row>
+
+          {selectedRecord && (
+            <Form.Item label="Status" name="status">
+              <Select>
+                <Select.Option value="pending">Pending</Select.Option>
+                <Select.Option value="approved">Approved</Select.Option>
+                <Select.Option value="rejected">Rejected</Select.Option>
+                <Select.Option value="cancelled">Cancelled</Select.Option>
+              </Select>
+            </Form.Item>
           )}
 
-          <div>
-            <label className="block text-sm font-medium mb-2">Notes</label>
-            <textarea
-              value={formData.notes}
-              onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-              className="w-full px-3 py-2 bg-background border border-input rounded-lg"
-              rows={2}
-              placeholder="Additional notes..."
-            />
-          </div>
+          <Form.Item label="Reason" name="reason">
+            <Input.TextArea rows={3} placeholder="Reason for leave..." />
+          </Form.Item>
 
-          <div className="flex gap-3 pt-4">
-            <button
-              type="button"
-              onClick={onClose}
-              className="flex-1 px-4 py-2 border border-border rounded-lg hover:bg-muted transition-colors"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              className="flex-1 px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors"
-            >
-              {record ? 'Update' : 'Submit Request'}
-            </button>
-          </div>
-        </form>
-      </div>
+          <Form.Item label="Notes" name="notes">
+            <Input.TextArea rows={2} placeholder="Additional notes..." />
+          </Form.Item>
+        </Form>
+      </Modal>
     </div>
   );
 }

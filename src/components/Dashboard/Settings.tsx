@@ -102,6 +102,12 @@ export default function Settings() {
       const data = await response.json() as any;
       if (data.success) {
         setSettings(data.data);
+
+        // Apply theme changes
+        if (updates.theme_mode) {
+          applyTheme(updates.theme_mode);
+        }
+
         message.success('Settings saved successfully!');
         setSaveSuccess(true);
         setTimeout(() => setSaveSuccess(false), 2000);
@@ -114,13 +120,38 @@ export default function Settings() {
     }
   };
 
-  if (loading) {
-    return (
-      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '400px' }}>
-        <Spin size="large" tip="Loading settings..." />
-      </div>
-    );
-  }
+  const applyTheme = (theme: string) => {
+    const root = document.documentElement;
+
+    if (theme === 'dark') {
+      root.setAttribute('data-theme', 'dark');
+      document.body.style.backgroundColor = '#1f2937';
+      document.body.style.color = '#f9fafb';
+    } else if (theme === 'light') {
+      root.setAttribute('data-theme', 'light');
+      document.body.style.backgroundColor = '#ffffff';
+      document.body.style.color = '#111827';
+    } else {
+      // Auto mode - detect system preference
+      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      applyTheme(prefersDark ? 'dark' : 'light');
+    }
+
+    // Save to localStorage for persistence
+    localStorage.setItem('theme', theme);
+
+    // Dispatch custom event for same-tab theme changes
+    window.dispatchEvent(new CustomEvent('themeChange', { detail: { theme } }));
+  };
+
+  // Apply saved theme on component mount
+  useEffect(() => {
+    const savedTheme = localStorage.getItem('theme');
+
+    if (savedTheme) {
+      applyTheme(savedTheme);
+    }
+  }, []);
 
   const tabItems = [
     {
@@ -458,32 +489,58 @@ export default function Settings() {
       ),
       children: (
         <Card>
-          <Title level={4} style={{ marginBottom: 24, color: '#1e40af' }}>
+          <Title level={4} style={{ marginBottom: 24 }}>
             <BgColorsOutlined style={{ marginRight: 8 }} />
             Appearance Settings
           </Title>
 
-          <Form layout="vertical">
-            <Form.Item label="Theme Mode">
+          <Space direction="vertical" size="large" style={{ width: '100%' }}>
+            <div>
+              <Text strong style={{ fontSize: '16px', marginBottom: 8, display: 'block' }}>Theme Mode</Text>
+              <Text type="secondary" style={{ marginBottom: 16, display: 'block' }}>
+                Choose how HRMS Pro looks on your device. Select a single theme or sync with your system preferences.
+              </Text>
               <Select
                 size="large"
                 value={settings.theme_mode || 'light'}
-                onChange={(value) => setSettings({ ...settings, theme_mode: value })}
+                onChange={(value) => {
+                  setSettings({ ...settings, theme_mode: value });
+                  applyTheme(value);
+                  message.success(`Theme changed to ${value}`);
+                }}
+                style={{ width: '100%', maxWidth: '400px' }}
               >
-                <Option value="light">Light Mode</Option>
-                <Option value="dark">Dark Mode</Option>
-                <Option value="auto">Auto (System)</Option>
+                <Option value="light">
+                  <Space>
+                    <span style={{ fontSize: '20px' }}>☀️</span>
+                    <div>
+                      <div style={{ fontWeight: 500 }}>Light</div>
+                      <div style={{ fontSize: '12px', color: '#666' }}>Bright and clean interface</div>
+                    </div>
+                  </Space>
+                </Option>
+                <Option value="dark">
+                  <Space>
+                    <span style={{ fontSize: '20px' }}>🌙</span>
+                    <div>
+                      <div style={{ fontWeight: 500 }}>Dark</div>
+                      <div style={{ fontSize: '12px', color: '#666' }}>Easy on the eyes</div>
+                    </div>
+                  </Space>
+                </Option>
+                <Option value="auto">
+                  <Space>
+                    <span style={{ fontSize: '20px' }}>🔄</span>
+                    <div>
+                      <div style={{ fontWeight: 500 }}>Auto</div>
+                      <div style={{ fontSize: '12px', color: '#666' }}>Matches system settings</div>
+                    </div>
+                  </Space>
+                </Option>
               </Select>
-            </Form.Item>
+            </div>
 
-            <Form.Item label="Primary Color">
-              <Input
-                size="large"
-                type="color"
-                value={settings.primary_color || '#3b82f6'}
-                onChange={(e) => setSettings({ ...settings, primary_color: e.target.value })}
-              />
-            </Form.Item>
+            <Divider />
 
             <Button
               type="primary"
@@ -491,11 +548,10 @@ export default function Settings() {
               icon={<SaveOutlined />}
               loading={saving}
               onClick={() => updateSettings(settings)}
-              style={{ marginTop: 16 }}
             >
-              Save Changes
+              Save Appearance Settings
             </Button>
-          </Form>
+          </Space>
         </Card>
       ),
     },

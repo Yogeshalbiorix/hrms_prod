@@ -1,6 +1,25 @@
 import React, { useState, useEffect } from 'react';
-import { Calendar, Clock, Users, Plus, Filter, Download, Search, Edit, Trash2, Check, X } from 'lucide-react';
-import { Modal } from 'antd';
+import { Card, Table, Tag, Space, Button, DatePicker, Select, Statistic, Row, Col, Modal, Form, Input, message, Tooltip, Empty, Typography } from 'antd';
+import {
+  ClockCircleOutlined,
+  CheckCircleOutlined,
+  CloseCircleOutlined,
+  WarningOutlined,
+  UserOutlined,
+  PlusOutlined,
+  EditOutlined,
+  DeleteOutlined,
+  SearchOutlined,
+  ReloadOutlined,
+  CalendarOutlined,
+  DownloadOutlined,
+  BankOutlined,
+  HomeOutlined
+} from '@ant-design/icons';
+import type { ColumnsType } from 'antd/es/table';
+import dayjs from 'dayjs';
+
+const { Text } = Typography;
 
 interface AttendanceRecord {
   id: number;
@@ -11,8 +30,11 @@ interface AttendanceRecord {
   attendance_date: string;
   check_in_time?: string;
   check_out_time?: string;
+  working_hours?: string;
+  work_mode?: string;
   status: 'present' | 'absent' | 'late' | 'half-day' | 'on-leave';
   notes?: string;
+  location?: string;
 }
 
 interface AttendanceStats {
@@ -27,14 +49,15 @@ interface AttendanceStats {
 export default function AttendanceManagement() {
   const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>([]);
   const [stats, setStats] = useState<AttendanceStats | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [selectedRecord, setSelectedRecord] = useState<AttendanceRecord | null>(null);
-  const [filterDate, setFilterDate] = useState(new Date().toISOString().split('T')[0]);
+  const [filterDate, setFilterDate] = useState(dayjs().format('YYYY-MM-DD'));
   const [filterStatus, setFilterStatus] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [employees, setEmployees] = useState<any[]>([]);
+  const [form] = Form.useForm();
 
   useEffect(() => {
     fetchAttendance();
@@ -99,7 +122,9 @@ export default function AttendanceManagement() {
       const data = await response.json() as any;
 
       if (data.success) {
-        setEmployees(data.data);
+        // Filter out terminated employees from attendance management
+        const activeEmployees = data.data.filter((emp: any) => emp.status !== 'terminated');
+        setEmployees(activeEmployees);
       }
     } catch (error) {
       console.error('Error fetching employees:', error);
@@ -144,34 +169,41 @@ export default function AttendanceManagement() {
 
     try {
       const sessionToken = localStorage.getItem('sessionToken');
+
+      // Map form fields to database fields
+      const updateData = {
+        clock_in: formData.check_in_time,
+        clock_out: formData.check_out_time,
+        working_hours: formData.working_hours,
+        work_mode: formData.work_mode,
+        status: formData.status,
+        notes: formData.notes
+      };
+
       const response = await fetch(`/api/attendance/${selectedRecord.id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${sessionToken}`
         },
-        body: JSON.stringify(formData)
+        body: JSON.stringify(updateData)
       });
 
       const data = await response.json() as any;
 
       if (data.success) {
+        message.success('Attendance updated successfully!');
         setShowEditModal(false);
         setSelectedRecord(null);
+        form.resetFields();
         fetchAttendance();
         fetchStats();
       } else {
-        Modal.error({
-          title: 'Error',
-          content: data.error || 'Failed to update attendance',
-        });
+        message.error(data.error || 'Failed to update attendance');
       }
     } catch (error) {
       console.error('Error updating attendance:', error);
-      Modal.error({
-        title: 'Error',
-        content: 'Failed to update attendance',
-      });
+      message.error('Failed to update attendance');
     }
   };
 
@@ -216,22 +248,155 @@ export default function AttendanceManagement() {
     });
   };
 
-  const getStatusBadgeClass = (status: string) => {
-    switch (status) {
-      case 'present':
-        return 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400';
-      case 'absent':
-        return 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400';
-      case 'late':
-        return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400';
-      case 'half-day':
-        return 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400';
-      case 'on-leave':
-        return 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400';
-      default:
-        return 'bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-400';
-    }
+
+
+  const getStatusTag = (status: string) => {
+    const config: Record<string, { color: string; icon: any }> = {
+      present: { color: 'success', icon: <CheckCircleOutlined /> },
+      absent: { color: 'error', icon: <CloseCircleOutlined /> },
+      late: { color: 'warning', icon: <WarningOutlined /> },
+      'half-day': { color: 'processing', icon: <ClockCircleOutlined /> },
+      'on-leave': { color: 'default', icon: <CalendarOutlined /> }
+    };
+    const { color, icon } = config[status] || config['present'];
+    return (
+      <Tag color={color} icon={icon}>
+        {status.toUpperCase().replace('-', ' ')}
+      </Tag>
+    );
   };
+
+  const columns: ColumnsType<AttendanceRecord> = [
+    {
+      title: 'Employee',
+      key: 'employee',
+      width: 220,
+      fixed: 'left',
+      render: (_, record) => (
+        <div>
+          <div style={{ fontWeight: 600, color: '#1890ff' }}>
+            <UserOutlined style={{ marginRight: 6 }} />
+            {record.employee_name}
+          </div>
+          <div style={{ fontSize: 12, color: '#8c8c8c' }}>{record.employee_code}</div>
+        </div>
+      ),
+      sorter: (a, b) => a.employee_name.localeCompare(b.employee_name),
+    },
+    {
+      title: 'Department',
+      dataIndex: 'department_name',
+      key: 'department',
+      width: 150,
+      ellipsis: true,
+    },
+    {
+      title: 'Date',
+      dataIndex: 'attendance_date',
+      key: 'date',
+      width: 120,
+      render: (date: string) => dayjs(date).format('MMM DD, YYYY'),
+      sorter: (a, b) => new Date(a.attendance_date).getTime() - new Date(b.attendance_date).getTime(),
+    },
+    {
+      title: 'Check In',
+      dataIndex: 'check_in_time',
+      key: 'check_in',
+      width: 100,
+      render: (time: string) => time ? (
+        <Tag icon={<ClockCircleOutlined />} color="blue">{time}</Tag>
+      ) : '-',
+    },
+    {
+      title: 'Check Out',
+      dataIndex: 'check_out_time',
+      key: 'check_out',
+      width: 100,
+      render: (time: string) => time ? (
+        <Tag icon={<ClockCircleOutlined />} color="orange">{time}</Tag>
+      ) : <Tag color="processing">Active</Tag>,
+    },
+    {
+      title: 'Working Hours',
+      dataIndex: 'working_hours',
+      key: 'working_hours',
+      width: 120,
+      render: (hours: string) => hours ? (
+        <Tag color="cyan">{hours}</Tag>
+      ) : '-',
+    },
+    {
+      title: 'Work Mode',
+      dataIndex: 'work_mode',
+      key: 'work_mode',
+      width: 100,
+      render: (mode: string) => {
+        if (mode === 'office') return <Tag color="blue">Office</Tag>;
+        if (mode === 'wfh') return <Tag color="green">WFH</Tag>;
+        return '-';
+      },
+    },
+    {
+      title: 'Status',
+      dataIndex: 'status',
+      key: 'status',
+      width: 120,
+      render: (status: string) => getStatusTag(status),
+      filters: [
+        { text: 'Present', value: 'present' },
+        { text: 'Absent', value: 'absent' },
+        { text: 'Late', value: 'late' },
+        { text: 'Half Day', value: 'half-day' },
+        { text: 'On Leave', value: 'on-leave' },
+      ],
+      onFilter: (value, record) => record.status === value,
+    },
+    {
+      title: 'Notes',
+      dataIndex: 'notes',
+      key: 'notes',
+      width: 200,
+      ellipsis: true,
+      render: (notes: string) => notes || '-',
+    },
+    {
+      title: 'Actions',
+      key: 'actions',
+      width: 120,
+      fixed: 'right',
+      render: (_, record) => (
+        <Space>
+          <Tooltip title="Edit">
+            <Button
+              type="text"
+              icon={<EditOutlined />}
+              onClick={() => {
+                setSelectedRecord(record);
+                form.setFieldsValue({
+                  attendance_date: record.attendance_date ? dayjs(record.attendance_date) : null,
+                  check_in_time: record.check_in_time || '',
+                  check_out_time: record.check_out_time || '',
+                  working_hours: record.working_hours || '',
+                  work_mode: record.work_mode || 'office',
+                  status: record.status || 'present',
+                  notes: record.notes || ''
+                });
+                setShowEditModal(true);
+              }}
+            />
+          </Tooltip>
+          <Tooltip title="Delete">
+            <Button
+              type="text"
+              danger
+              icon={<DeleteOutlined />}
+              onClick={() => handleDeleteAttendance(record.id)}
+            />
+          </Tooltip>
+        </Space>
+      ),
+    },
+  ];
 
   const filteredRecords = attendanceRecords.filter(record =>
     record.employee_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -240,366 +405,337 @@ export default function AttendanceManagement() {
   );
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-heading font-bold">Attendance Management</h1>
-          <p className="text-muted-foreground mt-1">Track and manage employee attendance</p>
-        </div>
-        <button
-          onClick={() => setShowAddModal(true)}
-          className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors"
-        >
-          <Plus className="w-4 h-4" />
-          Mark Attendance
-        </button>
-      </div>
-
-      {/* Stats Cards */}
-      {stats && (
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-          <div className="bg-card border border-border rounded-lg p-4">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
-                <Users className="w-5 h-5 text-blue-600 dark:text-blue-400" />
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Total</p>
-                <p className="text-2xl font-bold">{stats.total}</p>
-              </div>
-            </div>
-          </div>
-          <div className="bg-card border border-border rounded-lg p-4">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
-                <Check className="w-5 h-5 text-green-600 dark:text-green-400" />
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Present</p>
-                <p className="text-2xl font-bold">{stats.present}</p>
-              </div>
-            </div>
-          </div>
-          <div className="bg-card border border-border rounded-lg p-4">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-red-100 dark:bg-red-900/30 flex items-center justify-center">
-                <X className="w-5 h-5 text-red-600 dark:text-red-400" />
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Absent</p>
-                <p className="text-2xl font-bold">{stats.absent}</p>
-              </div>
-            </div>
-          </div>
-          <div className="bg-card border border-border rounded-lg p-4">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-yellow-100 dark:bg-yellow-900/30 flex items-center justify-center">
-                <Clock className="w-5 h-5 text-yellow-600 dark:text-yellow-400" />
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Late</p>
-                <p className="text-2xl font-bold">{stats.late}</p>
-              </div>
-            </div>
-          </div>
-          <div className="bg-card border border-border rounded-lg p-4">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
-                <Calendar className="w-5 h-5 text-blue-600 dark:text-blue-400" />
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Half Day</p>
-                <p className="text-2xl font-bold">{stats.half_day}</p>
-              </div>
-            </div>
-          </div>
-          <div className="bg-card border border-border rounded-lg p-4">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center">
-                <Calendar className="w-5 h-5 text-purple-600 dark:text-purple-400" />
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">On Leave</p>
-                <p className="text-2xl font-bold">{stats.on_leave}</p>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Filters */}
-      <div className="bg-card border border-border rounded-lg p-4">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div>
-            <label className="block text-sm font-medium mb-2">Date</label>
-            <input
-              type="date"
-              value={filterDate}
-              onChange={(e) => setFilterDate(e.target.value)}
-              className="w-full px-3 py-2 bg-background border border-input rounded-lg"
+    <div style={{ padding: '24px' }}>
+      {/* Statistics */}
+      <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
+        <Col xs={24} sm={12} md={8} lg={4}>
+          <Card>
+            <Statistic
+              title="Total"
+              value={stats?.total || 0}
+              prefix={<UserOutlined />}
+              valueStyle={{ color: '#1890ff' }}
             />
-          </div>
-          <div>
-            <label className="block text-sm font-medium mb-2">Status</label>
-            <select
-              value={filterStatus}
-              onChange={(e) => setFilterStatus(e.target.value)}
-              className="w-full px-3 py-2 bg-background border border-input rounded-lg"
+          </Card>
+        </Col>
+        <Col xs={24} sm={12} md={8} lg={4}>
+          <Card>
+            <Statistic
+              title="Present"
+              value={stats?.present || 0}
+              prefix={<CheckCircleOutlined />}
+              valueStyle={{ color: '#52c41a' }}
+            />
+          </Card>
+        </Col>
+        <Col xs={24} sm={12} md={8} lg={4}>
+          <Card>
+            <Statistic
+              title="Absent"
+              value={stats?.absent || 0}
+              prefix={<CloseCircleOutlined />}
+              valueStyle={{ color: '#ff4d4f' }}
+            />
+          </Card>
+        </Col>
+        <Col xs={24} sm={12} md={8} lg={4}>
+          <Card>
+            <Statistic
+              title="Late"
+              value={stats?.late || 0}
+              prefix={<WarningOutlined />}
+              valueStyle={{ color: '#faad14' }}
+            />
+          </Card>
+        </Col>
+        <Col xs={24} sm={12} md={8} lg={4}>
+          <Card>
+            <Statistic
+              title="Half Day"
+              value={stats?.half_day || 0}
+              prefix={<ClockCircleOutlined />}
+              valueStyle={{ color: '#1890ff' }}
+            />
+          </Card>
+        </Col>
+        <Col xs={24} sm={12} md={8} lg={4}>
+          <Card>
+            <Statistic
+              title="On Leave"
+              value={stats?.on_leave || 0}
+              prefix={<CalendarOutlined />}
+              valueStyle={{ color: '#722ed1' }}
+            />
+          </Card>
+        </Col>
+      </Row>
+
+      {/* Filters and Actions */}
+      <Card style={{ marginBottom: 24 }}>
+        <Row gutter={[16, 16]} align="middle">
+          <Col xs={24} sm={12} md={6}>
+            <DatePicker
+              style={{ width: '100%' }}
+              placeholder="Select Date"
+              value={filterDate ? dayjs(filterDate) : null}
+              onChange={(date) => setFilterDate(date ? date.format('YYYY-MM-DD') : '')}
+              format="YYYY-MM-DD"
+            />
+          </Col>
+          <Col xs={24} sm={12} md={6}>
+            <Select
+              style={{ width: '100%' }}
+              placeholder="All Statuses"
+              value={filterStatus || undefined}
+              onChange={setFilterStatus}
+              allowClear
             >
-              <option value="">All Statuses</option>
-              <option value="present">Present</option>
-              <option value="absent">Absent</option>
-              <option value="late">Late</option>
-              <option value="half-day">Half Day</option>
-              <option value="on-leave">On Leave</option>
-            </select>
-          </div>
-          <div>
-            <label className="block text-sm font-medium mb-2">Search</label>
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search by name or employee ID..."
-                className="w-full pl-10 pr-3 py-2 bg-background border border-input rounded-lg"
+              <Select.Option value="present">Present</Select.Option>
+              <Select.Option value="absent">Absent</Select.Option>
+              <Select.Option value="late">Late</Select.Option>
+              <Select.Option value="half-day">Half Day</Select.Option>
+              <Select.Option value="on-leave">On Leave</Select.Option>
+            </Select>
+          </Col>
+          <Col xs={24} sm={12} md={8}>
+            <Input
+              placeholder="Search by name or employee ID..."
+              prefix={<SearchOutlined />}
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              allowClear
+            />
+          </Col>
+          <Col xs={24} sm={12} md={4}>
+            <Space>
+              <Button
+                type="primary"
+                icon={<PlusOutlined />}
+                onClick={() => setShowAddModal(true)}
+              >
+                Mark Attendance
+              </Button>
+              <Button
+                icon={<ReloadOutlined />}
+                onClick={() => {
+                  fetchAttendance();
+                  fetchStats();
+                }}
               />
-            </div>
-          </div>
-        </div>
-      </div>
+            </Space>
+          </Col>
+        </Row>
+      </Card>
 
       {/* Attendance Table */}
-      <div className="bg-card border border-border rounded-lg overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead className="bg-muted/50 border-b border-border">
-              <tr>
-                <th className="px-4 py-3 text-left text-sm font-semibold">Employee</th>
-                <th className="px-4 py-3 text-left text-sm font-semibold">Department</th>
-                <th className="px-4 py-3 text-left text-sm font-semibold">Date</th>
-                <th className="px-4 py-3 text-left text-sm font-semibold">Check In</th>
-                <th className="px-4 py-3 text-left text-sm font-semibold">Check Out</th>
-                <th className="px-4 py-3 text-left text-sm font-semibold">Status</th>
-                <th className="px-4 py-3 text-left text-sm font-semibold">Notes</th>
-                <th className="px-4 py-3 text-right text-sm font-semibold">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border">
-              {loading ? (
-                <tr>
-                  <td colSpan={8} className="px-4 py-8 text-center text-muted-foreground">
-                    Loading...
-                  </td>
-                </tr>
-              ) : filteredRecords.length === 0 ? (
-                <tr>
-                  <td colSpan={8} className="px-4 py-8 text-center text-muted-foreground">
-                    No attendance records found
-                  </td>
-                </tr>
-              ) : (
-                filteredRecords.map((record) => (
-                  <tr key={record.id} className="hover:bg-muted/30">
-                    <td className="px-4 py-3">
-                      <div>
-                        <p className="font-medium">{record.employee_name}</p>
-                        <p className="text-sm text-muted-foreground">{record.employee_code}</p>
-                      </div>
-                    </td>
-                    <td className="px-4 py-3 text-sm">{record.department_name || 'N/A'}</td>
-                    <td className="px-4 py-3 text-sm">{new Date(record.attendance_date).toLocaleDateString()}</td>
-                    <td className="px-4 py-3 text-sm">{record.check_in_time || '-'}</td>
-                    <td className="px-4 py-3 text-sm">{record.check_out_time || '-'}</td>
-                    <td className="px-4 py-3">
-                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusBadgeClass(record.status)}`}>
-                        {record.status.replace('-', ' ').replace(/\b\w/g, l => l.toUpperCase())}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-sm max-w-xs truncate">{record.notes || '-'}</td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center justify-end gap-2">
-                        <button
-                          onClick={() => {
-                            setSelectedRecord(record);
-                            setShowEditModal(true);
-                          }}
-                          className="p-2 hover:bg-muted rounded-lg transition-colors"
-                          title="Edit"
-                        >
-                          <Edit className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => handleDeleteAttendance(record.id)}
-                          className="p-2 hover:bg-destructive/10 text-destructive rounded-lg transition-colors"
-                          title="Delete"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* Add Attendance Modal */}
-      {showAddModal && (
-        <AttendanceModal
-          employees={employees}
-          onClose={() => setShowAddModal(false)}
-          onSubmit={handleAddAttendance}
-        />
-      )}
-
-      {/* Edit Attendance Modal */}
-      {showEditModal && selectedRecord && (
-        <AttendanceModal
-          employees={employees}
-          record={selectedRecord}
-          onClose={() => {
-            setShowEditModal(false);
-            setSelectedRecord(null);
+      <Card>
+        <Table
+          columns={columns}
+          dataSource={filteredRecords}
+          rowKey="id"
+          loading={loading}
+          pagination={{
+            pageSize: 10,
+            showSizeChanger: true,
+            showTotal: (total) => `Total ${total} records`,
+            pageSizeOptions: ['10', '20', '50', '100'],
           }}
-          onSubmit={handleUpdateAttendance}
+          scroll={{ x: 1200 }}
+          locale={{
+            emptyText: (
+              <Empty
+                image={Empty.PRESENTED_IMAGE_SIMPLE}
+                description="No attendance records found"
+              />
+            ),
+          }}
         />
-      )}
-    </div>
-  );
-}
+      </Card>
 
-// Attendance Modal Component
-function AttendanceModal({ employees, record, onClose, onSubmit }: any) {
-  const [formData, setFormData] = useState({
-    employee_id: record?.employee_id || '',
-    attendance_date: record?.attendance_date || new Date().toISOString().split('T')[0],
-    check_in_time: record?.check_in_time || '',
-    check_out_time: record?.check_out_time || '',
-    status: record?.status || 'present',
-    notes: record?.notes || ''
-  });
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    onSubmit(formData);
-  };
-
-  return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-card border border-border rounded-lg max-w-md w-full max-h-[90vh] overflow-y-auto">
-        <div className="p-6 border-b border-border">
-          <h2 className="text-xl font-heading font-bold">
-            {record ? 'Edit Attendance' : 'Mark Attendance'}
-          </h2>
-        </div>
-
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
-          {!record && (
-            <div>
-              <label className="block text-sm font-medium mb-2">
-                Employee <span className="text-destructive">*</span>
-              </label>
-              <select
-                required
-                value={formData.employee_id}
-                onChange={(e) => setFormData({ ...formData, employee_id: e.target.value })}
-                className="w-full px-3 py-2 bg-background border border-input rounded-lg"
-              >
-                <option value="">Select Employee</option>
-                {employees.map((emp: any) => (
-                  <option key={emp.id} value={emp.id}>
-                    {emp.first_name} {emp.last_name} ({emp.employee_id})
-                  </option>
-                ))}
-              </select>
-            </div>
+      {/* Add/Edit Modal */}
+      <Modal
+        title={
+          selectedRecord ? (
+            <Space>
+              <EditOutlined style={{ color: '#1890ff' }} />
+              <span>Edit Attendance Record</span>
+            </Space>
+          ) : (
+            <Space>
+              <PlusOutlined style={{ color: '#52c41a' }} />
+              <span>Mark Attendance</span>
+            </Space>
+          )
+        }
+        open={showAddModal || showEditModal}
+        onCancel={() => {
+          setShowAddModal(false);
+          setShowEditModal(false);
+          setSelectedRecord(null);
+          form.resetFields();
+        }}
+        onOk={() => form.submit()}
+        okText={selectedRecord ? 'Update' : 'Mark'}
+        okButtonProps={{ icon: selectedRecord ? <EditOutlined /> : <PlusOutlined /> }}
+        width={700}
+      >
+        {selectedRecord && (
+          <Card size="small" style={{ marginBottom: 16, background: '#f0f5ff' }}>
+            <Space direction="vertical" size="small">
+              <Text strong style={{ color: '#1890ff' }}>
+                <UserOutlined /> {selectedRecord.employee_name}
+              </Text>
+              <Text type="secondary" style={{ fontSize: 12 }}>
+                Employee ID: {selectedRecord.employee_code} | Department: {selectedRecord.department_name}
+              </Text>
+            </Space>
+          </Card>
+        )}
+        <Form
+          form={form}
+          layout="vertical"
+          onFinish={selectedRecord ? handleUpdateAttendance : handleAddAttendance}
+        >
+          {!selectedRecord && (
+            <Form.Item
+              label="Employee"
+              name="employee_id"
+              rules={[{ required: true, message: 'Please select an employee' }]}
+            >
+              <Select
+                showSearch
+                placeholder="Select Employee"
+                optionFilterProp="children"
+                filterOption={(input, option) =>
+                  (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+                }
+                options={employees.map((emp: any) => ({
+                  value: emp.id,
+                  label: `${emp.first_name} ${emp.last_name} (${emp.employee_id})`,
+                }))}
+              />
+            </Form.Item>
           )}
-
-          <div>
-            <label className="block text-sm font-medium mb-2">
-              Date <span className="text-destructive">*</span>
-            </label>
-            <input
-              type="date"
-              required
-              disabled={!!record}
-              value={formData.attendance_date}
-              onChange={(e) => setFormData({ ...formData, attendance_date: e.target.value })}
-              className="w-full px-3 py-2 bg-background border border-input rounded-lg"
+          <Form.Item
+            label="Date"
+            name="attendance_date"
+            rules={[{ required: true, message: 'Please select date' }]}
+          >
+            <DatePicker
+              style={{ width: '100%' }}
+              format="YYYY-MM-DD"
+              disabled={!!selectedRecord}
             />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium mb-2">Check In Time</label>
-            <input
-              type="time"
-              value={formData.check_in_time}
-              onChange={(e) => setFormData({ ...formData, check_in_time: e.target.value })}
-              className="w-full px-3 py-2 bg-background border border-input rounded-lg"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium mb-2">Check Out Time</label>
-            <input
-              type="time"
-              value={formData.check_out_time}
-              onChange={(e) => setFormData({ ...formData, check_out_time: e.target.value })}
-              className="w-full px-3 py-2 bg-background border border-input rounded-lg"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium mb-2">
-              Status <span className="text-destructive">*</span>
-            </label>
-            <select
-              required
-              value={formData.status}
-              onChange={(e) => setFormData({ ...formData, status: e.target.value })}
-              className="w-full px-3 py-2 bg-background border border-input rounded-lg"
-            >
-              <option value="present">Present</option>
-              <option value="absent">Absent</option>
-              <option value="late">Late</option>
-              <option value="half-day">Half Day</option>
-              <option value="on-leave">On Leave</option>
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium mb-2">Notes</label>
-            <textarea
-              value={formData.notes}
-              onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-              className="w-full px-3 py-2 bg-background border border-input rounded-lg"
+          </Form.Item>
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item
+                label="Check In Time"
+                name="check_in_time"
+                tooltip="Format: HH:MM:SS (e.g., 09:30:00)"
+              >
+                <Input
+                  type="time"
+                  step="1"
+                  placeholder="09:30:00"
+                />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item
+                label="Check Out Time"
+                name="check_out_time"
+                tooltip="Format: HH:MM:SS (e.g., 18:00:00)"
+              >
+                <Input
+                  type="time"
+                  step="1"
+                  placeholder="18:00:00"
+                />
+              </Form.Item>
+            </Col>
+          </Row>
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item
+                label="Work Mode"
+                name="work_mode"
+                tooltip="Where the employee worked from"
+              >
+                <Select placeholder="Select work mode">
+                  <Select.Option value="office">
+                    <Space>
+                      <BankOutlined />
+                      Office
+                    </Space>
+                  </Select.Option>
+                  <Select.Option value="wfh">
+                    <Space>
+                      <HomeOutlined />
+                      Work From Home
+                    </Space>
+                  </Select.Option>
+                </Select>
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item
+                label="Working Hours"
+                name="working_hours"
+                tooltip="Format: 8h 30m or leave empty for auto-calculation"
+              >
+                <Input placeholder="e.g., 8h 30m" />
+              </Form.Item>
+            </Col>
+          </Row>
+          <Form.Item
+            label="Status"
+            name="status"
+            rules={[{ required: true, message: 'Please select status' }]}
+          >
+            <Select>
+              <Select.Option value="present">
+                <Space>
+                  <CheckCircleOutlined style={{ color: '#52c41a' }} />
+                  Present
+                </Space>
+              </Select.Option>
+              <Select.Option value="absent">
+                <Space>
+                  <CloseCircleOutlined style={{ color: '#ff4d4f' }} />
+                  Absent
+                </Space>
+              </Select.Option>
+              <Select.Option value="late">
+                <Space>
+                  <WarningOutlined style={{ color: '#faad14' }} />
+                  Late
+                </Space>
+              </Select.Option>
+              <Select.Option value="half-day">
+                <Space>
+                  <ClockCircleOutlined style={{ color: '#1890ff' }} />
+                  Half Day
+                </Space>
+              </Select.Option>
+              <Select.Option value="on-leave">
+                <Space>
+                  <CalendarOutlined style={{ color: '#722ed1' }} />
+                  On Leave
+                </Space>
+              </Select.Option>
+            </Select>
+          </Form.Item>
+          <Form.Item label="Notes" name="notes">
+            <Input.TextArea
               rows={3}
-              placeholder="Additional notes..."
+              placeholder="Add notes (optional)"
+              maxLength={500}
+              showCount
             />
-          </div>
-
-          <div className="flex gap-3 pt-4">
-            <button
-              type="button"
-              onClick={onClose}
-              className="flex-1 px-4 py-2 border border-border rounded-lg hover:bg-muted transition-colors"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              className="flex-1 px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors"
-            >
-              {record ? 'Update' : 'Save'}
-            </button>
-          </div>
-        </form>
-      </div>
+          </Form.Item>
+        </Form>
+      </Modal>
     </div>
   );
 }

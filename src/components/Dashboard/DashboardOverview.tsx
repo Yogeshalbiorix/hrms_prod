@@ -4,67 +4,67 @@ import { Users, UserCheck, UserX, Clock, DollarSign, Briefcase, TrendingUp, Cale
 
 export default function DashboardOverview() {
   const stats = [
-    { 
-      title: 'Total Employees', 
-      value: '1,247', 
-      change: '12% vs last month', 
-      trend: 'up' as const, 
+    {
+      title: 'Total Employees',
+      value: '1,247',
+      change: '12% vs last month',
+      trend: 'up' as const,
       icon: Users,
       color: 'blue' as const
     },
-    { 
-      title: 'Present Today', 
-      value: '1,142', 
-      change: '91.6% attendance', 
-      trend: 'up' as const, 
+    {
+      title: 'Present Today',
+      value: '1,142',
+      change: '91.6% attendance',
+      trend: 'up' as const,
       icon: UserCheck,
       color: 'green' as const
     },
-    { 
-      title: 'On Leave', 
-      value: '87', 
-      change: '5% decrease', 
-      trend: 'down' as const, 
+    {
+      title: 'On Leave',
+      value: '87',
+      change: '5% decrease',
+      trend: 'down' as const,
       icon: CalendarDays,
       color: 'yellow' as const
     },
-    { 
-      title: 'Absent', 
-      value: '18', 
-      change: '2% increase', 
-      trend: 'up' as const, 
+    {
+      title: 'Absent',
+      value: '18',
+      change: '2% increase',
+      trend: 'up' as const,
       icon: UserX,
       color: 'red' as const
     },
-    { 
-      title: 'Pending Approvals', 
-      value: '24', 
-      change: '8 new today', 
-      trend: 'up' as const, 
+    {
+      title: 'Pending Approvals',
+      value: '24',
+      change: '8 new today',
+      trend: 'up' as const,
       icon: Clock,
       color: 'purple' as const
     },
-    { 
-      title: 'Monthly Payroll', 
-      value: '$485K', 
-      change: '3% vs last month', 
-      trend: 'up' as const, 
+    {
+      title: 'Monthly Payroll',
+      value: '$485K',
+      change: '3% vs last month',
+      trend: 'up' as const,
       icon: DollarSign,
       color: 'green' as const
     },
-    { 
-      title: 'Open Positions', 
-      value: '15', 
-      change: '3 new this week', 
-      trend: 'up' as const, 
+    {
+      title: 'Open Positions',
+      value: '15',
+      change: '3 new this week',
+      trend: 'up' as const,
       icon: Briefcase,
       color: 'blue' as const
     },
-    { 
-      title: 'Avg Performance', 
-      value: '4.2/5', 
-      change: '0.3 improvement', 
-      trend: 'up' as const, 
+    {
+      title: 'Avg Performance',
+      value: '4.2/5',
+      change: '0.3 improvement',
+      trend: 'up' as const,
       icon: TrendingUp,
       color: 'purple' as const
     },
@@ -105,10 +105,9 @@ export default function DashboardOverview() {
               { action: 'Performance review due', time: '5 hours ago', type: 'warning' },
             ].map((activity, index) => (
               <div key={index} className="flex items-start gap-3 pb-3 border-b border-border last:border-0">
-                <div className={`w-2 h-2 rounded-full mt-2 ${
-                  activity.type === 'success' ? 'bg-green-500' :
-                  activity.type === 'warning' ? 'bg-yellow-500' : 'bg-blue-500'
-                }`}></div>
+                <div className={`w-2 h-2 rounded-full mt-2 ${activity.type === 'success' ? 'bg-green-500' :
+                    activity.type === 'warning' ? 'bg-yellow-500' : 'bg-blue-500'
+                  }`}></div>
                 <div className="flex-1">
                   <p className="text-sm font-medium">{activity.action}</p>
                   <p className="text-xs text-muted-foreground">{activity.time}</p>
@@ -154,7 +153,7 @@ export default function DashboardOverview() {
               { event: 'Company Town Hall', date: 'Feb 10, 2024', attendees: 1247 },
             ].map((event, index) => (
               <div key={index} className="flex items-start gap-3 pb-3 border-b border-border last:border-0">
-                <div className="w-12 h-12 bg-primary/10 rounded-lg flex items-center justify-center flex-shrink-0">
+                <div className="w-12 h-12 bg-primary/10 rounded-lg flex items-center justify-center shrink-0">
                   <CalendarDays size={20} className="text-primary" />
                 </div>
                 <div className="flex-1">

@@ -5,7 +5,7 @@ import {
   Button,
   Card,
   Typography,
-  message,
+  App,
   Space,
   Divider,
   Row,
@@ -28,6 +28,7 @@ interface RegisterPageProps {
 }
 
 export const RegisterPage: React.FC<RegisterPageProps> = ({ onSuccess, onLoginClick }) => {
+  const { message } = App.useApp();
   const [loading, setLoading] = useState(false);
   const [form] = Form.useForm();
 

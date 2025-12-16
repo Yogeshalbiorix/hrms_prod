@@ -120,7 +120,9 @@ export default function EmployeeManagement() {
       });
       const data = await response.json() as { success: boolean; data?: any[]; error?: string };
       if (data.success) {
-        setEmployees(data.data || []);
+        // Filter out terminated employees - they remain in database but hidden from frontend
+        const activeEmployees = (data.data || []).filter((emp: any) => emp.status !== 'terminated');
+        setEmployees(activeEmployees);
       } else {
         console.error('Failed to fetch employees:', data.error);
       }

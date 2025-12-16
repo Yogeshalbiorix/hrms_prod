@@ -1,10 +1,10 @@
 // API endpoint for department operations
 import type { APIRoute } from 'astro';
-import { 
-  getAllDepartments, 
-  createDepartment, 
+import {
+  getAllDepartments,
+  createDepartment,
   deleteDepartment,
-  getDepartmentEmployeeCount 
+  getDepartmentEmployeeCount
 } from '../../../lib/db';
 
 export const GET: APIRoute = async ({ locals }) => {
@@ -21,7 +21,7 @@ export const GET: APIRoute = async ({ locals }) => {
     }
 
     const departments = await getAllDepartments(db);
-    
+
     // Get employee count for each department
     const departmentsWithCount = await Promise.all(
       departments.map(async (dept) => {
@@ -82,11 +82,11 @@ export const POST: APIRoute = async ({ request, locals }) => {
       name: name.trim(),
       description: description?.trim() || null,
       manager_id: manager_id || null
-    });
+    }, true);
 
     return new Response(JSON.stringify({
       success: true,
-      message: 'Department created successfully',
+      message: 'Department created successfully (synced to both databases)',
       data: result
     }), {
       status: 201,

@@ -1,6 +1,40 @@
 import React, { useEffect, useState } from 'react';
-import StatsCard from './StatsCard';
-import { Users, UserCheck, UserX, Clock, DollarSign, Briefcase, TrendingUp, CalendarDays, Loader2 } from 'lucide-react';
+import {
+  Card,
+  Row,
+  Col,
+  Statistic,
+  Progress,
+  Badge,
+  Table,
+  Tag,
+  Space,
+  Avatar,
+  Button,
+  Spin,
+  Typography,
+  Divider,
+  Alert,
+  Timeline,
+  List,
+} from 'antd';
+import {
+  UserOutlined,
+  TeamOutlined,
+  CheckCircleOutlined,
+  CloseCircleOutlined,
+  ClockCircleOutlined,
+  DollarOutlined,
+  RiseOutlined,
+  CalendarOutlined,
+  BankOutlined,
+  TrophyOutlined,
+  ArrowUpOutlined,
+  ArrowDownOutlined,
+  LoadingOutlined,
+} from '@ant-design/icons';
+
+const { Title, Text, Paragraph } = Typography;
 
 interface DashboardStats {
   totalEmployees: number;
@@ -83,7 +117,9 @@ export default function DashboardOverviewDynamic() {
       const depts = await departmentsRes.json() as any;
 
       // Calculate statistics
-      const employeeData = employees.data || [];
+      const allEmployeeData = employees.data || [];
+      // Filter out terminated employees from dashboard
+      const employeeData = allEmployeeData.filter((e: Employee) => e.status !== 'terminated');
       const attendanceData = attendance.data || [];
       const leaveData = leaves.data || [];
       const payrollData = payroll.data || [];
@@ -119,12 +155,12 @@ export default function DashboardOverviewDynamic() {
         sum + (p.net_salary || 0), 0
       );
 
-      // Count active employees
+      // Count active employees (already filtered out terminated above)
       const activeCount = employeeData.filter((e: Employee) =>
         e.status === 'active'
       ).length;
 
-      // Count employees per department
+      // Count employees per department (only non-terminated)
       const departmentCounts: { [key: number]: number } = {};
       employeeData.forEach((emp: any) => {
         if (emp.department_id) {
@@ -195,11 +231,11 @@ export default function DashboardOverviewDynamic() {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-96">
-        <div className="text-center">
-          <Loader2 size={48} className="animate-spin text-primary mx-auto mb-4" />
-          <p className="text-muted-foreground">Loading dashboard...</p>
-        </div>
+      <div style={{ textAlign: 'center', padding: '100px 0' }}>
+        <Spin indicator={<LoadingOutlined style={{ fontSize: 48 }} spin />} />
+        <Paragraph style={{ marginTop: 16, color: '#8c8c8c' }}>
+          Loading dashboard data...
+        </Paragraph>
       </div>
     );
   }
@@ -208,223 +244,517 @@ export default function DashboardOverviewDynamic() {
     ? ((stats.presentToday / stats.totalEmployees) * 100).toFixed(1)
     : '0';
 
-  const statsCards = [
-    {
-      title: 'Total Employees',
-      value: stats.totalEmployees.toString(),
-      change: `${stats.activeEmployees} active`,
-      trend: 'up' as const,
-      icon: Users,
-      color: 'blue' as const
-    },
-    {
-      title: 'Present Today',
-      value: stats.presentToday.toString(),
-      change: `${attendanceRate}% attendance`,
-      trend: stats.presentToday > (stats.totalEmployees * 0.9) ? 'up' as const : 'down' as const,
-      icon: UserCheck,
-      color: 'green' as const
-    },
-    {
-      title: 'On Leave',
-      value: stats.onLeave.toString(),
-      change: `${stats.pendingLeaves} pending`,
-      trend: stats.pendingLeaves > 0 ? 'up' as const : 'down' as const,
-      icon: CalendarDays,
-      color: 'yellow' as const
-    },
-    {
-      title: 'Absent',
-      value: stats.absent.toString(),
-      change: `${((stats.absent / stats.totalEmployees) * 100).toFixed(1)}% of total`,
-      trend: stats.absent > 5 ? 'up' as const : 'down' as const,
-      icon: UserX,
-      color: 'red' as const
-    },
-    {
-      title: 'Pending Approvals',
-      value: stats.pendingLeaves.toString(),
-      change: 'Leave requests',
-      trend: stats.pendingLeaves > 0 ? 'up' as const : 'down' as const,
-      icon: Clock,
-      color: 'purple' as const
-    },
-    {
-      title: 'Monthly Payroll',
-      value: `$${(stats.totalPayroll / 1000).toFixed(1)}K`,
-      change: `${stats.activeEmployees} employees`,
-      trend: 'up' as const,
-      icon: DollarSign,
-      color: 'green' as const
-    },
-    {
-      title: 'Departments',
-      value: departments.length.toString(),
-      change: 'Active departments',
-      trend: 'up' as const,
-      icon: Briefcase,
-      color: 'blue' as const
-    },
-    {
-      title: 'Avg Performance',
-      value: `${stats.avgPerformance.toFixed(1)}/5`,
-      change: 'Overall rating',
-      trend: stats.avgPerformance >= 4.0 ? 'up' as const : 'down' as const,
-      icon: TrendingUp,
-      color: 'purple' as const
-    },
-  ];
-
   return (
-    <div className="space-y-6">
+    <div>
       {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        {statsCards.map((stat, index) => (
-          <StatsCard key={index} {...stat} />
-        ))}
-      </div>
+      <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
+        <Col xs={24} sm={12} lg={6}>
+          <Card
+            bordered={false}
+            style={{
+              background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+              borderRadius: 12,
+            }}
+          >
+            <Statistic
+              title={<span style={{ color: 'rgba(255,255,255,0.85)' }}>Total Employees</span>}
+              value={stats.totalEmployees}
+              prefix={<TeamOutlined style={{ color: '#fff' }} />}
+              valueStyle={{ color: '#fff', fontWeight: 700 }}
+              suffix={
+                <Tag color="blue" style={{ marginLeft: 8 }}>
+                  {stats.activeEmployees} active
+                </Tag>
+              }
+            />
+          </Card>
+        </Col>
 
-      {/* Charts and Activity Section */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Attendance Summary */}
-        <div className="lg:col-span-2 bg-card border border-border rounded-xl p-6">
-          <h3 className="font-heading text-lg font-semibold mb-4">Today's Attendance Summary</h3>
-          <div className="space-y-4">
-            <div className="grid grid-cols-3 gap-4">
-              <div className="bg-green-50 dark:bg-green-950/20 p-4 rounded-lg border border-green-200 dark:border-green-800">
-                <div className="flex items-center gap-2 mb-2">
-                  <UserCheck size={20} className="text-green-600" />
-                  <span className="text-sm font-medium text-green-700 dark:text-green-300">Present</span>
-                </div>
-                <p className="text-2xl font-bold text-green-600">{stats.presentToday}</p>
-                <p className="text-xs text-green-600 dark:text-green-400">{attendanceRate}%</p>
-              </div>
+        <Col xs={24} sm={12} lg={6}>
+          <Card
+            bordered={false}
+            style={{
+              background: 'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)',
+              borderRadius: 12,
+            }}
+          >
+            <Statistic
+              title={<span style={{ color: 'rgba(255,255,255,0.85)' }}>Present Today</span>}
+              value={stats.presentToday}
+              prefix={<CheckCircleOutlined style={{ color: '#fff' }} />}
+              valueStyle={{ color: '#fff', fontWeight: 700 }}
+              suffix={
+                <Tag color="success" style={{ marginLeft: 8 }}>
+                  {attendanceRate}%
+                </Tag>
+              }
+            />
+          </Card>
+        </Col>
 
-              <div className="bg-yellow-50 dark:bg-yellow-950/20 p-4 rounded-lg border border-yellow-200 dark:border-yellow-800">
-                <div className="flex items-center gap-2 mb-2">
-                  <CalendarDays size={20} className="text-yellow-600" />
-                  <span className="text-sm font-medium text-yellow-700 dark:text-yellow-300">On Leave</span>
-                </div>
-                <p className="text-2xl font-bold text-yellow-600">{stats.onLeave}</p>
-                <p className="text-xs text-yellow-600 dark:text-yellow-400">
-                  {((stats.onLeave / stats.totalEmployees) * 100).toFixed(1)}%
-                </p>
-              </div>
+        <Col xs={24} sm={12} lg={6}>
+          <Card
+            bordered={false}
+            style={{
+              background: 'linear-gradient(135deg, #fa709a 0%, #fee140 100%)',
+              borderRadius: 12,
+            }}
+          >
+            <Statistic
+              title={<span style={{ color: 'rgba(255,255,255,0.85)' }}>On Leave</span>}
+              value={stats.onLeave}
+              prefix={<CalendarOutlined style={{ color: '#fff' }} />}
+              valueStyle={{ color: '#fff', fontWeight: 700 }}
+              suffix={
+                stats.pendingLeaves > 0 ? (
+                  <Tag color="warning" style={{ marginLeft: 8 }}>
+                    {stats.pendingLeaves} pending
+                  </Tag>
+                ) : null
+              }
+            />
+          </Card>
+        </Col>
 
-              <div className="bg-red-50 dark:bg-red-950/20 p-4 rounded-lg border border-red-200 dark:border-red-800">
-                <div className="flex items-center gap-2 mb-2">
-                  <UserX size={20} className="text-red-600" />
-                  <span className="text-sm font-medium text-red-700 dark:text-red-300">Absent</span>
-                </div>
-                <p className="text-2xl font-bold text-red-600">{stats.absent}</p>
-                <p className="text-xs text-red-600 dark:text-red-400">
+        <Col xs={24} sm={12} lg={6}>
+          <Card
+            bordered={false}
+            style={{
+              background: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
+              borderRadius: 12,
+            }}
+          >
+            <Statistic
+              title={<span style={{ color: 'rgba(255,255,255,0.85)' }}>Absent</span>}
+              value={stats.absent}
+              prefix={<CloseCircleOutlined style={{ color: '#fff' }} />}
+              valueStyle={{ color: '#fff', fontWeight: 700 }}
+              suffix={
+                <Tag color="error" style={{ marginLeft: 8 }}>
                   {((stats.absent / stats.totalEmployees) * 100).toFixed(1)}%
-                </p>
-              </div>
-            </div>
+                </Tag>
+              }
+            />
+          </Card>
+        </Col>
+      </Row>
 
-            <div className="pt-4 border-t border-border">
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-muted-foreground">Total Employees</span>
-                <span className="font-semibold">{stats.totalEmployees}</span>
-              </div>
-              <div className="flex items-center justify-between text-sm mt-2">
-                <span className="text-muted-foreground">Active Employees</span>
-                <span className="font-semibold text-green-600">{stats.activeEmployees}</span>
-              </div>
-            </div>
-          </div>
-        </div>
+      {/* Secondary Stats */}
+      <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
+        <Col xs={24} sm={12} lg={6}>
+          <Card bordered={false} hoverable style={{ borderRadius: 12 }}>
+            <Statistic
+              title="Pending Approvals"
+              value={stats.pendingLeaves}
+              prefix={<ClockCircleOutlined style={{ color: '#722ed1' }} />}
+              valueStyle={{ color: '#722ed1' }}
+            />
+            <Progress
+              percent={stats.pendingLeaves > 0 ? 100 : 0}
+              strokeColor="#722ed1"
+              showInfo={false}
+              size="small"
+              style={{ marginTop: 8 }}
+            />
+          </Card>
+        </Col>
+
+        <Col xs={24} sm={12} lg={6}>
+          <Card bordered={false} hoverable style={{ borderRadius: 12 }}>
+            <Statistic
+              title="Monthly Payroll"
+              value={stats.totalPayroll / 1000}
+              precision={1}
+              prefix={<DollarOutlined style={{ color: '#52c41a' }} />}
+              suffix="K"
+              valueStyle={{ color: '#52c41a' }}
+            />
+            <Text type="secondary" style={{ fontSize: 12 }}>
+              {stats.activeEmployees} employees
+            </Text>
+          </Card>
+        </Col>
+
+        <Col xs={24} sm={12} lg={6}>
+          <Card bordered={false} hoverable style={{ borderRadius: 12 }}>
+            <Statistic
+              title="Departments"
+              value={departments.length}
+              prefix={<BankOutlined style={{ color: '#1890ff' }} />}
+              valueStyle={{ color: '#1890ff' }}
+            />
+            <Text type="secondary" style={{ fontSize: 12 }}>
+              Active departments
+            </Text>
+          </Card>
+        </Col>
+
+        <Col xs={24} sm={12} lg={6}>
+          <Card bordered={false} hoverable style={{ borderRadius: 12 }}>
+            <Statistic
+              title="Avg Performance"
+              value={stats.avgPerformance}
+              precision={1}
+              prefix={<TrophyOutlined style={{ color: '#fa8c16' }} />}
+              suffix="/ 5"
+              valueStyle={{ color: '#fa8c16' }}
+            />
+            <Progress
+              percent={(stats.avgPerformance / 5) * 100}
+              strokeColor="#fa8c16"
+              showInfo={false}
+              size="small"
+              style={{ marginTop: 8 }}
+            />
+          </Card>
+        </Col>
+      </Row>
+
+      {/* Attendance and Activity Section */}
+      <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
+        {/* Attendance Summary */}
+        <Col xs={24} lg={16}>
+          <Card
+            title={
+              <Space>
+                <CheckCircleOutlined style={{ color: '#52c41a' }} />
+                <span>Today's Attendance Summary</span>
+              </Space>
+            }
+            bordered={false}
+            style={{ borderRadius: 12, height: '100%' }}
+          >
+            <Row gutter={[16, 16]}>
+              <Col xs={24} sm={8}>
+                <Card
+                  bordered={false}
+                  style={{
+                    background: 'linear-gradient(135deg, #d4fc79 0%, #96e6a1 100%)',
+                    borderRadius: 8,
+                  }}
+                >
+                  <Space direction="vertical" size={4}>
+                    <Space>
+                      <CheckCircleOutlined style={{ fontSize: 20, color: '#389e0d' }} />
+                      <Text strong style={{ color: '#389e0d' }}>
+                        Present
+                      </Text>
+                    </Space>
+                    <Title level={2} style={{ margin: 0, color: '#389e0d' }}>
+                      {stats.presentToday}
+                    </Title>
+                    <Text style={{ fontSize: 12, color: '#52c41a' }}>
+                      {attendanceRate}% attendance
+                    </Text>
+                  </Space>
+                </Card>
+              </Col>
+
+              <Col xs={24} sm={8}>
+                <Card
+                  bordered={false}
+                  style={{
+                    background: 'linear-gradient(135deg, #ffeaa7 0%, #fdcb6e 100%)',
+                    borderRadius: 8,
+                  }}
+                >
+                  <Space direction="vertical" size={4}>
+                    <Space>
+                      <CalendarOutlined style={{ fontSize: 20, color: '#d48806' }} />
+                      <Text strong style={{ color: '#d48806' }}>
+                        On Leave
+                      </Text>
+                    </Space>
+                    <Title level={2} style={{ margin: 0, color: '#d48806' }}>
+                      {stats.onLeave}
+                    </Title>
+                    <Text style={{ fontSize: 12, color: '#d48806' }}>
+                      {((stats.onLeave / stats.totalEmployees) * 100).toFixed(1)}% of total
+                    </Text>
+                  </Space>
+                </Card>
+              </Col>
+
+              <Col xs={24} sm={8}>
+                <Card
+                  bordered={false}
+                  style={{
+                    background: 'linear-gradient(135deg, #ffa7c4 0%, #e66767 100%)',
+                    borderRadius: 8,
+                  }}
+                >
+                  <Space direction="vertical" size={4}>
+                    <Space>
+                      <CloseCircleOutlined style={{ fontSize: 20, color: '#cf1322' }} />
+                      <Text strong style={{ color: '#cf1322' }}>
+                        Absent
+                      </Text>
+                    </Space>
+                    <Title level={2} style={{ margin: 0, color: '#cf1322' }}>
+                      {stats.absent}
+                    </Title>
+                    <Text style={{ fontSize: 12, color: '#cf1322' }}>
+                      {((stats.absent / stats.totalEmployees) * 100).toFixed(1)}% of total
+                    </Text>
+                  </Space>
+                </Card>
+              </Col>
+            </Row>
+
+            <Divider />
+
+            <Row gutter={16}>
+              <Col span={12}>
+                <Statistic
+                  title="Total Employees"
+                  value={stats.totalEmployees}
+                  prefix={<UserOutlined />}
+                />
+              </Col>
+              <Col span={12}>
+                <Statistic
+                  title="Active Employees"
+                  value={stats.activeEmployees}
+                  prefix={<TeamOutlined />}
+                  valueStyle={{ color: '#52c41a' }}
+                />
+              </Col>
+            </Row>
+
+            <Progress
+              percent={parseFloat(attendanceRate)}
+              strokeColor={{
+                from: '#52c41a',
+                to: '#73d13d',
+              }}
+              style={{ marginTop: 16 }}
+            />
+          </Card>
+        </Col>
 
         {/* Recent Activity */}
-        <div className="bg-card border border-border rounded-xl p-6">
-          <h3 className="font-heading text-lg font-semibold mb-4">Recent Activity</h3>
-          <div className="space-y-4">
-            {recentActivities.length > 0 ? (
-              recentActivities.map((activity, index) => (
-                <div key={index} className="flex items-start gap-3 pb-3 border-b border-border last:border-0">
-                  <div className={`w-2 h-2 rounded-full mt-2 ${activity.type === 'success' ? 'bg-green-500' :
-                    activity.type === 'warning' ? 'bg-yellow-500' : 'bg-blue-500'
-                    }`}></div>
-                  <div className="flex-1">
-                    <p className="text-sm font-medium">{activity.action}</p>
-                    <p className="text-xs text-muted-foreground">{activity.time}</p>
-                  </div>
-                </div>
-              ))
-            ) : (
-              <p className="text-sm text-muted-foreground text-center py-4">No recent activity</p>
-            )}
-          </div>
-        </div>
-      </div>
+        <Col xs={24} lg={8}>
+          <Card
+            title={
+              <Space>
+                <ClockCircleOutlined style={{ color: '#1890ff' }} />
+                <span>Recent Activity</span>
+              </Space>
+            }
+            bordered={false}
+            style={{ borderRadius: 12, height: '100%' }}
+          >
+            <Timeline
+              items={
+                recentActivities.length > 0
+                  ? recentActivities.map((activity, index) => ({
+                    key: index,
+                    color:
+                      activity.type === 'success'
+                        ? 'green'
+                        : activity.type === 'warning'
+                          ? 'orange'
+                          : 'blue',
+                    children: (
+                      <div>
+                        <Text strong style={{ fontSize: 13 }}>
+                          {activity.action}
+                        </Text>
+                        <br />
+                        <Text type="secondary" style={{ fontSize: 12 }}>
+                          {activity.time}
+                        </Text>
+                      </div>
+                    ),
+                  }))
+                  : [
+                    {
+                      children: (
+                        <Text type="secondary" style={{ fontSize: 13 }}>
+                          No recent activity
+                        </Text>
+                      ),
+                    },
+                  ]
+              }
+            />
+          </Card>
+        </Col>
+      </Row>
 
       {/* Department Overview */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <Row gutter={[16, 16]}>
         {/* Department Distribution */}
-        <div className="bg-card border border-border rounded-xl p-6">
-          <h3 className="font-heading text-lg font-semibold mb-4">Department Distribution</h3>
-          <div className="space-y-3">
+        <Col xs={24} lg={12}>
+          <Card
+            title={
+              <Space>
+                <BankOutlined style={{ color: '#1890ff' }} />
+                <span>Department Distribution</span>
+              </Space>
+            }
+            bordered={false}
+            style={{ borderRadius: 12, height: '100%' }}
+          >
             {departments.length > 0 ? (
-              departments.map((dept, index) => {
-                const colors = ['bg-blue-500', 'bg-green-500', 'bg-purple-500', 'bg-yellow-500', 'bg-red-500', 'bg-pink-500', 'bg-indigo-500'];
-                const color = colors[index % colors.length];
-                return (
-                  <div key={dept.id} className="flex items-center gap-3">
-                    <div className={`w-3 h-3 rounded-full ${color}`}></div>
-                    <div className="flex-1 flex items-center justify-between">
-                      <span className="text-sm font-medium">{dept.name}</span>
-                      <span className="text-sm text-muted-foreground">
-                        {dept.employeeCount || 0} employee{dept.employeeCount !== 1 ? 's' : ''}
-                      </span>
-                    </div>
-                  </div>
-                );
-              })
+              <List
+                dataSource={departments}
+                renderItem={(dept, index) => {
+                  const colors = ['#1890ff', '#52c41a', '#722ed1', '#faad14', '#f5222d', '#eb2f96', '#13c2c2'];
+                  const color = colors[index % colors.length];
+                  const maxCount = Math.max(...departments.map(d => d.employeeCount || 0));
+                  const percentage = maxCount > 0 ? ((dept.employeeCount || 0) / maxCount) * 100 : 0;
+
+                  return (
+                    <List.Item>
+                      <Space direction="vertical" style={{ width: '100%' }} size={4}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <Space>
+                            <Badge color={color} />
+                            <Text strong>{dept.name}</Text>
+                          </Space>
+                          <Tag color={color}>
+                            {dept.employeeCount || 0} employee{dept.employeeCount !== 1 ? 's' : ''}
+                          </Tag>
+                        </div>
+                        <Progress
+                          percent={percentage}
+                          strokeColor={color}
+                          showInfo={false}
+                          size="small"
+                        />
+                      </Space>
+                    </List.Item>
+                  );
+                }}
+              />
             ) : (
-              <p className="text-sm text-muted-foreground text-center py-4">No departments found</p>
+              <Text type="secondary" style={{ display: 'block', textAlign: 'center', padding: 24 }}>
+                No departments found
+              </Text>
             )}
-          </div>
-        </div>
+          </Card>
+        </Col>
 
         {/* Quick Actions */}
-        <div className="bg-card border border-border rounded-xl p-6">
-          <h3 className="font-heading text-lg font-semibold mb-4">Quick Actions</h3>
-          <div className="space-y-3">
-            <button className="w-full flex items-center gap-3 p-3 bg-primary/10 hover:bg-primary/20 rounded-lg transition-colors text-left">
-              <Users size={20} className="text-primary" />
-              <div>
-                <p className="text-sm font-medium">Add New Employee</p>
-                <p className="text-xs text-muted-foreground">Onboard new team member</p>
-              </div>
-            </button>
+        <Col xs={24} lg={12}>
+          <Card
+            title={
+              <Space>
+                <RiseOutlined style={{ color: '#52c41a' }} />
+                <span>Quick Actions</span>
+              </Space>
+            }
+            bordered={false}
+            style={{ borderRadius: 12, height: '100%' }}
+          >
+            <Space direction="vertical" style={{ width: '100%' }} size={12}>
+              <Button
+                block
+                size="large"
+                icon={<UserOutlined />}
+                style={{
+                  height: 'auto',
+                  padding: '16px',
+                  textAlign: 'left',
+                  display: 'flex',
+                  alignItems: 'center',
+                  background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                  color: '#fff',
+                  border: 'none',
+                }}
+                onClick={() => { }}
+              >
+                <div style={{ marginLeft: 12 }}>
+                  <div style={{ fontWeight: 600, fontSize: 14 }}>Add New Employee</div>
+                  <div style={{ fontSize: 12, opacity: 0.85 }}>Onboard new team member</div>
+                </div>
+              </Button>
 
-            <button className="w-full flex items-center gap-3 p-3 bg-green-500/10 hover:bg-green-500/20 rounded-lg transition-colors text-left">
-              <UserCheck size={20} className="text-green-600" />
-              <div>
-                <p className="text-sm font-medium">Mark Attendance</p>
-                <p className="text-xs text-muted-foreground">Record today's attendance</p>
-              </div>
-            </button>
+              <Button
+                block
+                size="large"
+                icon={<CheckCircleOutlined />}
+                style={{
+                  height: 'auto',
+                  padding: '16px',
+                  textAlign: 'left',
+                  display: 'flex',
+                  alignItems: 'center',
+                  background: 'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)',
+                  color: '#fff',
+                  border: 'none',
+                }}
+                onClick={() => { }}
+              >
+                <div style={{ marginLeft: 12 }}>
+                  <div style={{ fontWeight: 600, fontSize: 14 }}>Mark Attendance</div>
+                  <div style={{ fontSize: 12, opacity: 0.85 }}>Record today's attendance</div>
+                </div>
+              </Button>
 
-            <button className="w-full flex items-center gap-3 p-3 bg-purple-500/10 hover:bg-purple-500/20 rounded-lg transition-colors text-left">
-              <Clock size={20} className="text-purple-600" />
-              <div>
-                <p className="text-sm font-medium">Review Leave Requests</p>
-                <p className="text-xs text-muted-foreground">{stats.pendingLeaves} pending approval{stats.pendingLeaves !== 1 ? 's' : ''}</p>
-              </div>
-            </button>
+              <Button
+                block
+                size="large"
+                icon={<ClockCircleOutlined />}
+                style={{
+                  height: 'auto',
+                  padding: '16px',
+                  textAlign: 'left',
+                  display: 'flex',
+                  alignItems: 'center',
+                  background: 'linear-gradient(135deg, #fa709a 0%, #fee140 100%)',
+                  color: '#fff',
+                  border: 'none',
+                }}
+                onClick={() => { }}
+              >
+                <div style={{ marginLeft: 12 }}>
+                  <div style={{ fontWeight: 600, fontSize: 14 }}>Review Leave Requests</div>
+                  <div style={{ fontSize: 12, opacity: 0.85 }}>
+                    {stats.pendingLeaves} pending approval{stats.pendingLeaves !== 1 ? 's' : ''}
+                  </div>
+                </div>
+              </Button>
 
-            <button className="w-full flex items-center gap-3 p-3 bg-blue-500/10 hover:bg-blue-500/20 rounded-lg transition-colors text-left">
-              <DollarSign size={20} className="text-blue-600" />
-              <div>
-                <p className="text-sm font-medium">Process Payroll</p>
-                <p className="text-xs text-muted-foreground">Generate monthly payroll</p>
-              </div>
-            </button>
-          </div>
-        </div>
-      </div>
+              <Button
+                block
+                size="large"
+                icon={<DollarOutlined />}
+                style={{
+                  height: 'auto',
+                  padding: '16px',
+                  textAlign: 'left',
+                  display: 'flex',
+                  alignItems: 'center',
+                  background: 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)',
+                  color: '#fff',
+                  border: 'none',
+                }}
+                onClick={() => { }}
+              >
+                <div style={{ marginLeft: 12 }}>
+                  <div style={{ fontWeight: 600, fontSize: 14 }}>Process Payroll</div>
+                  <div style={{ fontSize: 12, opacity: 0.85 }}>Generate monthly payroll</div>
+                </div>
+              </Button>
+            </Space>
+
+            {stats.pendingLeaves > 0 && (
+              <>
+                <Divider />
+                <Alert
+                  message="Action Required"
+                  description={`You have ${stats.pendingLeaves} leave request${stats.pendingLeaves !== 1 ? 's' : ''} pending approval.`}
+                  type="warning"
+                  showIcon
+                  icon={<ClockCircleOutlined />}
+                />
+              </>
+            )}
+          </Card>
+        </Col>
+      </Row>
     </div>
   );
 }

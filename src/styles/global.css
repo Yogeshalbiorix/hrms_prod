@@ -78,13 +78,9 @@
   --sidebar: var(--_apps---sidebar--sidebar);
   --sidebar-foreground: var(--_apps---sidebar--sidebar-foreground);
   --sidebar-primary: var(--_apps---sidebar--sidebar-primary);
-  --sidebar-primary-foreground: var(
-    --_apps---sidebar--sidebar-primary-foreground
-  );
+  --sidebar-primary-foreground: var(--_apps---sidebar--sidebar-primary-foreground);
   --sidebar-accent: var(--_apps---sidebar--sidebar-accent);
-  --sidebar-accent-foreground: var(
-    --_apps---sidebar--sidebar-accent-foreground
-  );
+  --sidebar-accent-foreground: var(--_apps---sidebar--sidebar-accent-foreground);
   --sidebar-border: var(--_apps---sidebar--sidebar-border);
   --sidebar-ring: var(--_apps---sidebar--sidebar-ring);
 }
@@ -97,23 +93,15 @@
   --background: var(--_apps---colors--background-dark);
   --foreground: var(--_apps---colors--foreground-dark);
   --card: var(--_apps---colors--card-dark);
-  --card-foreground: var(
-    --_apps---colors--card-foreground-dark
-  );
+  --card-foreground: var(--_apps---colors--card-foreground-dark);
   --popover: var(--_apps---colors--popover-dark);
-  --popover-foreground: var(
-    --_apps---colors--popover-foreground-dark
-  );
+  --popover-foreground: var(--_apps---colors--popover-foreground-dark);
   --primary: var(--_apps---colors--primary-dark);
   --primary-foreground: var(--_apps---colors--primary-foreground-dark);
   --secondary: var(--_apps---colors--secondary-dark);
-  --secondary-foreground: var(
-    --_apps---colors--secondary-foreground-dark
-  );
+  --secondary-foreground: var(--_apps---colors--secondary-foreground-dark);
   --muted: var(--_apps---colors--muted-dark);
-  --muted-foreground: var(
-    --_apps---colors--muted-foreground-dark
-  );
+  --muted-foreground: var(--_apps---colors--muted-foreground-dark);
   --accent: var(--_apps---colors--accent);
   --accent-foreground: var(--_apps---colors--accent-foreground);
   --destructive: var(--_apps---colors--destructive-dark);
@@ -126,17 +114,11 @@
   --chart-4: var(--_apps---charts--chart-4-dark);
   --chart-5: var(--_apps---charts--chart-5-dark);
   --sidebar: var(--_apps---sidebar--sidebar-dark);
-  --sidebar-foreground: var(
-    --_apps---sidebar--sidebar-foreground-dark
-  );
+  --sidebar-foreground: var(--_apps---sidebar--sidebar-foreground-dark);
   --sidebar-primary: var(--_apps---sidebar--sidebar-primary-dark);
-  --sidebar-primary-foreground: var(
-    --_apps---sidebar--sidebar-primary-foreground-dark
-  );
+  --sidebar-primary-foreground: var(--_apps---sidebar--sidebar-primary-foreground-dark);
   --sidebar-accent: var(--_apps---sidebar--sidebar-accent-dark);
-  --sidebar-accent-foreground: var(
-    --_apps---sidebar--sidebar-accent-foreground-dark
-  );
+  --sidebar-accent-foreground: var(--_apps---sidebar--sidebar-accent-foreground-dark);
   --sidebar-border: var(--_apps---sidebar--sidebar-border-dark);
   --sidebar-ring: var(--_apps---sidebar--sidebar-ring-dark);
 }
@@ -151,14 +133,21 @@
     font-family: var(--body-font);
   }
 
-  p, a, div {
+  p,
+  a,
+  div {
     font-family: var(--body-font);
   }
-  
-  h1, h2, h3, h4, h5, h6 {
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
     font-family: var(--heading-font);
   }
-  
+
   button {
     font-family: var(--button-font);
   }
@@ -178,13 +167,11 @@
 }
 
 /* Overrides */
-:is(
-  button[role="combobox"],
+:is(button[role="combobox"],
   button[role="checkbox"],
   button[role="radio"],
   button[data-slot="select-trigger"],
-  button[data-slot="button"]:not(:has(> svg):not(:has(> :not(svg))))
-) {
+  button[data-slot="button"]:not(:has(> svg):not(:has(> :not(svg))))) {
   border-color: var(--input);
   border-style: solid;
   border-width: 1px;
@@ -201,4 +188,125 @@
 :is(a, button).hover\:bg-primary\/90:hover {
   background-color: var(--primary) !important;
   opacity: 0.9;
+}
+
+/* Theme Support */
+:root {
+  --primary-color: #3b82f6;
+}
+
+[data-theme="dark"] {
+  color-scheme: dark;
+}
+
+[data-theme="dark"] .ant-layout,
+[data-theme="dark"] .ant-card,
+[data-theme="dark"] .ant-modal-content,
+[data-theme="dark"] .ant-table,
+[data-theme="dark"] .ant-select-dropdown,
+[data-theme="dark"] .ant-dropdown-menu {
+  background-color: #1f2937 !important;
+  color: #f9fafb !important;
+}
+
+[data-theme="dark"] .ant-card-bordered {
+  border-color: #374151 !important;
+}
+
+[data-theme="dark"] .ant-table-thead>tr>th {
+  background-color: #111827 !important;
+  color: #f9fafb !important;
+  border-color: #374151 !important;
+}
+
+[data-theme="dark"] .ant-table-tbody>tr>td {
+  border-color: #374151 !important;
+  color: #f9fafb !important;
+}
+
+[data-theme="dark"] .ant-table-tbody>tr:hover>td {
+  background-color: #374151 !important;
+}
+
+[data-theme="dark"] .ant-input,
+[data-theme="dark"] .ant-select-selector,
+[data-theme="dark"] .ant-picker {
+  background-color: #374151 !important;
+  border-color: #4b5563 !important;
+  color: #f9fafb !important;
+}
+
+[data-theme="dark"] .ant-btn-default {
+  background-color: #374151 !important;
+  border-color: #4b5563 !important;
+  color: #f9fafb !important;
+}
+
+[data-theme="dark"] .ant-btn-default:hover {
+  background-color: #4b5563 !important;
+  border-color: #6b7280 !important;
+}
+
+[data-theme="dark"] .ant-typography {
+  color: #f9fafb !important;
+}
+
+[data-theme="dark"] .ant-menu {
+  background-color: #1f2937 !important;
+  color: #f9fafb !important;
+}
+
+[data-theme="dark"] .ant-menu-item {
+  color: #f9fafb !important;
+}
+
+[data-theme="dark"] .ant-menu-item:hover {
+  background-color: #374151 !important;
+}
+
+[data-theme="dark"] .ant-menu-item-selected {
+  background-color: #374151 !important;
+}
+
+/* Light theme - Use Ant Design default styles */
+[data-theme="light"] .ant-layout {
+  background-color: transparent;
+}
+
+[data-theme="light"] .ant-card {
+  background-color: #ffffff;
+  color: rgba(0, 0, 0, 0.88);
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.03), 0 1px 6px -1px rgba(0, 0, 0, 0.02), 0 2px 4px 0 rgba(0, 0, 0, 0.02);
+}
+
+[data-theme="light"] .ant-table {
+  background-color: #ffffff;
+  color: rgba(0, 0, 0, 0.88);
+}
+
+[data-theme="light"] .ant-table-thead>tr>th {
+  background-color: #fafafa;
+  color: rgba(0, 0, 0, 0.88);
+  border-color: #f0f0f0;
+}
+
+[data-theme="light"] .ant-table-tbody>tr>td {
+  border-color: #f0f0f0;
+  color: rgba(0, 0, 0, 0.88);
+}
+
+[data-theme="light"] .ant-table-tbody>tr:hover>td {
+  background-color: #fafafa;
+}
+
+/* Smooth transitions for theme changes */
+.ant-layout,
+.ant-card,
+.ant-table,
+.ant-input,
+.ant-select-selector,
+.ant-btn,
+.ant-menu,
+.ant-typography {
+  transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease !important;
 }

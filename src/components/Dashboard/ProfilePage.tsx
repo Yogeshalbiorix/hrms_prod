@@ -30,7 +30,8 @@ import {
   TeamOutlined,
   ClockCircleOutlined,
   CheckCircleOutlined,
-  DollarOutlined
+  DollarOutlined,
+  SaveOutlined
 } from '@ant-design/icons';
 import { useAuth } from '../Auth/AuthContext';
 
@@ -50,7 +51,7 @@ interface UserProfile {
 
 interface EmployeeProfile {
   id: number;
-  emp_code: string;
+  employee_id: string;
   first_name: string;
   last_name: string;
   email: string;
@@ -62,6 +63,8 @@ interface EmployeeProfile {
   status: string;
   address?: string;
   emergency_contact?: string;
+  emergency_contact_name?: string;
+  emergency_contact_phone?: string;
 }
 
 interface AttendanceStats {
@@ -79,8 +82,10 @@ export default function ProfilePage() {
   const [attendanceStats, setAttendanceStats] = useState<AttendanceStats | null>(null);
   const [editModalVisible, setEditModalVisible] = useState(false);
   const [passwordModalVisible, setPasswordModalVisible] = useState(false);
+  const [employeeEditModalVisible, setEmployeeEditModalVisible] = useState(false);
   const [form] = Form.useForm();
   const [passwordForm] = Form.useForm();
+  const [employeeForm] = Form.useForm();
 
   useEffect(() => {
     fetchProfile();
@@ -191,6 +196,34 @@ export default function ProfilePage() {
     }
   };
 
+  const handleUpdateEmployee = async (values: any) => {
+    try {
+      if (!employeeProfile?.id) return;
+
+      const sessionToken = localStorage.getItem('sessionToken');
+      const response = await fetch(`/api/employees/${employeeProfile.id}`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${sessionToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(values)
+      });
+
+      const data = await response.json() as { success: boolean; error?: string };
+
+      if (data.success) {
+        message.success('Employee information updated successfully');
+        setEmployeeEditModalVisible(false);
+        fetchProfile();
+      } else {
+        message.error(data.error || 'Failed to update employee information');
+      }
+    } catch (error) {
+      message.error('Failed to update employee information');
+    }
+  };
+
   if (loading && !userProfile) {
     return (
       <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '400px' }}>
@@ -225,7 +258,7 @@ export default function ProfilePage() {
                       {userProfile?.role?.toUpperCase() || 'EMPLOYEE'}
                     </Tag>
                     {employeeProfile && (
-                      <Tag color="green">{employeeProfile.emp_code}</Tag>
+                      <Tag color="green">{employeeProfile.employee_id}</Tag>
                     )}
                     <Badge
                       status={userProfile?.is_active ? 'success' : 'error'}
@@ -255,8 +288,28 @@ export default function ProfilePage() {
                       setEditModalVisible(true);
                     }}
                   >
-                    Edit Profile
+                    Edit Account
                   </Button>
+                  {employeeProfile && (
+                    <Button
+                      type="default"
+                      icon={<IdcardOutlined />}
+                      onClick={() => {
+                        employeeForm.setFieldsValue({
+                          first_name: employeeProfile.first_name,
+                          last_name: employeeProfile.last_name,
+                          email: employeeProfile.email,
+                          phone: employeeProfile.phone,
+                          position: employeeProfile.position,
+                          address: employeeProfile.address,
+                          emergency_contact: employeeProfile.emergency_contact,
+                        });
+                        setEmployeeEditModalVisible(true);
+                      }}
+                    >
+                      Edit Employee Info
+                    </Button>
+                  )}
                   <Button
                     icon={<LockOutlined />}
                     onClick={() => setPasswordModalVisible(true)}
@@ -357,7 +410,7 @@ export default function ProfilePage() {
                 <TabPane tab="Employee Information" key="2">
                   <Descriptions bordered column={2}>
                     <Descriptions.Item label="Employee Code" span={1}>
-                      <Tag color="green">{employeeProfile.emp_code}</Tag>
+                      <Tag color="green">{employeeProfile.employee_id}</Tag>
                     </Descriptions.Item>
                     <Descriptions.Item label="Position" span={1}>
                       {employeeProfile.position}
@@ -509,6 +562,93 @@ export default function ProfilePage() {
                 Change Password
               </Button>
               <Button onClick={() => setPasswordModalVisible(false)}>
+                Cancel
+              </Button>
+            </Space>
+          </Form.Item>
+        </Form>
+      </Modal>
+
+      {/* Employee Edit Modal */}
+      <Modal
+        title="Edit Employee Information"
+        open={employeeEditModalVisible}
+        onCancel={() => setEmployeeEditModalVisible(false)}
+        footer={null}
+        width={700}
+      >
+        <Form
+          form={employeeForm}
+          layout="vertical"
+          onFinish={handleUpdateEmployee}
+        >
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item
+                label="First Name"
+                name="first_name"
+                rules={[{ required: true, message: 'Please enter first name' }]}
+              >
+                <Input prefix={<UserOutlined />} />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item
+                label="Last Name"
+                name="last_name"
+                rules={[{ required: true, message: 'Please enter last name' }]}
+              >
+                <Input prefix={<UserOutlined />} />
+              </Form.Item>
+            </Col>
+          </Row>
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item
+                label="Email"
+                name="email"
+                rules={[
+                  { required: true, message: 'Please enter email' },
+                  { type: 'email', message: 'Please enter a valid email' }
+                ]}
+              >
+                <Input prefix={<MailOutlined />} />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item
+                label="Phone"
+                name="phone"
+              >
+                <Input prefix={<PhoneOutlined />} />
+              </Form.Item>
+            </Col>
+          </Row>
+          <Form.Item
+            label="Position"
+            name="position"
+            rules={[{ required: true, message: 'Please enter position' }]}
+          >
+            <Input prefix={<IdcardOutlined />} />
+          </Form.Item>
+          <Form.Item
+            label="Address"
+            name="address"
+          >
+            <Input.TextArea rows={3} placeholder="Enter address" />
+          </Form.Item>
+          <Form.Item
+            label="Emergency Contact"
+            name="emergency_contact"
+          >
+            <Input prefix={<PhoneOutlined />} placeholder="Name & Phone Number" />
+          </Form.Item>
+          <Form.Item>
+            <Space>
+              <Button type="primary" htmlType="submit" icon={<SaveOutlined />}>
+                Save Changes
+              </Button>
+              <Button onClick={() => setEmployeeEditModalVisible(false)}>
                 Cancel
               </Button>
             </Space>

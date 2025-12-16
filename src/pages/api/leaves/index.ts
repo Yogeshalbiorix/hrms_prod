@@ -7,6 +7,7 @@ import {
   getLeaveStats,
   type Leave
 } from '../../../lib/db';
+import { sendActivityEmail } from '../../../lib/email-service';
 
 export const GET: APIRoute = async ({ locals, url }) => {
   try {
@@ -108,7 +109,36 @@ export const POST: APIRoute = async ({ request, locals }) => {
       notes: body.notes
     };
 
-    const id = await createLeave(db, leave);
+    const id = await createLeave(db, leave, true);
+
+    // Get employee details for email notification
+    try {
+      const employee = await db.prepare(
+        'SELECT email, first_name, last_name FROM employees WHERE id = ?'
+      ).bind(body.employee_id).first();
+
+      if (employee && employee.email) {
+        const userName = `${employee.first_name} ${employee.last_name}`;
+
+        // Send email notification asynchronously (don't block response)
+        sendActivityEmail(
+          employee.email,
+          userName,
+          'leave_request',
+          {
+            leave_type: leave.leave_type,
+            start_date: leave.start_date,
+            end_date: leave.end_date,
+            total_days: leave.total_days,
+            reason: leave.reason,
+            status: leave.status
+          }
+        ).catch(err => console.error('Failed to send leave request email:', err));
+      }
+    } catch (emailError) {
+      console.error('Error sending leave notification email:', emailError);
+      // Don't fail the request if email fails
+    }
 
     return new Response(JSON.stringify({
       success: true,

@@ -10,7 +10,7 @@ import {
 
 export const POST: APIRoute = async ({ request, locals }) => {
   try {
-    const db = locals.runtime.env.DB;
+    const db = locals.runtime.env.DB as any;
     const body = await request.json() as any;
 
     const { username, password, email, full_name, phone, position, department_id } = body;
@@ -79,7 +79,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
     const last_name = nameParts.slice(1).join(' ') || nameParts[0];
 
     // Get employee count for generating employee ID
-    const countResult = await db.prepare('SELECT COUNT(*) as count FROM employees').first();
+    const countResult = await db.prepare('SELECT COUNT(*) as count FROM employees').first() as any;
     const employeeId = `EMP${String((countResult?.count || 0) + 1).padStart(3, '0')}`;
 
     const employeeData = {

@@ -1,6 +1,42 @@
-import React, { useState, useEffect } from 'react';
-import { DollarSign, Plus, Search, Edit, Trash2, Check, X, Download, Calendar, Users, TrendingUp, FileText } from 'lucide-react';
-import { Modal } from 'antd';
+﻿import React, { useState, useEffect } from 'react';
+import {
+  Card,
+  Table,
+  Tag,
+  Space,
+  Button,
+  Select,
+  Input,
+  Statistic,
+  Row,
+  Col,
+  Modal,
+  Form,
+  DatePicker,
+  InputNumber,
+  message,
+  Tooltip,
+  Empty,
+  Alert
+} from 'antd';
+import type { ColumnsType } from 'antd/es/table';
+import {
+  DollarOutlined,
+  PlusOutlined,
+  SearchOutlined,
+  EditOutlined,
+  DeleteOutlined,
+  CheckOutlined,
+  CloseOutlined,
+  DownloadOutlined,
+  CalendarOutlined,
+  UserOutlined,
+  FileTextOutlined,
+  ReloadOutlined,
+  TeamOutlined,
+  ExclamationCircleOutlined
+} from '@ant-design/icons';
+import dayjs from 'dayjs';
 
 interface PayrollRecord {
   id: number;
@@ -38,9 +74,11 @@ interface PayrollStats {
 }
 
 export default function PayrollManagementDynamic() {
+  const [form] = Form.useForm();
+  const [bulkForm] = Form.useForm();
   const [payrollRecords, setPayrollRecords] = useState<PayrollRecord[]>([]);
   const [stats, setStats] = useState<PayrollStats | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showBulkModal, setShowBulkModal] = useState(false);
@@ -100,8 +138,15 @@ export default function PayrollManagementDynamic() {
     }
   };
 
-  const handleAddPayroll = async (formData: any) => {
+  const handleAddPayroll = async (values: any) => {
     try {
+      const formData = {
+        ...values,
+        pay_period_start: values.pay_period_start ? dayjs(values.pay_period_start).format('YYYY-MM-DD') : '',
+        pay_period_end: values.pay_period_end ? dayjs(values.pay_period_end).format('YYYY-MM-DD') : '',
+        pay_date: values.pay_date ? dayjs(values.pay_date).format('YYYY-MM-DD') : '',
+      };
+
       const response = await fetch('/api/payroll', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -111,42 +156,43 @@ export default function PayrollManagementDynamic() {
       const data = await response.json() as { success: boolean; error?: string };
 
       if (data.success) {
+        message.success('Payroll record created successfully');
         setShowAddModal(false);
+        form.resetFields();
         fetchPayroll();
         fetchStats();
       } else {
-        Modal.error({
-          title: 'Error',
-          content: data.error || 'Failed to create payroll record',
-        });
+        message.error(data.error || 'Failed to create payroll record');
       }
     } catch (error) {
       console.error('Error creating payroll:', error);
-      Modal.error({
-        title: 'Error',
-        content: 'Failed to create payroll record',
-      });
+      message.error('Failed to create payroll record');
     }
   };
 
-  const handleBulkGenerate = async (formData: any) => {
+  const handleBulkGenerate = async (values: any) => {
     try {
+      const formData = {
+        pay_period_start: values.pay_period_start ? dayjs(values.pay_period_start).format('YYYY-MM-DD') : '',
+        pay_period_end: values.pay_period_end ? dayjs(values.pay_period_end).format('YYYY-MM-DD') : '',
+        pay_date: values.pay_date ? dayjs(values.pay_date).format('YYYY-MM-DD') : '',
+        action: 'generate_bulk'
+      };
+
       const response = await fetch('/api/payroll', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...formData, action: 'generate_bulk' })
+        body: JSON.stringify(formData)
       });
 
       const data = await response.json() as { success: boolean; message?: string; error?: string };
 
       if (data.success) {
+        message.success(data.message || 'Payroll records generated successfully');
         setShowBulkModal(false);
+        bulkForm.resetFields();
         fetchPayroll();
         fetchStats();
-        Modal.success({
-          title: 'Success',
-          content: data.message,
-        });
       } else {
         Modal.error({
           title: 'Error',
@@ -259,22 +305,179 @@ export default function PayrollManagementDynamic() {
     }
   };
 
-  const getStatusBadgeClass = (status: string) => {
-    switch (status) {
-      case 'paid':
-        return 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400';
-      case 'approved':
-        return 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400';
-      case 'pending':
-        return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400';
-      case 'draft':
-        return 'bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-400';
-      case 'cancelled':
-        return 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400';
-      default:
-        return 'bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-400';
-    }
+  const getStatusTag = (status: string) => {
+    const config: Record<string, { color: string; icon: React.ReactNode }> = {
+      paid: { color: 'success', icon: <CheckOutlined /> },
+      approved: { color: 'processing', icon: <CheckOutlined /> },
+      pending: { color: 'warning', icon: <CalendarOutlined /> },
+      draft: { color: 'default', icon: <EditOutlined /> },
+      cancelled: { color: 'error', icon: <CloseOutlined /> },
+    };
+
+    const { color, icon } = config[status] || config.draft;
+    return (
+      <Tag color={color} icon={icon}>
+        {status.charAt(0).toUpperCase() + status.slice(1)}
+      </Tag>
+    );
   };
+
+  const columns: ColumnsType<PayrollRecord> = [
+    {
+      title: 'Employee',
+      dataIndex: 'employee_name',
+      key: 'employee_name',
+      render: (text: string, record: PayrollRecord) => (
+        <Space direction="vertical" size={0}>
+          <Space>
+            <UserOutlined />
+            <span style={{ fontWeight: 500 }}>{text}</span>
+          </Space>
+          <span style={{ fontSize: '12px', color: '#888' }}>{record.employee_code}</span>
+        </Space>
+      ),
+      sorter: (a, b) => a.employee_name.localeCompare(b.employee_name),
+    },
+    {
+      title: 'Department',
+      dataIndex: 'department_name',
+      key: 'department_name',
+      ellipsis: true,
+      render: (text: string) => text || 'N/A',
+    },
+    {
+      title: 'Pay Period',
+      key: 'pay_period',
+      render: (_, record: PayrollRecord) => (
+        <Space direction="vertical" size={0}>
+          <span>{dayjs(record.pay_period_start).format('MMM DD, YYYY')}</span>
+          <span style={{ fontSize: '12px', color: '#888' }}>
+            to {dayjs(record.pay_period_end).format('MMM DD, YYYY')}
+          </span>
+        </Space>
+      ),
+    },
+    {
+      title: 'Base Salary',
+      dataIndex: 'base_salary',
+      key: 'base_salary',
+      align: 'right',
+      render: (amount: number) => formatCurrency(amount),
+      sorter: (a, b) => a.base_salary - b.base_salary,
+    },
+    {
+      title: 'Bonuses',
+      dataIndex: 'bonuses',
+      key: 'bonuses',
+      align: 'right',
+      render: (amount: number) => (
+        <span style={{ color: '#52c41a' }}>{formatCurrency(amount)}</span>
+      ),
+    },
+    {
+      title: 'Deductions',
+      dataIndex: 'deductions',
+      key: 'deductions',
+      align: 'right',
+      render: (amount: number) => (
+        <span style={{ color: '#ff4d4f' }}>{formatCurrency(amount)}</span>
+      ),
+    },
+    {
+      title: 'Tax',
+      dataIndex: 'tax',
+      key: 'tax',
+      align: 'right',
+      render: (amount: number) => (
+        <span style={{ color: '#fa8c16' }}>{formatCurrency(amount)}</span>
+      ),
+    },
+    {
+      title: 'Net Salary',
+      dataIndex: 'net_salary',
+      key: 'net_salary',
+      align: 'right',
+      render: (amount: number) => (
+        <span style={{ fontWeight: 'bold' }}>{formatCurrency(amount)}</span>
+      ),
+      sorter: (a, b) => a.net_salary - b.net_salary,
+    },
+    {
+      title: 'Status',
+      dataIndex: 'status',
+      key: 'status',
+      render: (status: string) => getStatusTag(status),
+      filters: [
+        { text: 'Draft', value: 'draft' },
+        { text: 'Pending', value: 'pending' },
+        { text: 'Approved', value: 'approved' },
+        { text: 'Paid', value: 'paid' },
+        { text: 'Cancelled', value: 'cancelled' },
+      ],
+      onFilter: (value, record) => record.status === value,
+    },
+    {
+      title: 'Actions',
+      key: 'actions',
+      align: 'right',
+      render: (_, record: PayrollRecord) => (
+        <Space>
+          {record.status === 'draft' && (
+            <Tooltip title="Submit">
+              <Button
+                type="text"
+                size="small"
+                icon={<CheckOutlined style={{ color: '#faad14' }} />}
+                onClick={() => handleStatusChange(record.id, 'pending')}
+              />
+            </Tooltip>
+          )}
+          {record.status === 'pending' && (
+            <Tooltip title="Approve">
+              <Button
+                type="text"
+                size="small"
+                icon={<CheckOutlined style={{ color: '#1890ff' }} />}
+                onClick={() => handleStatusChange(record.id, 'approved')}
+              />
+            </Tooltip>
+          )}
+          {record.status === 'approved' && (
+            <Tooltip title="Mark as Paid">
+              <Button
+                type="text"
+                size="small"
+                icon={<DollarOutlined style={{ color: '#52c41a' }} />}
+                onClick={() => handleStatusChange(record.id, 'paid')}
+              />
+            </Tooltip>
+          )}
+          <Tooltip title="Edit">
+            <Button
+              type="text"
+              size="small"
+              icon={<EditOutlined />}
+              onClick={() => {
+                setSelectedRecord(record);
+                setShowEditModal(true);
+              }}
+            />
+          </Tooltip>
+          {record.status !== 'paid' && (
+            <Tooltip title="Delete">
+              <Button
+                type="text"
+                size="small"
+                danger
+                icon={<DeleteOutlined />}
+                onClick={() => handleDeletePayroll(record.id)}
+              />
+            </Tooltip>
+          )}
+        </Space>
+      ),
+    },
+  ];
 
   const filteredRecords = payrollRecords.filter(record =>
     record.employee_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -292,602 +495,374 @@ export default function PayrollManagementDynamic() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-heading font-bold">Payroll Management</h1>
-          <p className="text-muted-foreground mt-1">Manage employee payroll and compensation</p>
-        </div>
-        <div className="flex gap-3">
-          <button
-            onClick={() => setShowBulkModal(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-secondary text-secondary-foreground rounded-lg hover:bg-secondary/90 transition-colors"
-          >
-            <Users className="w-4 h-4" />
-            Bulk Generate
-          </button>
-          <button
-            onClick={() => setShowAddModal(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors"
-          >
-            <Plus className="w-4 h-4" />
-            Add Payroll
-          </button>
-        </div>
-      </div>
+      <Card>
+        <Space direction="vertical" size="small" style={{ width: '100%' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div>
+              <h1 style={{ fontSize: '24px', fontWeight: 'bold', margin: 0 }}>Payroll Management</h1>
+              <p style={{ color: '#888', margin: '4px 0 0 0' }}>Manage employee payroll and compensation</p>
+            </div>
+            <Space>
+              <Button
+                icon={<TeamOutlined />}
+                onClick={() => setShowBulkModal(true)}
+              >
+                Bulk Generate
+              </Button>
+              <Button
+                type="primary"
+                icon={<PlusOutlined />}
+                onClick={() => setShowAddModal(true)}
+              >
+                Add Payroll
+              </Button>
+            </Space>
+          </div>
+        </Space>
+      </Card>
 
-      {/* Stats Cards */}
+      {/* Statistics */}
       {stats && (
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-          <div className="bg-card border border-border rounded-lg p-4">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
-                <FileText className="w-5 h-5 text-blue-600 dark:text-blue-400" />
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Total</p>
-                <p className="text-2xl font-bold">{stats.total}</p>
-              </div>
-            </div>
-          </div>
-          <div className="bg-card border border-border rounded-lg p-4">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-gray-100 dark:bg-gray-900/30 flex items-center justify-center">
-                <Edit className="w-5 h-5 text-gray-600 dark:text-gray-400" />
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Draft</p>
-                <p className="text-2xl font-bold">{stats.draft}</p>
-              </div>
-            </div>
-          </div>
-          <div className="bg-card border border-border rounded-lg p-4">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-yellow-100 dark:bg-yellow-900/30 flex items-center justify-center">
-                <Calendar className="w-5 h-5 text-yellow-600 dark:text-yellow-400" />
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Pending</p>
-                <p className="text-2xl font-bold">{stats.pending}</p>
-              </div>
-            </div>
-          </div>
-          <div className="bg-card border border-border rounded-lg p-4">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
-                <Check className="w-5 h-5 text-blue-600 dark:text-blue-400" />
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Approved</p>
-                <p className="text-2xl font-bold">{stats.approved}</p>
-              </div>
-            </div>
-          </div>
-          <div className="bg-card border border-border rounded-lg p-4">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
-                <DollarSign className="w-5 h-5 text-green-600 dark:text-green-400" />
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Paid</p>
-                <p className="text-2xl font-bold">{stats.paid}</p>
-              </div>
-            </div>
-          </div>
-          <div className="bg-card border border-border rounded-lg p-4">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
-                <TrendingUp className="w-5 h-5 text-green-600 dark:text-green-400" />
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Total</p>
-                <p className="text-xl font-bold">{formatCurrency(stats.total_net_salary || 0)}</p>
-              </div>
-            </div>
-          </div>
-        </div>
+        <Row gutter={[16, 16]}>
+          <Col xs={24} sm={12} md={8} lg={4}>
+            <Card>
+              <Statistic
+                title="Total Records"
+                value={stats.total}
+                prefix={<FileTextOutlined style={{ color: '#1890ff' }} />}
+                valueStyle={{ color: '#1890ff' }}
+              />
+            </Card>
+          </Col>
+          <Col xs={24} sm={12} md={8} lg={4}>
+            <Card>
+              <Statistic
+                title="Draft"
+                value={stats.draft}
+                prefix={<EditOutlined />}
+              />
+            </Card>
+          </Col>
+          <Col xs={24} sm={12} md={8} lg={4}>
+            <Card>
+              <Statistic
+                title="Pending"
+                value={stats.pending}
+                prefix={<CalendarOutlined style={{ color: '#faad14' }} />}
+                valueStyle={{ color: '#faad14' }}
+              />
+            </Card>
+          </Col>
+          <Col xs={24} sm={12} md={8} lg={4}>
+            <Card>
+              <Statistic
+                title="Approved"
+                value={stats.approved}
+                prefix={<CheckOutlined style={{ color: '#1890ff' }} />}
+                valueStyle={{ color: '#1890ff' }}
+              />
+            </Card>
+          </Col>
+          <Col xs={24} sm={12} md={8} lg={4}>
+            <Card>
+              <Statistic
+                title="Paid"
+                value={stats.paid}
+                prefix={<DollarOutlined style={{ color: '#52c41a' }} />}
+                valueStyle={{ color: '#52c41a' }}
+              />
+            </Card>
+          </Col>
+          <Col xs={24} sm={12} md={8} lg={4}>
+            <Card>
+              <Statistic
+                title="Total Payroll"
+                value={formatCurrency(stats.total_net_salary || 0)}
+                prefix={<DollarOutlined style={{ color: '#52c41a' }} />}
+                valueStyle={{ fontSize: '18px' }}
+              />
+            </Card>
+          </Col>
+        </Row>
       )}
 
-      {/* Filters */}
-      <div className="bg-card border border-border rounded-lg p-4">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm font-medium mb-2">Status</label>
-            <select
-              value={filterStatus}
-              onChange={(e) => setFilterStatus(e.target.value)}
-              className="w-full px-3 py-2 bg-background border border-input rounded-lg"
+      {/* Filters and Actions */}
+      <Card>
+        <Row gutter={[16, 16]} align="middle">
+          <Col xs={24} sm={12} md={8}>
+            <Select
+              style={{ width: '100%' }}
+              placeholder="All Statuses"
+              value={filterStatus || undefined}
+              onChange={setFilterStatus}
+              allowClear
             >
-              <option value="">All Statuses</option>
-              <option value="draft">Draft</option>
-              <option value="pending">Pending</option>
-              <option value="approved">Approved</option>
-              <option value="paid">Paid</option>
-              <option value="cancelled">Cancelled</option>
-            </select>
-          </div>
-          <div>
-            <label className="block text-sm font-medium mb-2">Search</label>
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search by name or employee ID..."
-                className="w-full pl-10 pr-3 py-2 bg-background border border-input rounded-lg"
-              />
-            </div>
-          </div>
-        </div>
-      </div>
+              <Select.Option value="draft">Draft</Select.Option>
+              <Select.Option value="pending">Pending</Select.Option>
+              <Select.Option value="approved">Approved</Select.Option>
+              <Select.Option value="paid">Paid</Select.Option>
+              <Select.Option value="cancelled">Cancelled</Select.Option>
+            </Select>
+          </Col>
+          <Col xs={24} sm={12} md={10}>
+            <Input
+              placeholder="Search by name or employee ID..."
+              prefix={<SearchOutlined />}
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              allowClear
+            />
+          </Col>
+          <Col xs={24} sm={24} md={6}>
+            <Space>
+              <Button
+                icon={<ReloadOutlined />}
+                onClick={() => {
+                  fetchPayroll();
+                  fetchStats();
+                }}
+              >
+                Refresh
+              </Button>
+              <Button
+                icon={<DownloadOutlined />}
+              >
+                Export
+              </Button>
+            </Space>
+          </Col>
+        </Row>
+      </Card>
 
       {/* Payroll Table */}
-      <div className="bg-card border border-border rounded-lg overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead className="bg-muted/50 border-b border-border">
-              <tr>
-                <th className="px-4 py-3 text-left text-sm font-semibold">Employee</th>
-                <th className="px-4 py-3 text-left text-sm font-semibold">Department</th>
-                <th className="px-4 py-3 text-left text-sm font-semibold">Pay Period</th>
-                <th className="px-4 py-3 text-right text-sm font-semibold">Base Salary</th>
-                <th className="px-4 py-3 text-right text-sm font-semibold">Bonuses</th>
-                <th className="px-4 py-3 text-right text-sm font-semibold">Deductions</th>
-                <th className="px-4 py-3 text-right text-sm font-semibold">Tax</th>
-                <th className="px-4 py-3 text-right text-sm font-semibold">Net Salary</th>
-                <th className="px-4 py-3 text-left text-sm font-semibold">Status</th>
-                <th className="px-4 py-3 text-right text-sm font-semibold">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border">
-              {loading ? (
-                <tr>
-                  <td colSpan={10} className="px-4 py-8 text-center text-muted-foreground">
-                    Loading...
-                  </td>
-                </tr>
-              ) : filteredRecords.length === 0 ? (
-                <tr>
-                  <td colSpan={10} className="px-4 py-8 text-center text-muted-foreground">
-                    No payroll records found
-                  </td>
-                </tr>
-              ) : (
-                filteredRecords.map((record) => (
-                  <tr key={record.id} className="hover:bg-muted/30">
-                    <td className="px-4 py-3">
-                      <div>
-                        <p className="font-medium">{record.employee_name}</p>
-                        <p className="text-sm text-muted-foreground">{record.employee_code}</p>
-                      </div>
-                    </td>
-                    <td className="px-4 py-3 text-sm">{record.department_name || 'N/A'}</td>
-                    <td className="px-4 py-3 text-sm">
-                      <div>
-                        <p>{new Date(record.pay_period_start).toLocaleDateString()}</p>
-                        <p className="text-muted-foreground">to {new Date(record.pay_period_end).toLocaleDateString()}</p>
-                      </div>
-                    </td>
-                    <td className="px-4 py-3 text-right text-sm font-medium">{formatCurrency(record.base_salary)}</td>
-                    <td className="px-4 py-3 text-right text-sm text-green-600">{formatCurrency(record.bonuses)}</td>
-                    <td className="px-4 py-3 text-right text-sm text-red-600">{formatCurrency(record.deductions)}</td>
-                    <td className="px-4 py-3 text-right text-sm text-orange-600">{formatCurrency(record.tax)}</td>
-                    <td className="px-4 py-3 text-right text-sm font-bold">{formatCurrency(record.net_salary)}</td>
-                    <td className="px-4 py-3">
-                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusBadgeClass(record.status)}`}>
-                        {record.status.charAt(0).toUpperCase() + record.status.slice(1)}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center justify-end gap-2">
-                        {record.status === 'draft' && (
-                          <button
-                            onClick={() => handleStatusChange(record.id, 'pending')}
-                            className="p-2 hover:bg-yellow-100 dark:hover:bg-yellow-900/30 text-yellow-600 dark:text-yellow-400 rounded-lg transition-colors"
-                            title="Submit"
-                          >
-                            <Check className="w-4 h-4" />
-                          </button>
-                        )}
-                        {record.status === 'pending' && (
-                          <button
-                            onClick={() => handleStatusChange(record.id, 'approved')}
-                            className="p-2 hover:bg-blue-100 dark:hover:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-lg transition-colors"
-                            title="Approve"
-                          >
-                            <Check className="w-4 h-4" />
-                          </button>
-                        )}
-                        {record.status === 'approved' && (
-                          <button
-                            onClick={() => handleStatusChange(record.id, 'paid')}
-                            className="p-2 hover:bg-green-100 dark:hover:bg-green-900/30 text-green-600 dark:text-green-400 rounded-lg transition-colors"
-                            title="Mark as Paid"
-                          >
-                            <DollarSign className="w-4 h-4" />
-                          </button>
-                        )}
-                        <button
-                          onClick={() => {
-                            setSelectedRecord(record);
-                            setShowEditModal(true);
-                          }}
-                          className="p-2 hover:bg-muted rounded-lg transition-colors"
-                          title="Edit"
-                        >
-                          <Edit className="w-4 h-4" />
-                        </button>
-                        {record.status !== 'paid' && (
-                          <button
-                            onClick={() => handleDeletePayroll(record.id)}
-                            className="p-2 hover:bg-destructive/10 text-destructive rounded-lg transition-colors"
-                            title="Delete"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* Add Payroll Modal */}
-      {showAddModal && (
-        <PayrollModal
-          employees={employees}
-          onClose={() => setShowAddModal(false)}
-          onSubmit={handleAddPayroll}
-        />
-      )}
-
-      {/* Edit Payroll Modal */}
-      {showEditModal && selectedRecord && (
-        <PayrollModal
-          employees={employees}
-          record={selectedRecord}
-          onClose={() => {
-            setShowEditModal(false);
-            setSelectedRecord(null);
+      <Card>
+        <Table
+          columns={columns}
+          dataSource={filteredRecords}
+          rowKey="id"
+          loading={loading}
+          pagination={{
+            pageSize: 10,
+            showSizeChanger: true,
+            showTotal: (total, range) => `${range[0]}-${range[1]} of ${total} items`,
+            pageSizeOptions: ['10', '20', '50', '100'],
           }}
-          onSubmit={handleUpdatePayroll}
+          scroll={{ x: 1400 }}
+          locale={{
+            emptyText: (
+              <Empty
+                image={Empty.PRESENTED_IMAGE_SIMPLE}
+                description="No payroll records found"
+              />
+            ),
+          }}
         />
-      )}
+      </Card>
 
-      {/* Bulk Generate Modal */}
-      {showBulkModal && (
-        <BulkGenerateModal
-          onClose={() => setShowBulkModal(false)}
-          onSubmit={handleBulkGenerate}
-        />
-      )}
-    </div>
-  );
-}
-
-// Payroll Modal Component
-function PayrollModal({ employees, record, onClose, onSubmit }: any) {
-  const [formData, setFormData] = useState({
-    employee_id: record?.employee_id || '',
-    pay_period_start: record?.pay_period_start || '',
-    pay_period_end: record?.pay_period_end || '',
-    pay_date: record?.pay_date || '',
-    base_salary: record?.base_salary || 0,
-    bonuses: record?.bonuses || 0,
-    deductions: record?.deductions || 0,
-    tax: record?.tax || 0,
-    net_salary: record?.net_salary || 0,
-    status: record?.status || 'draft',
-    payment_method: record?.payment_method || '',
-    notes: record?.notes || ''
-  });
-
-  useEffect(() => {
-    // Auto-calculate net salary when values change
-    const base = parseFloat(formData.base_salary.toString()) || 0;
-    const bonus = parseFloat(formData.bonuses.toString()) || 0;
-    const deduct = parseFloat(formData.deductions.toString()) || 0;
-    const taxAmount = parseFloat(formData.tax.toString()) || 0;
-
-    const netSalary = base + bonus - deduct - taxAmount;
-    setFormData(prev => ({ ...prev, net_salary: netSalary }));
-  }, [formData.base_salary, formData.bonuses, formData.deductions, formData.tax]);
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    onSubmit(formData);
-  };
-
-  return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-card border border-border rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-        <div className="p-6 border-b border-border">
-          <h2 className="text-xl font-heading font-bold">
-            {record ? 'Edit Payroll' : 'Add Payroll Record'}
-          </h2>
-        </div>
-
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
-          {!record && (
-            <div>
-              <label className="block text-sm font-medium mb-2">
-                Employee <span className="text-destructive">*</span>
-              </label>
-              <select
-                required
-                value={formData.employee_id}
-                onChange={(e) => {
-                  const empId = e.target.value;
-                  const emp = employees.find((e: any) => e.id === parseInt(empId));
-                  setFormData({
-                    ...formData,
-                    employee_id: empId,
-                    base_salary: emp?.base_salary || 0,
-                    tax: (emp?.base_salary || 0) * 0.1 // Auto-calculate 10% tax
-                  });
+      {/* Add/Edit Payroll Modal */}
+      <Modal
+        title={selectedRecord ? 'Edit Payroll Record' : 'Add Payroll Record'}
+        open={showAddModal || showEditModal}
+        onCancel={() => {
+          setShowAddModal(false);
+          setShowEditModal(false);
+          setSelectedRecord(null);
+          form.resetFields();
+        }}
+        onOk={() => form.submit()}
+        width={800}
+      >
+        <Form
+          form={form}
+          layout="vertical"
+          onFinish={selectedRecord ? handleUpdatePayroll : handleAddPayroll}
+          initialValues={selectedRecord ? {
+            ...selectedRecord,
+            pay_period_start: selectedRecord.pay_period_start ? dayjs(selectedRecord.pay_period_start) : null,
+            pay_period_end: selectedRecord.pay_period_end ? dayjs(selectedRecord.pay_period_end) : null,
+            pay_date: selectedRecord.pay_date ? dayjs(selectedRecord.pay_date) : null,
+          } : {
+            status: 'draft'
+          }}
+        >
+          {!selectedRecord && (
+            <Form.Item
+              label="Employee"
+              name="employee_id"
+              rules={[{ required: true, message: 'Please select an employee' }]}
+            >
+              <Select
+                showSearch
+                placeholder="Select Employee"
+                optionFilterProp="children"
+                filterOption={(input, option) =>
+                  (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+                }
+                options={employees.map((emp: any) => ({
+                  value: emp.id,
+                  label: `${emp.first_name} ${emp.last_name} (${emp.employee_id}) - $${emp.base_salary}/month`
+                }))}
+                onChange={(value) => {
+                  const emp = employees.find((e: any) => e.id === value);
+                  if (emp) {
+                    form.setFieldsValue({
+                      base_salary: emp.base_salary,
+                      tax: emp.base_salary * 0.1
+                    });
+                  }
                 }}
-                className="w-full px-3 py-2 bg-background border border-input rounded-lg"
-              >
-                <option value="">Select Employee</option>
-                {employees.map((emp: any) => (
-                  <option key={emp.id} value={emp.id}>
-                    {emp.first_name} {emp.last_name} ({emp.employee_id}) - ${emp.base_salary}/month
-                  </option>
-                ))}
-              </select>
-            </div>
+              />
+            </Form.Item>
           )}
 
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium mb-2">
-                Pay Period Start <span className="text-destructive">*</span>
-              </label>
-              <input
-                type="date"
-                required
-                value={formData.pay_period_start}
-                onChange={(e) => setFormData({ ...formData, pay_period_start: e.target.value })}
-                className="w-full px-3 py-2 bg-background border border-input rounded-lg"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium mb-2">
-                Pay Period End <span className="text-destructive">*</span>
-              </label>
-              <input
-                type="date"
-                required
-                value={formData.pay_period_end}
-                onChange={(e) => setFormData({ ...formData, pay_period_end: e.target.value })}
-                className="w-full px-3 py-2 bg-background border border-input rounded-lg"
-              />
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium mb-2">
-              Pay Date <span className="text-destructive">*</span>
-            </label>
-            <input
-              type="date"
-              required
-              value={formData.pay_date}
-              onChange={(e) => setFormData({ ...formData, pay_date: e.target.value })}
-              className="w-full px-3 py-2 bg-background border border-input rounded-lg"
-            />
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium mb-2">Base Salary</label>
-              <input
-                type="number"
-                step="0.01"
-                value={formData.base_salary}
-                onChange={(e) => setFormData({ ...formData, base_salary: parseFloat(e.target.value) || 0 })}
-                className="w-full px-3 py-2 bg-background border border-input rounded-lg"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium mb-2">Bonuses</label>
-              <input
-                type="number"
-                step="0.01"
-                value={formData.bonuses}
-                onChange={(e) => setFormData({ ...formData, bonuses: parseFloat(e.target.value) || 0 })}
-                className="w-full px-3 py-2 bg-background border border-input rounded-lg"
-              />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium mb-2">Deductions</label>
-              <input
-                type="number"
-                step="0.01"
-                value={formData.deductions}
-                onChange={(e) => setFormData({ ...formData, deductions: parseFloat(e.target.value) || 0 })}
-                className="w-full px-3 py-2 bg-background border border-input rounded-lg"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium mb-2">Tax</label>
-              <input
-                type="number"
-                step="0.01"
-                value={formData.tax}
-                onChange={(e) => setFormData({ ...formData, tax: parseFloat(e.target.value) || 0 })}
-                className="w-full px-3 py-2 bg-background border border-input rounded-lg"
-              />
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium mb-2">Net Salary (Auto-calculated)</label>
-            <input
-              type="number"
-              step="0.01"
-              value={formData.net_salary}
-              readOnly
-              className="w-full px-3 py-2 bg-muted border border-input rounded-lg font-bold"
-            />
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium mb-2">Status</label>
-              <select
-                value={formData.status}
-                onChange={(e) => setFormData({ ...formData, status: e.target.value as any })}
-                className="w-full px-3 py-2 bg-background border border-input rounded-lg"
+          <Row gutter={16}>
+            <Col span={8}>
+              <Form.Item
+                label="Pay Period Start"
+                name="pay_period_start"
+                rules={[{ required: true, message: 'Please select start date' }]}
               >
-                <option value="draft">Draft</option>
-                <option value="pending">Pending</option>
-                <option value="approved">Approved</option>
-                <option value="paid">Paid</option>
-                <option value="cancelled">Cancelled</option>
-              </select>
-            </div>
+                <DatePicker style={{ width: '100%' }} format="YYYY-MM-DD" />
+              </Form.Item>
+            </Col>
+            <Col span={8}>
+              <Form.Item
+                label="Pay Period End"
+                name="pay_period_end"
+                rules={[{ required: true, message: 'Please select end date' }]}
+              >
+                <DatePicker style={{ width: '100%' }} format="YYYY-MM-DD" />
+              </Form.Item>
+            </Col>
+            <Col span={8}>
+              <Form.Item
+                label="Pay Date"
+                name="pay_date"
+                rules={[{ required: true, message: 'Please select pay date' }]}
+              >
+                <DatePicker style={{ width: '100%' }} format="YYYY-MM-DD" />
+              </Form.Item>
+            </Col>
+          </Row>
 
-            <div>
-              <label className="block text-sm font-medium mb-2">Payment Method</label>
-              <input
-                type="text"
-                value={formData.payment_method}
-                onChange={(e) => setFormData({ ...formData, payment_method: e.target.value })}
-                className="w-full px-3 py-2 bg-background border border-input rounded-lg"
-                placeholder="e.g., Bank Transfer, Check"
-              />
-            </div>
-          </div>
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item label="Base Salary" name="base_salary">
+                <InputNumber
+                  style={{ width: '100%' }}
+                  prefix="$"
+                  precision={2}
+                  min={0}
+                />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item label="Bonuses" name="bonuses">
+                <InputNumber
+                  style={{ width: '100%' }}
+                  prefix="$"
+                  precision={2}
+                  min={0}
+                />
+              </Form.Item>
+            </Col>
+          </Row>
 
-          <div>
-            <label className="block text-sm font-medium mb-2">Notes</label>
-            <textarea
-              value={formData.notes}
-              onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-              className="w-full px-3 py-2 bg-background border border-input rounded-lg"
-              rows={3}
-              placeholder="Additional notes..."
-            />
-          </div>
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item label="Deductions" name="deductions">
+                <InputNumber
+                  style={{ width: '100%' }}
+                  prefix="$"
+                  precision={2}
+                  min={0}
+                />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item label="Tax" name="tax">
+                <InputNumber
+                  style={{ width: '100%' }}
+                  prefix="$"
+                  precision={2}
+                  min={0}
+                />
+              </Form.Item>
+            </Col>
+          </Row>
 
-          <div className="flex gap-3 pt-4">
-            <button
-              type="button"
-              onClick={onClose}
-              className="flex-1 px-4 py-2 border border-border rounded-lg hover:bg-muted transition-colors"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              className="flex-1 px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors"
-            >
-              {record ? 'Update' : 'Create'}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
-  );
-}
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item label="Status" name="status">
+                <Select>
+                  <Select.Option value="draft">Draft</Select.Option>
+                  <Select.Option value="pending">Pending</Select.Option>
+                  <Select.Option value="approved">Approved</Select.Option>
+                  <Select.Option value="paid">Paid</Select.Option>
+                  <Select.Option value="cancelled">Cancelled</Select.Option>
+                </Select>
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item label="Payment Method" name="payment_method">
+                <Input placeholder="e.g., Bank Transfer, Check" />
+              </Form.Item>
+            </Col>
+          </Row>
 
-// Bulk Generate Modal Component
-function BulkGenerateModal({ onClose, onSubmit }: any) {
-  const [formData, setFormData] = useState({
-    pay_period_start: '',
-    pay_period_end: '',
-    pay_date: ''
-  });
+          <Form.Item label="Notes" name="notes">
+            <Input.TextArea rows={3} placeholder="Additional notes..." />
+          </Form.Item>
+        </Form>
+      </Modal>
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    onSubmit(formData);
-  };
+      {/* Bulk Generate Modal */}
+      <Modal
+        title="Bulk Generate Payroll"
+        open={showBulkModal}
+        onCancel={() => {
+          setShowBulkModal(false);
+          bulkForm.resetFields();
+        }}
+        onOk={() => bulkForm.submit()}
+        width={500}
+      >
+        <Alert
+          message="This will create draft payroll records for all active employees based on their current base salary."
+          type="info"
+          showIcon
+          style={{ marginBottom: 16 }}
+        />
+        <Form
+          form={bulkForm}
+          layout="vertical"
+          onFinish={handleBulkGenerate}
+        >
+          <Form.Item
+            label="Pay Period Start"
+            name="pay_period_start"
+            rules={[{ required: true, message: 'Please select start date' }]}
+          >
+            <DatePicker style={{ width: '100%' }} format="YYYY-MM-DD" />
+          </Form.Item>
 
-  return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-card border border-border rounded-lg max-w-md w-full">
-        <div className="p-6 border-b border-border">
-          <h2 className="text-xl font-heading font-bold">Bulk Generate Payroll</h2>
-          <p className="text-sm text-muted-foreground mt-1">
-            Generate payroll records for all active employees
-          </p>
-        </div>
+          <Form.Item
+            label="Pay Period End"
+            name="pay_period_end"
+            rules={[{ required: true, message: 'Please select end date' }]}
+          >
+            <DatePicker style={{ width: '100%' }} format="YYYY-MM-DD" />
+          </Form.Item>
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
-          <div>
-            <label className="block text-sm font-medium mb-2">
-              Pay Period Start <span className="text-destructive">*</span>
-            </label>
-            <input
-              type="date"
-              required
-              value={formData.pay_period_start}
-              onChange={(e) => setFormData({ ...formData, pay_period_start: e.target.value })}
-              className="w-full px-3 py-2 bg-background border border-input rounded-lg"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium mb-2">
-              Pay Period End <span className="text-destructive">*</span>
-            </label>
-            <input
-              type="date"
-              required
-              value={formData.pay_period_end}
-              onChange={(e) => setFormData({ ...formData, pay_period_end: e.target.value })}
-              className="w-full px-3 py-2 bg-background border border-input rounded-lg"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium mb-2">
-              Pay Date <span className="text-destructive">*</span>
-            </label>
-            <input
-              type="date"
-              required
-              value={formData.pay_date}
-              onChange={(e) => setFormData({ ...formData, pay_date: e.target.value })}
-              className="w-full px-3 py-2 bg-background border border-input rounded-lg"
-            />
-          </div>
-
-          <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3">
-            <p className="text-sm text-blue-800 dark:text-blue-200">
-              This will create draft payroll records for all active employees based on their current base salary.
-            </p>
-          </div>
-
-          <div className="flex gap-3 pt-4">
-            <button
-              type="button"
-              onClick={onClose}
-              className="flex-1 px-4 py-2 border border-border rounded-lg hover:bg-muted transition-colors"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              className="flex-1 px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors"
-            >
-              Generate
-            </button>
-          </div>
-        </form>
-      </div>
+          <Form.Item
+            label="Pay Date"
+            name="pay_date"
+            rules={[{ required: true, message: 'Please select pay date' }]}
+          >
+            <DatePicker style={{ width: '100%' }} format="YYYY-MM-DD" />
+          </Form.Item>
+        </Form>
+      </Modal>
     </div>
   );
 }

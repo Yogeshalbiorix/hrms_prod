@@ -69,7 +69,7 @@ export const POST: APIRoute = async ({ request, locals, cookies }) => {
     }
 
     // Verify current password
-    const isValidPassword = await bcrypt.compare(currentPassword, fullUser.password_hash);
+    const isValidPassword = await bcrypt.compare(currentPassword, fullUser.password_hash!);
     if (!isValidPassword) {
       return new Response(
         JSON.stringify({ error: 'Current password is incorrect' }),
@@ -81,7 +81,7 @@ export const POST: APIRoute = async ({ request, locals, cookies }) => {
     const newPasswordHash = await bcrypt.hash(newPassword, 10);
 
     // Update password
-    const updated = await updateUserPassword(db, user.id, newPasswordHash);
+    const updated = await updateUserPassword(db, user.id!, newPasswordHash);
 
     if (!updated) {
       return new Response(
@@ -107,12 +107,12 @@ export const POST: APIRoute = async ({ request, locals, cookies }) => {
 
     // Invalidate all sessions except current one for security
     // Then create a new session with the same token
-    await deleteAllUserSessions(db, user.id);
+    await deleteAllUserSessions(db, user.id!);
 
     // Create new session with same token
     const expiresAt = new Date();
     expiresAt.setHours(expiresAt.getHours() + 24);
-    await createSession(db, user.id, sessionToken, expiresAt.toISOString(), clientIP, userAgent);
+    await createSession(db, user.id!, sessionToken, expiresAt.toISOString(), clientIP, userAgent);
 
     return new Response(
       JSON.stringify({

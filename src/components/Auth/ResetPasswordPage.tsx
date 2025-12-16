@@ -5,7 +5,7 @@ import {
   Button,
   Card,
   Typography,
-  message,
+  App,
   Space,
   Result,
   Spin
@@ -29,6 +29,7 @@ export const ResetPasswordPage: React.FC<ResetPasswordPageProps> = ({
   onSuccess,
   onBackToLogin
 }) => {
+  const { message } = App.useApp();
   const [loading, setLoading] = useState(false);
   const [resetSuccess, setResetSuccess] = useState(false);
   const [tokenError, setTokenError] = useState(false);

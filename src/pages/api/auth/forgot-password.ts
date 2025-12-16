@@ -5,6 +5,7 @@ import {
   createPasswordResetToken,
   createAuditLog
 } from '../../../lib/db';
+import { sendPasswordResetEmail } from '../../../lib/email-service';
 
 export const POST: APIRoute = async ({ request, locals }) => {
   try {
@@ -37,8 +38,8 @@ export const POST: APIRoute = async ({ request, locals }) => {
     }
 
     // Check if account is locked
-    if (user.locked_until) {
-      const lockedUntil = new Date(user.locked_until);
+    if ((user as any).locked_until) {
+      const lockedUntil = new Date((user as any).locked_until);
       if (lockedUntil > new Date()) {
         return new Response(
           JSON.stringify({
@@ -58,7 +59,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
     const expiresAtISO = expiresAt.toISOString();
 
     // Store reset token
-    const tokenId = await createPasswordResetToken(db, user.id, token, expiresAtISO);
+    const tokenId = await createPasswordResetToken(db, user.id!, token, expiresAtISO);
 
     if (!tokenId) {
       return new Response(
@@ -82,26 +83,28 @@ export const POST: APIRoute = async ({ request, locals }) => {
       user_agent: userAgent
     });
 
-    // In a production environment, you would send an email here
-    // For now, we'll return the token (in production, never do this!)
-    // TODO: Integrate with email service (SendGrid, AWS SES, etc.)
-
+    // Send password reset email
     const resetLink = `${new URL(request.url).origin}/reset-password?token=${token}`;
 
-    console.log('Password reset link:', resetLink);
-    console.log('Token:', token);
+    try {
+      await sendPasswordResetEmail(
+        email,
+        user.full_name || user.username,
+        resetLink,
+        expiresAtISO
+      );
 
-    // In production, remove the token from response
+      console.log('✅ Password reset email sent successfully to:', email);
+    } catch (emailError) {
+      console.error('❌ Failed to send password reset email:', emailError);
+      // Continue even if email fails - user can request again
+    }
+
+    // Return success response (never expose actual token in production)
     return new Response(
       JSON.stringify({
         success: true,
-        message: 'If the email exists, a password reset link has been sent',
-        // REMOVE IN PRODUCTION:
-        dev_only: {
-          token,
-          resetLink,
-          expiresAt: expiresAtISO
-        }
+        message: 'If the email exists, a password reset link has been sent to your email address'
       }),
       { status: 200, headers: { 'Content-Type': 'application/json' } }
     );

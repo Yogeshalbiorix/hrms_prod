@@ -46,6 +46,8 @@ export default function DepartmentManagement() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [showAddDialog, setShowAddDialog] = useState(false);
+  const [showEditDialog, setShowEditDialog] = useState(false);
+  const [editingDepartment, setEditingDepartment] = useState<Department | null>(null);
   const [formData, setFormData] = useState({
     name: '',
     description: '',
@@ -112,6 +114,58 @@ export default function DepartmentManagement() {
     }
   };
 
+  const handleEditDepartment = (department: Department) => {
+    setEditingDepartment(department);
+    setFormData({
+      name: department.name,
+      description: department.description || '',
+    });
+    setShowEditDialog(true);
+  };
+
+  const handleUpdateDepartment = async () => {
+    try {
+      if (!formData.name.trim()) {
+        Modal.warning({
+          title: 'Validation Error',
+          content: 'Please enter a department name',
+        });
+        return;
+      }
+
+      if (!editingDepartment) return;
+
+      const response = await fetch(`${baseUrl}/api/departments/${editingDepartment.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(formData),
+      });
+
+      const data = await response.json() as any;
+      if (data.success) {
+        setShowEditDialog(false);
+        setEditingDepartment(null);
+        resetForm();
+        fetchDepartments();
+        Modal.success({
+          title: 'Success',
+          content: 'Department updated successfully!',
+        });
+      } else {
+        Modal.error({
+          title: 'Error',
+          content: data.error || 'Failed to update department',
+        });
+      }
+    } catch (error) {
+      console.error('Error updating department:', error);
+      Modal.error({
+        title: 'Error',
+        content: 'Failed to update department. Please try again.',
+      });
+    }
+  };
+
   const handleDeleteDepartment = async (id: number, employeeCount: number) => {
     if (employeeCount > 0) {
       Modal.warning({
@@ -129,7 +183,7 @@ export default function DepartmentManagement() {
       okButtonProps: { danger: true },
       onOk: async () => {
         try {
-          const response = await fetch(`${baseUrl}/api/departments?id=${id}`, {
+          const response = await fetch(`${baseUrl}/api/departments/${id}`, {
             method: 'DELETE',
           });
 
@@ -209,6 +263,14 @@ export default function DepartmentManagement() {
       align: 'center',
       render: (_: any, record: Department) => (
         <Space>
+          <Tooltip title="Edit Department">
+            <Button
+              type="text"
+              icon={<EditOutlined />}
+              onClick={() => handleEditDepartment(record)}
+              style={{ color: '#2563eb' }}
+            />
+          </Tooltip>
           <Tooltip title="Delete Department">
             <Button
               type="text"
@@ -398,6 +460,70 @@ export default function DepartmentManagement() {
                 <br />
                 <Text type="secondary">
                   After creating the department, you can assign employees to it through Employee Management.
+                </Text>
+              </div>
+            </Space>
+          </Card>
+        </Form>
+      </Modal>
+
+      {/* Edit Department Modal */}
+      <Modal
+        title={
+          <Space>
+            <EditOutlined style={{ color: '#2563eb' }} />
+            <span>Edit Department</span>
+          </Space>
+        }
+        open={showEditDialog}
+        onOk={handleUpdateDepartment}
+        onCancel={() => {
+          setShowEditDialog(false);
+          setEditingDepartment(null);
+          resetForm();
+        }}
+        okText="Update Department"
+        cancelText="Cancel"
+        width={600}
+        okButtonProps={{ size: 'large' }}
+        cancelButtonProps={{ size: 'large' }}
+      >
+        <Form layout="vertical" style={{ marginTop: 24 }}>
+          <Form.Item
+            label={<span style={{ fontWeight: 500 }}>Department Name <span style={{ color: '#ef4444' }}>*</span></span>}
+            required
+          >
+            <Input
+              size="large"
+              placeholder="e.g., Engineering, Sales, HR"
+              value={formData.name}
+              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+              prefix={<BankOutlined style={{ color: '#9ca3af' }} />}
+            />
+          </Form.Item>
+
+          <Form.Item
+            label={<span style={{ fontWeight: 500 }}>Description</span>}
+          >
+            <TextArea
+              rows={4}
+              placeholder="Brief description of the department..."
+              value={formData.description}
+              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+            />
+          </Form.Item>
+
+          <Card
+            size="small"
+            style={{ background: '#fef3c7', border: '1px solid #fde68a' }}
+          >
+            <Space align="start">
+              <ExclamationCircleOutlined style={{ color: '#d97706', fontSize: 18 }} />
+              <div>
+                <Text strong style={{ color: '#92400e' }}>Important:</Text>
+                <br />
+                <Text type="secondary">
+                  Changing the department name will affect all associated employees and reports.
                 </Text>
               </div>
             </Space>

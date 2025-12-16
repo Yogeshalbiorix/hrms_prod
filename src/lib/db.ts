@@ -141,7 +141,7 @@ export async function searchEmployees(
   return result.results || [];
 }
 
-export async function createEmployee(db: any, employee: Employee): Promise<{ id: number; employee_id: string }> {
+export async function createEmployee(db: any, employee: Employee, syncRemote: boolean = false): Promise<{ id: number; employee_id: string }> {
   // Get count for employee ID generation
   const countResult = await db.prepare('SELECT COUNT(*) as count FROM employees').first();
   const count = countResult?.count || 0;
@@ -165,7 +165,7 @@ export async function createEmployee(db: any, employee: Employee): Promise<{ id:
     return value;
   };
 
-  const result = await db.prepare(query).bind(
+  const params = [
     employeeId,
     employee.first_name,
     employee.last_name,
@@ -190,7 +190,20 @@ export async function createEmployee(db: any, employee: Employee): Promise<{ id:
     toNull(employee.emergency_contact_relationship),
     toNull(employee.created_by) || 'system',
     toNull(employee.updated_by) || 'system'
-  ).run();
+  ];
+
+  const result = await db.prepare(query).bind(...params).run();
+
+  // Sync to remote database if enabled
+  if (syncRemote) {
+    try {
+      const { executeSync } = await import('./db-sync');
+      await executeSync(db, query, params);
+    } catch (error) {
+      console.warn('Remote sync failed for employee creation:', error);
+      // Don't fail the operation if remote sync fails
+    }
+  }
 
   return {
     id: result.meta.last_row_id,
@@ -289,6 +302,14 @@ export async function updateEmployee(db: any, id: number, employee: Partial<Empl
     fields.push('emergency_contact_relationship = ?');
     values.push(toNull(employee.emergency_contact_relationship));
   }
+  if (employee.manager_id !== undefined) {
+    fields.push('manager_id = ?');
+    values.push(toNull(employee.manager_id));
+  }
+  if (employee.hierarchy_level !== undefined) {
+    fields.push('hierarchy_level = ?');
+    values.push(employee.hierarchy_level);
+  }
 
   // Always update the updated_at and updated_by fields
   fields.push('updated_at = CURRENT_TIMESTAMP');
@@ -341,7 +362,7 @@ export async function getDepartmentById(db: any, id: number): Promise<Department
   return result || null;
 }
 
-export async function createDepartment(db: any, department: Department): Promise<number> {
+export async function createDepartment(db: any, department: Department, syncRemote: boolean = false): Promise<number> {
   const query = `
     INSERT INTO departments (name, description, manager_id)
     VALUES (?, ?, ?)
@@ -353,11 +374,23 @@ export async function createDepartment(db: any, department: Department): Promise
     return value;
   };
 
-  const result = await db.prepare(query).bind(
+  const params = [
     department.name,
     toNull(department.description),
     toNull(department.manager_id)
-  ).run();
+  ];
+
+  const result = await db.prepare(query).bind(...params).run();
+
+  // Sync to remote database if enabled
+  if (syncRemote) {
+    try {
+      const { executeSync } = await import('./db-sync');
+      await executeSync(db, query, params);
+    } catch (error) {
+      console.warn('Remote sync failed for department creation:', error);
+    }
+  }
 
   return result.meta.last_row_id;
 }
@@ -687,7 +720,7 @@ export async function getLeaveById(db: any, id: number): Promise<LeaveWithEmploy
   return result || null;
 }
 
-export async function createLeave(db: any, leave: Leave): Promise<number> {
+export async function createLeave(db: any, leave: Leave, syncRemote: boolean = false): Promise<number> {
   const query = `
     INSERT INTO employee_leave_history (
       employee_id, leave_type, start_date, end_date, total_days,
@@ -695,7 +728,7 @@ export async function createLeave(db: any, leave: Leave): Promise<number> {
     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
   `;
 
-  const result = await db.prepare(query).bind(
+  const params = [
     leave.employee_id,
     leave.leave_type,
     leave.start_date,
@@ -704,7 +737,19 @@ export async function createLeave(db: any, leave: Leave): Promise<number> {
     leave.reason || null,
     leave.status,
     leave.notes || null
-  ).run();
+  ];
+
+  const result = await db.prepare(query).bind(...params).run();
+
+  // Sync to remote database if enabled
+  if (syncRemote) {
+    try {
+      const { executeSync } = await import('./db-sync');
+      await executeSync(db, query, params);
+    } catch (error) {
+      console.warn('Remote sync failed for leave creation:', error);
+    }
+  }
 
   return result.meta.last_row_id;
 }

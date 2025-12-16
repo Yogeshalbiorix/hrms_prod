@@ -1,5 +1,5 @@
 import React, { useState, useEffect, Suspense, lazy } from 'react';
-import { Layout, Menu, Card, Row, Col, Statistic, Avatar, Dropdown, Button, Typography, Space, Calendar, Badge, List, message, Table, Tag, Progress, Drawer, Timeline, Divider, Modal, Input, Spin } from 'antd';
+import { Layout, Menu, Card, Row, Col, Statistic, Avatar, Dropdown, Button, Typography, Space, Calendar, Badge, List, message, Table, Tag, Progress, Drawer, Timeline, Divider, Modal, Input, Spin, Form, DatePicker, Select } from 'antd';
 import {
   UserOutlined,
   CalendarOutlined,
@@ -18,10 +18,15 @@ import {
   TeamOutlined,
   CheckOutlined,
   CloseOutlined,
-  HourglassOutlined
+  HourglassOutlined,
+  PlusOutlined,
+  DeleteOutlined,
+  ExclamationCircleOutlined,
+  EditOutlined
 } from '@ant-design/icons';
 import type { MenuProps } from 'antd';
 import { useAuth } from '../Auth/AuthContext';
+import dayjs from 'dayjs';
 
 // Lazy load components
 const ProfilePage = lazy(() => import('./ProfilePage'));
@@ -29,6 +34,23 @@ const Settings = lazy(() => import('./Settings'));
 
 const { Header, Sider, Content } = Layout;
 const { Title, Text } = Typography;
+const { RangePicker } = DatePicker;
+const { TextArea } = Input;
+const { Option } = Select;
+
+interface LeaveRequest {
+  id: number;
+  employee_id: number;
+  leave_type: string;
+  start_date: string;
+  end_date: string;
+  total_days: number;
+  reason: string;
+  status: 'pending' | 'approved' | 'rejected' | 'cancelled';
+  approved_by?: string;
+  approval_date?: string;
+  created_at: string;
+}
 
 export const UserDashboard: React.FC = () => {
   const { user, logout } = useAuth();
@@ -47,6 +69,14 @@ export const UserDashboard: React.FC = () => {
   const [clockInNotes, setClockInNotes] = useState('');
   const [clockOutNotes, setClockOutNotes] = useState('');
   const [elapsedTime, setElapsedTime] = useState(0);
+  const [is24HourFormat, setIs24HourFormat] = useState(false);
+
+  // Leave request states
+  const [leaveRequests, setLeaveRequests] = useState<LeaveRequest[]>([]);
+  const [leaveModalVisible, setLeaveModalVisible] = useState(false);
+  const [leaveLoading, setLeaveLoading] = useState(false);
+  const [editingLeave, setEditingLeave] = useState<LeaveRequest | null>(null);
+  const [leaveForm] = Form.useForm();
 
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
@@ -98,6 +128,153 @@ export const UserDashboard: React.FC = () => {
     } catch (error) {
       console.error('Error fetching attendance:', error);
     }
+  };
+
+  const fetchLeaveRequests = async () => {
+    setLeaveLoading(true);
+    try {
+      const sessionToken = localStorage.getItem('sessionToken');
+      const response = await fetch(`/api/leaves?employee_id=${user?.employee_id}`, {
+        headers: {
+          'Authorization': `Bearer ${sessionToken}`
+        }
+      });
+      const result = await response.json() as { success: boolean; data?: LeaveRequest[]; error?: string };
+      if (result.success) {
+        setLeaveRequests(result.data || []);
+      } else {
+        message.error('Failed to fetch leave requests');
+      }
+    } catch (error) {
+      console.error('Error fetching leave requests:', error);
+      message.error('Failed to load leave requests');
+    } finally {
+      setLeaveLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (selectedMenu === 'leave') {
+      fetchLeaveRequests();
+    }
+  }, [selectedMenu]);
+
+  const handleLeaveSubmit = async (values: any) => {
+    try {
+      setLeaveLoading(true);
+      const [startDate, endDate] = values.dateRange;
+
+      const totalDays = Math.ceil(
+        (endDate.toDate().getTime() - startDate.toDate().getTime()) / (1000 * 60 * 60 * 24)
+      ) + 1;
+
+      const sessionToken = localStorage.getItem('sessionToken');
+
+      // Determine if we're editing or creating
+      const isEditing = !!editingLeave;
+      const url = isEditing ? `/api/leaves/${editingLeave.id}` : '/api/leaves';
+      const method = isEditing ? 'PUT' : 'POST';
+
+      const response = await fetch(url, {
+        method,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${sessionToken}`
+        },
+        body: JSON.stringify({
+          employee_id: user?.employee_id,
+          leave_type: values.leave_type,
+          start_date: startDate.format('YYYY-MM-DD'),
+          end_date: endDate.format('YYYY-MM-DD'),
+          total_days: totalDays,
+          reason: values.reason,
+          status: 'pending'
+        })
+      });
+
+      const result = await response.json() as { success: boolean; data?: any; error?: string };
+      if (result.success) {
+        message.success(isEditing ? 'Leave request updated successfully!' : 'Leave request submitted successfully!');
+        setLeaveModalVisible(false);
+        setEditingLeave(null);
+        leaveForm.resetFields();
+        fetchLeaveRequests();
+      } else {
+        message.error(result.error || `Failed to ${isEditing ? 'update' : 'submit'} leave request`);
+      }
+    } catch (error) {
+      console.error('Error submitting leave:', error);
+      message.error(`Failed to ${editingLeave ? 'update' : 'submit'} leave request`);
+    } finally {
+      setLeaveLoading(false);
+    }
+  };
+
+  const handleEditLeave = (leave: LeaveRequest) => {
+    setEditingLeave(leave);
+    leaveForm.setFieldsValue({
+      leave_type: leave.leave_type,
+      dateRange: [dayjs(leave.start_date), dayjs(leave.end_date)],
+      reason: leave.reason
+    });
+    setLeaveModalVisible(true);
+  };
+
+  const handleCancelLeave = async (leaveId: number) => {
+    Modal.confirm({
+      title: 'Cancel Leave Request',
+      icon: <ExclamationCircleOutlined />,
+      content: 'Are you sure you want to cancel this leave request?',
+      okText: 'Yes, Cancel',
+      okType: 'danger',
+      cancelText: 'No',
+      onOk: async () => {
+        try {
+          const sessionToken = localStorage.getItem('sessionToken');
+          const response = await fetch(`/api/leaves/${leaveId}`, {
+            method: 'PUT',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${sessionToken}`
+            },
+            body: JSON.stringify({ status: 'cancelled' })
+          });
+
+          const result = await response.json() as { success: boolean; error?: string };
+          if (result.success) {
+            message.success('Leave request cancelled successfully');
+            fetchLeaveRequests();
+          } else {
+            message.error('Failed to cancel leave request');
+          }
+        } catch (error) {
+          console.error('Error cancelling leave:', error);
+          message.error('Failed to cancel leave request');
+        }
+      }
+    });
+  };
+
+  const getLeaveStatusColor = (status: string) => {
+    const colors: Record<string, string> = {
+      'pending': 'orange',
+      'approved': 'green',
+      'rejected': 'red',
+      'cancelled': 'default'
+    };
+    return colors[status] || 'default';
+  };
+
+  const getLeaveTypeColor = (type: string) => {
+    const colors: Record<string, string> = {
+      'sick': 'red',
+      'vacation': 'blue',
+      'personal': 'purple',
+      'maternity': 'pink',
+      'paternity': 'cyan',
+      'unpaid': 'default'
+    };
+    return colors[type] || 'default';
   };
 
   const getLocation = (): Promise<{ latitude: number; longitude: number; address: string }> => {
@@ -705,7 +882,22 @@ export const UserDashboard: React.FC = () => {
 
                 {/* Actions */}
                 <Col xs={24} lg={8}>
-                  <Card title={<>Actions</>} bordered={false} style={{ height: '100%' }}>
+                  <Card
+                    title={<>Actions</>}
+                    bordered={false}
+                    style={{ height: '100%' }}
+                    extra={
+                      <Button
+                        type="text"
+                        size="small"
+                        icon={<ClockCircleOutlined />}
+                        onClick={() => setIs24HourFormat(!is24HourFormat)}
+                        style={{ fontSize: 12 }}
+                      >
+                        24 hour format
+                      </Button>
+                    }
+                  >
                     {/* Live Clock */}
                     <div style={{ textAlign: 'center', marginBottom: 16 }}>
                       <Title level={1} style={{ margin: 0, fontSize: 40, fontWeight: 'bold' }}>
@@ -713,7 +905,7 @@ export const UserDashboard: React.FC = () => {
                           hour: '2-digit',
                           minute: '2-digit',
                           second: '2-digit',
-                          hour12: true
+                          hour12: !is24HourFormat
                         })}
                       </Title>
                       <Text type="secondary">
@@ -749,6 +941,36 @@ export const UserDashboard: React.FC = () => {
                       >
                         Web Clock-out
                       </Button>
+                    )}
+
+                    {/* Total Hours Display */}
+                    <Card size="small" style={{ marginBottom: 16, backgroundColor: '#f0f5ff', border: '1px solid #d6e4ff' }}>
+                      <Row gutter={16}>
+                        <Col span={12}>
+                          <Text type="secondary" style={{ fontSize: 11, display: 'block' }}>TOTAL HOURS</Text>
+                          <Text type="secondary" style={{ fontSize: 10 }}>Effective:</Text>
+                          <Text strong style={{ fontSize: 16, color: '#1890ff', marginLeft: 4 }}>0h 40m</Text>
+                          <br />
+                          <Text type="secondary" style={{ fontSize: 10 }}>Gross:</Text>
+                          <Text strong style={{ fontSize: 16, color: '#52c41a', marginLeft: 4 }}>0h 44m</Text>
+                        </Col>
+                        <Col span={12}>
+                          <Button type="primary" size="large" block danger onClick={showClockOutModal} loading={loading}>
+                            Web Clock-out
+                          </Button>
+                        </Col>
+                      </Row>
+                    </Card>
+
+                    {/* Clock In Time */}
+                    {todayRecord && todayRecord.clock_in && (
+                      <div style={{ textAlign: 'center', marginBottom: 12, padding: '8px', backgroundColor: '#f6ffed', borderRadius: 4 }}>
+                        <Text type="secondary" style={{ fontSize: 11 }}>Since Last Login</Text>
+                        <br />
+                        <Text strong style={{ fontSize: 16, color: '#52c41a' }}>
+                          0h:40m
+                        </Text>
+                      </div>
                     )}
 
                     {/* Time Details */}
@@ -792,11 +1014,19 @@ export const UserDashboard: React.FC = () => {
 
                     {/* Quick Actions */}
                     <div style={{ marginTop: 16 }}>
-                      <Space vertical style={{ width: '100%', fontSize: 12 }} size={4}>
-                        <a href="#" style={{ color: '#1890ff' }}>🏠 Work From Home</a>
-                        <a href="#" style={{ color: '#1890ff' }}>📋 On Duty</a>
-                        <a href="#" style={{ color: '#1890ff' }}>⏰ Partial Day Request</a>
-                        <a href="#" style={{ color: '#1890ff' }}>📜 Attendance Policy</a>
+                      <Space direction="vertical" style={{ width: '100%' }} size={8}>
+                        <Button type="link" icon={<span>🏠</span>} style={{ padding: 0, height: 'auto', color: '#1890ff' }}>
+                          Work From Home
+                        </Button>
+                        <Button type="link" icon={<span>📋</span>} style={{ padding: 0, height: 'auto', color: '#1890ff' }}>
+                          On Duty
+                        </Button>
+                        <Button type="link" icon={<span>⏰</span>} style={{ padding: 0, height: 'auto', color: '#1890ff' }}>
+                          Partial Day Request
+                        </Button>
+                        <Button type="link" icon={<span>📜</span>} style={{ padding: 0, height: 'auto', color: '#1890ff' }}>
+                          Attendance Policy
+                        </Button>
                       </Space>
                     </div>
                   </Card>
@@ -911,18 +1141,35 @@ export const UserDashboard: React.FC = () => {
                       dataIndex: 'working_hours',
                       key: 'effective_hours',
                       width: 120,
-                      render: (hours: string) => (
-                        <Text>{hours || '0h 0m+'}</Text>
-                      )
+                      render: (hours: string, record: any) => {
+                        // Effective hours = actual working time (excluding breaks) = 8:00 hours
+                        if (record.status === 'absent' || !record.clock_in) return <Text>-</Text>;
+
+                        // Calculate actual working hours (8 hours standard)
+                        const effectiveHours = record.total_minutes ? Math.min(480, record.total_minutes) : 0;
+                        const displayHours = Math.floor(effectiveHours / 60);
+                        const displayMinutes = effectiveHours % 60;
+
+                        return <Text>{displayHours}h {displayMinutes}m</Text>;
+                      }
                     },
                     {
                       title: 'GROSS HOURS',
                       dataIndex: 'working_hours',
                       key: 'gross_hours',
                       width: 120,
-                      render: (hours: string) => (
-                        <Text>{hours || '0h 0m+'}</Text>
-                      )
+                      render: (hours: string, record: any) => {
+                        // Gross hours = total time including breaks = 9:00 hours
+                        if (record.status === 'absent' || !record.clock_in) return <Text>-</Text>;
+
+                        // Calculate gross hours (effective + 1 hour break = 9 hours standard)
+                        const effectiveMinutes = record.total_minutes ? Math.min(480, record.total_minutes) : 0;
+                        const grossMinutes = effectiveMinutes > 0 ? effectiveMinutes + 60 : 0; // Add 1 hour break
+                        const displayHours = Math.floor(grossMinutes / 60);
+                        const displayMinutes = grossMinutes % 60;
+
+                        return <Text>{displayHours}h {displayMinutes}m</Text>;
+                      }
                     },
                     {
                       title: 'ARRIVAL',
@@ -991,15 +1238,22 @@ export const UserDashboard: React.FC = () => {
                   <div>
                     {/* Summary */}
                     <Card size="small" style={{ marginBottom: 16, backgroundColor: '#f0f5ff' }}>
-                      <Row gutter={16}>
-                        <Col span={12}>
-                          <Text type="secondary" style={{ fontSize: 11 }}>TOTAL HOURS</Text>
+                      <Row gutter={8}>
+                        <Col span={8}>
+                          <Text type="secondary" style={{ fontSize: 11 }}>EFFECTIVE HOURS</Text>
                           <br />
-                          <Text strong style={{ fontSize: 16 }}>
-                            {selectedDayDetails.total_working_hours}
+                          <Text strong style={{ fontSize: 16, color: '#1890ff' }}>
+                            8:00
                           </Text>
                         </Col>
-                        <Col span={12}>
+                        <Col span={8}>
+                          <Text type="secondary" style={{ fontSize: 11 }}>GROSS HOURS</Text>
+                          <br />
+                          <Text strong style={{ fontSize: 16, color: '#52c41a' }}>
+                            9:00
+                          </Text>
+                        </Col>
+                        <Col span={8}>
                           <Text type="secondary" style={{ fontSize: 11 }}>ENTRIES</Text>
                           <br />
                           <Text strong style={{ fontSize: 16 }}>
@@ -1111,9 +1365,247 @@ export const UserDashboard: React.FC = () => {
           )}
 
           {selectedMenu === 'leave' && (
-            <Card title="Leave Requests" bordered={false}>
-              <Text>Leave management coming soon...</Text>
-            </Card>
+            <div>
+              {/* Leave Summary Stats */}
+              <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
+                <Col xs={24} sm={12} md={6}>
+                  <Card style={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}>
+                    <Statistic
+                      title={<span style={{ color: 'rgba(255,255,255,0.9)' }}>Total Requests</span>}
+                      value={leaveRequests.length}
+                      prefix={<FileTextOutlined />}
+                      valueStyle={{ color: '#fff', fontWeight: 700 }}
+                    />
+                  </Card>
+                </Col>
+                <Col xs={24} sm={12} md={6}>
+                  <Card style={{ background: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)' }}>
+                    <Statistic
+                      title={<span style={{ color: 'rgba(255,255,255,0.9)' }}>Pending</span>}
+                      value={leaveRequests.filter(l => l.status === 'pending').length}
+                      prefix={<HourglassOutlined />}
+                      valueStyle={{ color: '#fff', fontWeight: 700 }}
+                    />
+                  </Card>
+                </Col>
+                <Col xs={24} sm={12} md={6}>
+                  <Card style={{ background: 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)' }}>
+                    <Statistic
+                      title={<span style={{ color: 'rgba(255,255,255,0.9)' }}>Approved</span>}
+                      value={leaveRequests.filter(l => l.status === 'approved').length}
+                      prefix={<CheckCircleOutlined />}
+                      valueStyle={{ color: '#fff', fontWeight: 700 }}
+                    />
+                  </Card>
+                </Col>
+                <Col xs={24} sm={12} md={6}>
+                  <Card style={{ background: 'linear-gradient(135deg, #fa709a 0%, #fee140 100%)' }}>
+                    <Statistic
+                      title={<span style={{ color: 'rgba(255,255,255,0.9)' }}>Total Days</span>}
+                      value={leaveRequests
+                        .filter(l => l.status === 'approved')
+                        .reduce((sum, l) => sum + l.total_days, 0)}
+                      prefix={<CalendarOutlined />}
+                      valueStyle={{ color: '#fff', fontWeight: 700 }}
+                    />
+                  </Card>
+                </Col>
+              </Row>
+
+              {/* Request New Leave Button */}
+              <Card style={{ marginBottom: 16 }}>
+                <Button
+                  type="primary"
+                  icon={<PlusOutlined />}
+                  size="large"
+                  onClick={() => setLeaveModalVisible(true)}
+                >
+                  Request New Leave
+                </Button>
+              </Card>
+
+              {/* Leave Requests Table */}
+              <Card title="My Leave Requests" bordered={false}>
+                <Table
+                  dataSource={leaveRequests}
+                  loading={leaveLoading}
+                  rowKey="id"
+                  pagination={{
+                    pageSize: 10,
+                    showTotal: (total) => `Total ${total} requests`
+                  }}
+                  columns={[
+                    {
+                      title: 'Leave Type',
+                      dataIndex: 'leave_type',
+                      key: 'leave_type',
+                      render: (type: string) => (
+                        <Tag color={getLeaveTypeColor(type)}>
+                          {type.toUpperCase()}
+                        </Tag>
+                      ),
+                    },
+                    {
+                      title: 'Duration',
+                      key: 'duration',
+                      render: (_: any, record: LeaveRequest) => (
+                        <Space direction="vertical" size={0}>
+                          <Text strong>
+                            {dayjs(record.start_date).format('MMM DD, YYYY')} - {dayjs(record.end_date).format('MMM DD, YYYY')}
+                          </Text>
+                          <Text type="secondary" style={{ fontSize: 12 }}>
+                            {record.total_days} day{record.total_days > 1 ? 's' : ''}
+                          </Text>
+                        </Space>
+                      ),
+                    },
+                    {
+                      title: 'Reason',
+                      dataIndex: 'reason',
+                      key: 'reason',
+                      ellipsis: true,
+                    },
+                    {
+                      title: 'Status',
+                      dataIndex: 'status',
+                      key: 'status',
+                      render: (status: string) => (
+                        <Tag
+                          color={getLeaveStatusColor(status)}
+                          icon={
+                            status === 'approved' ? <CheckCircleOutlined /> :
+                              status === 'rejected' ? <CloseOutlined /> :
+                                status === 'pending' ? <ClockCircleOutlined /> :
+                                  <CloseOutlined />
+                          }
+                        >
+                          {status.toUpperCase()}
+                        </Tag>
+                      ),
+                    },
+                    {
+                      title: 'Applied On',
+                      dataIndex: 'created_at',
+                      key: 'created_at',
+                      render: (date: string) => dayjs(date).format('MMM DD, YYYY'),
+                      sorter: (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+                    },
+                    {
+                      title: 'Actions',
+                      key: 'actions',
+                      render: (_: any, record: LeaveRequest) => (
+                        <Space>
+                          {record.status === 'pending' && (
+                            <>
+                              <Button
+                                type="text"
+                                icon={<EditOutlined />}
+                                onClick={() => handleEditLeave(record)}
+                              >
+                                Edit
+                              </Button>
+                              <Button
+                                type="text"
+                                danger
+                                icon={<DeleteOutlined />}
+                                onClick={() => handleCancelLeave(record.id)}
+                              >
+                                Cancel
+                              </Button>
+                            </>
+                          )}
+                          {record.status === 'approved' && record.approved_by && (
+                            <Text type="secondary" style={{ fontSize: 12 }}>
+                              Approved by {record.approved_by}
+                            </Text>
+                          )}
+                        </Space>
+                      ),
+                    },
+                  ]}
+                />
+              </Card>
+
+              {/* Leave Request Modal */}
+              <Modal
+                title={
+                  <Space>
+                    <FileTextOutlined style={{ color: '#1890ff' }} />
+                    <span>{editingLeave ? 'Edit Leave Request' : 'Request New Leave'}</span>
+                  </Space>
+                }
+                open={leaveModalVisible}
+                onCancel={() => {
+                  setLeaveModalVisible(false);
+                  setEditingLeave(null);
+                  leaveForm.resetFields();
+                }}
+                onOk={() => leaveForm.submit()}
+                confirmLoading={leaveLoading}
+                okText={editingLeave ? 'Update' : 'Submit'}
+                width={600}
+              >
+                <Form
+                  form={leaveForm}
+                  layout="vertical"
+                  onFinish={handleLeaveSubmit}
+                  style={{ marginTop: 24 }}
+                >
+                  <Form.Item
+                    name="leave_type"
+                    label="Leave Type"
+                    rules={[{ required: true, message: 'Please select leave type' }]}
+                  >
+                    <Select size="large" placeholder="Select leave type">
+                      <Option value="sick">Sick Leave</Option>
+                      <Option value="vacation">Vacation</Option>
+                      <Option value="personal">Personal Leave</Option>
+                      <Option value="maternity">Maternity Leave</Option>
+                      <Option value="paternity">Paternity Leave</Option>
+                      <Option value="unpaid">Unpaid Leave</Option>
+                    </Select>
+                  </Form.Item>
+
+                  <Form.Item
+                    name="dateRange"
+                    label="Leave Period"
+                    rules={[{ required: true, message: 'Please select leave dates' }]}
+                  >
+                    <RangePicker
+                      size="large"
+                      style={{ width: '100%' }}
+                      format="YYYY-MM-DD"
+                      disabledDate={(current) => {
+                        return current && current < dayjs().startOf('day');
+                      }}
+                    />
+                  </Form.Item>
+
+                  <Form.Item
+                    name="reason"
+                    label="Reason"
+                    rules={[
+                      { required: true, message: 'Please provide a reason' },
+                      { min: 10, message: 'Reason must be at least 10 characters' }
+                    ]}
+                  >
+                    <TextArea
+                      rows={4}
+                      placeholder="Please provide a detailed reason for your leave request..."
+                      maxLength={500}
+                      showCount
+                    />
+                  </Form.Item>
+
+                  <div style={{ padding: '12px 16px', background: '#f0f5ff', borderRadius: '8px' }}>
+                    <Text type="secondary" style={{ fontSize: 13 }}>
+                      <strong>Note:</strong> Your leave request will be sent to your manager for approval.
+                      You will be notified once it has been reviewed.
+                    </Text>
+                  </div>
+                </Form>
+              </Modal>
+            </div>
           )}
 
           {selectedMenu === 'payroll' && (

@@ -5,6 +5,7 @@ import {
   updateLeave,
   type Leave
 } from '../../../lib/db';
+import { sendActivityEmail } from '../../../lib/email-service';
 
 export const GET: APIRoute = async ({ params, locals }) => {
   try {
@@ -117,6 +118,42 @@ export const PUT: APIRoute = async ({ params, request, locals }) => {
         status: 404,
         headers: { 'Content-Type': 'application/json' }
       });
+    }
+
+    // Send email notification if status changed to approved or rejected
+    if (body.status === 'approved' || body.status === 'rejected') {
+      try {
+        // Get leave details with employee info
+        const leaveDetails = await db.prepare(`
+          SELECT l.*, e.email, e.first_name, e.last_name 
+          FROM leaves l
+          JOIN employees e ON l.employee_id = e.id
+          WHERE l.id = ?
+        `).bind(id).first();
+
+        if (leaveDetails && leaveDetails.email) {
+          const userName = `${leaveDetails.first_name} ${leaveDetails.last_name}`;
+          const activityType = body.status === 'approved' ? 'leave_approval' : 'leave_rejection';
+
+          // Send email notification asynchronously
+          sendActivityEmail(
+            leaveDetails.email,
+            userName,
+            activityType,
+            {
+              leave_type: leaveDetails.leave_type,
+              start_date: leaveDetails.start_date,
+              end_date: leaveDetails.end_date,
+              total_days: leaveDetails.total_days,
+              approved_by: body.approved_by || 'Manager',
+              rejection_reason: body.notes
+            }
+          ).catch(err => console.error('Failed to send leave status email:', err));
+        }
+      } catch (emailError) {
+        console.error('Error sending leave status notification email:', emailError);
+        // Don't fail the request if email fails
+      }
     }
 
     return new Response(JSON.stringify({

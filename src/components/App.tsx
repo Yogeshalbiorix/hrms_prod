@@ -1,5 +1,5 @@
 import React from 'react';
-import { ConfigProvider, Spin } from 'antd';
+import { ConfigProvider, Spin, App as AntApp } from 'antd';
 import { LoadingOutlined } from '@ant-design/icons';
 import { AuthProvider, useAuth } from './Auth/AuthContext';
 import LoginPage from './Auth/LoginPage';
@@ -43,9 +43,11 @@ export default function App() {
         },
       }}
     >
-      <AuthProvider>
-        <AppContent />
-      </AuthProvider>
+      <AntApp>
+        <AuthProvider>
+          <AppContent />
+        </AuthProvider>
+      </AntApp>
     </ConfigProvider>
   );
 }

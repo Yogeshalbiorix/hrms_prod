@@ -5,10 +5,10 @@ import {
   Button,
   Card,
   Typography,
-  message,
   Space,
   Alert,
-  Result
+  Result,
+  App
 } from 'antd';
 import {
   MailOutlined,
@@ -22,6 +22,7 @@ interface ForgotPasswordPageProps {
 }
 
 export const ForgotPasswordPage: React.FC<ForgotPasswordPageProps> = ({ onBackToLogin }) => {
+  const { message } = App.useApp();
   const [loading, setLoading] = useState(false);
   const [emailSent, setEmailSent] = useState(false);
   const [resetInfo, setResetInfo] = useState<any>(null);

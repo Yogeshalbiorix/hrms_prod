@@ -8,14 +8,14 @@ import { getAllEmployees, searchEmployees, createEmployee, getEmployeeStats } fr
 export const GET: APIRoute = async ({ request, locals }) => {
   try {
     const db = locals?.runtime?.env?.DB;
-    
+
     if (!db) {
       return new Response(JSON.stringify({ error: 'Database not configured' }), {
         status: 500,
         headers: { 'Content-Type': 'application/json' }
       });
     }
-    
+
     const url = new URL(request.url);
     const search = url.searchParams.get('search');
     const departmentId = url.searchParams.get('departmentId');
@@ -23,7 +23,7 @@ export const GET: APIRoute = async ({ request, locals }) => {
     const limit = parseInt(url.searchParams.get('limit') || '100');
     const offset = parseInt(url.searchParams.get('offset') || '0');
     const stats = url.searchParams.get('stats') === 'true';
-    
+
     // If stats requested, return statistics
     if (stats) {
       const statistics = await getEmployeeStats(db);
@@ -32,9 +32,9 @@ export const GET: APIRoute = async ({ request, locals }) => {
         headers: { 'Content-Type': 'application/json' }
       });
     }
-    
+
     let employees;
-    
+
     // If search term provided, use search
     if (search) {
       employees = await searchEmployees(
@@ -45,7 +45,7 @@ export const GET: APIRoute = async ({ request, locals }) => {
       );
     } else {
       employees = await getAllEmployees(db, limit, offset);
-      
+
       // Apply filters if provided
       if (departmentId) {
         employees = employees.filter(e => e.department_id === parseInt(departmentId));
@@ -54,7 +54,7 @@ export const GET: APIRoute = async ({ request, locals }) => {
         employees = employees.filter(e => e.status === status);
       }
     }
-    
+
     return new Response(JSON.stringify({
       success: true,
       data: employees,
@@ -63,10 +63,10 @@ export const GET: APIRoute = async ({ request, locals }) => {
       status: 200,
       headers: { 'Content-Type': 'application/json' }
     });
-    
+
   } catch (error) {
     console.error('Error fetching employees:', error);
-    return new Response(JSON.stringify({ 
+    return new Response(JSON.stringify({
       success: false,
       error: 'Failed to fetch employees',
       message: error instanceof Error ? error.message : 'Unknown error'
@@ -80,16 +80,16 @@ export const GET: APIRoute = async ({ request, locals }) => {
 export const POST: APIRoute = async ({ request, locals }) => {
   try {
     const db = locals?.runtime?.env?.DB;
-    
+
     if (!db) {
       return new Response(JSON.stringify({ error: 'Database not configured' }), {
         status: 500,
         headers: { 'Content-Type': 'application/json' }
       });
     }
-    
+
     const body = await request.json();
-    
+
     // Validate required fields
     if (!body.first_name || !body.last_name || !body.email || !body.position || !body.join_date) {
       return new Response(JSON.stringify({
@@ -101,22 +101,22 @@ export const POST: APIRoute = async ({ request, locals }) => {
         headers: { 'Content-Type': 'application/json' }
       });
     }
-    
-    // Create employee
-    const result = await createEmployee(db, body);
-    
+
+    // Create employee with remote sync enabled
+    const result = await createEmployee(db, body, true);
+
     return new Response(JSON.stringify({
       success: true,
-      message: 'Employee created successfully',
+      message: 'Employee created successfully (synced to both databases)',
       data: result
     }), {
       status: 201,
       headers: { 'Content-Type': 'application/json' }
     });
-    
+
   } catch (error) {
     console.error('Error creating employee:', error);
-    
+
     // Check for unique constraint violations
     if (error instanceof Error && error.message.includes('UNIQUE constraint')) {
       return new Response(JSON.stringify({
@@ -127,7 +127,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
         headers: { 'Content-Type': 'application/json' }
       });
     }
-    
+
     return new Response(JSON.stringify({
       success: false,
       error: 'Failed to create employee',
