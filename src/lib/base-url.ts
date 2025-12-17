@@ -1,6 +1,6 @@
 // Base URL for API calls
-// In development: use localhost
-// In production: use relative URLs (empty string) so it works on any domain
-export const baseUrl = import.meta.env.DEV
+// Always use relative URLs in production (works on any domain)
+// Only use localhost:3000 when explicitly in development mode
+export const baseUrl = typeof window !== 'undefined' && window.location.hostname === 'localhost'
   ? 'http://localhost:3000'
   : '';
