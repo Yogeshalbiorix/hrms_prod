@@ -17,10 +17,8 @@ wrangler d1 list
 # 4. If database doesn't exist, create it
 wrangler d1 create hrms-database
 
-# 5. Initialize database with schema
-wrangler d1 execute hrms-database --remote --file=./db/schema.sql
-wrangler d1 execute hrms-database --remote --file=./db/auth-schema.sql
-wrangler d1 execute hrms-database --remote --file=./db/create-admin-hr-users.sql
+# 5. Initialize database with ALL tables (one command!)
+npm run db:setup:live
 ```
 
 ### 🚀 Deploy to Production

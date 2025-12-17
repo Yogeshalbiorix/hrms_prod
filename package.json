@@ -12,13 +12,16 @@
     "astro": "astro",
     "cf-typegen": "wrangler types",
     "db:setup": "bash setup-database.sh",
+    "db:setup:live": "powershell -ExecutionPolicy Bypass -File ./setup-live-database.ps1",
     "db:create": "wrangler d1 create hrms-database",
     "db:init:local": "wrangler d1 execute hrms-database --local --file=./db/schema.sql",
     "db:init:remote": "wrangler d1 execute hrms-database --remote --file=./db/schema.sql",
+    "db:init:remote:all": "wrangler d1 execute hrms-database --remote --file=./db/schema.sql && wrangler d1 execute hrms-database --remote --file=./db/auth-schema.sql && wrangler d1 execute hrms-database --remote --file=./db/payroll-schema.sql && wrangler d1 execute hrms-database --remote --file=./db/recruitment-schema.sql && wrangler d1 execute hrms-database --remote --file=./db/activity-requests-schema.sql && wrangler d1 execute hrms-database --remote --file=./db/user-auth-enhancements.sql && wrangler d1 execute hrms-database --remote --file=./db/create-admin-hr-users.sql && wrangler d1 execute hrms-database --remote --file=./db/hierarchy-migration-safe.sql",
     "db:list": "wrangler d1 list",
     "db:query:local": "wrangler d1 execute hrms-database --local --command",
     "db:query:remote": "wrangler d1 execute hrms-database --remote --command",
     "db:info": "wrangler d1 info hrms-database",
+    "db:verify": "wrangler d1 execute hrms-database --remote --command=\"SELECT name FROM sqlite_master WHERE type='table' ORDER BY name;\"",
     "deploy": "npm run build && wrangler deploy"
   },
   "dependencies": {
