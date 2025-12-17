@@ -14,16 +14,30 @@ export const POST: APIRoute = async ({ request, locals }) => {
     const db = getDB(locals.runtime?.env || locals.env);
     const body = await request.json() as any;
 
-    const { username, password, email, full_name, phone, position, department_id } = body;
+    let { username, password, email, full_name, phone, position, department_id } = body;
 
-    // Validate required fields
-    if (!username || !password || !email || !full_name) {
+    // Validate required fields (username is optional, will be auto-generated)
+    if (!password || !email || !full_name) {
       return new Response(
         JSON.stringify({
-          error: 'Username, password, email, and full name are required'
+          error: 'Password, email, and full name are required'
         }),
         { status: 400, headers: { 'Content-Type': 'application/json' } }
       );
+    }
+
+    // Auto-generate username if not provided
+    if (!username) {
+      // Generate username from email (part before @)
+      username = email.split('@')[0].toLowerCase().replace(/[^a-z0-9]/g, '');
+
+      // Check if username already exists, if so, append random number
+      const existingUser = await getUserByUsername(db, username);
+      if (existingUser) {
+        username = `${username}${Math.floor(Math.random() * 9000) + 1000}`;
+      }
+
+      console.log('Auto-generated username:', username);
     }
 
     // Validate email format
@@ -101,20 +115,30 @@ export const POST: APIRoute = async ({ request, locals }) => {
     let newEmployee;
     try {
       newEmployee = await createEmployee(db, employeeData);
+      console.log('Employee created successfully:', newEmployee);
     } catch (empError: any) {
+      console.error('Error creating employee:', empError);
       // Check if it's a unique constraint error on email
       if (empError?.message?.includes('UNIQUE constraint') && empError?.message?.includes('email')) {
         return new Response(
-          JSON.stringify({ error: 'Email already registered' }),
+          JSON.stringify({ error: 'Email already registered in employees' }),
           { status: 409, headers: { 'Content-Type': 'application/json' } }
         );
       }
-      throw empError; // Re-throw other errors
+      // Return more detailed error
+      return new Response(
+        JSON.stringify({
+          error: 'Failed to create employee record',
+          details: empError?.message || 'Unknown error'
+        }),
+        { status: 500, headers: { 'Content-Type': 'application/json' } }
+      );
     }
 
     if (!newEmployee || !newEmployee.id) {
+      console.error('Employee creation returned invalid result:', newEmployee);
       return new Response(
-        JSON.stringify({ error: 'Failed to create employee record' }),
+        JSON.stringify({ error: 'Failed to create employee record - invalid response' }),
         { status: 500, headers: { 'Content-Type': 'application/json' } }
       );
     }
@@ -129,11 +153,43 @@ export const POST: APIRoute = async ({ request, locals }) => {
       employee_id: newEmployee.id  // Use the numeric ID, not the object
     };
 
-    const newUserId = await createUser(db, userData);
+    console.log('Creating user account with data:', { ...userData, password_hash: '[REDACTED]' });
+
+    let newUserId;
+    try {
+      newUserId = await createUser(db, userData);
+      console.log('User account created successfully with ID:', newUserId);
+    } catch (userError: any) {
+      console.error('Failed to create user account:', userError);
+
+      // Check if it's a unique constraint error
+      if (userError?.message?.includes('UNIQUE constraint')) {
+        if (userError?.message?.includes('username')) {
+          return new Response(
+            JSON.stringify({ error: 'Username already exists' }),
+            { status: 409, headers: { 'Content-Type': 'application/json' } }
+          );
+        } else if (userError?.message?.includes('email')) {
+          return new Response(
+            JSON.stringify({ error: 'Email already registered' }),
+            { status: 409, headers: { 'Content-Type': 'application/json' } }
+          );
+        }
+      }
+
+      return new Response(
+        JSON.stringify({
+          error: 'Failed to create user account',
+          details: userError?.message || 'Unknown error'
+        }),
+        { status: 500, headers: { 'Content-Type': 'application/json' } }
+      );
+    }
 
     if (!newUserId) {
+      console.error('User creation returned null or undefined');
       return new Response(
-        JSON.stringify({ error: 'Failed to create user account' }),
+        JSON.stringify({ error: 'Failed to create user account - invalid response' }),
         { status: 500, headers: { 'Content-Type': 'application/json' } }
       );
     }

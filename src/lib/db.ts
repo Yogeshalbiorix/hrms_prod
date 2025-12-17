@@ -1414,6 +1414,14 @@ export async function createUser(
   }
 ): Promise<number | null> {
   try {
+    console.log('Creating user in database:', {
+      username: userData.username,
+      email: userData.email,
+      full_name: userData.full_name,
+      role: userData.role || 'employee',
+      employee_id: userData.employee_id || null
+    });
+
     const result = await db
       .prepare(
         'INSERT INTO users (username, password_hash, email, full_name, role, employee_id, is_active) VALUES (?, ?, ?, ?, ?, ?, 1)'
@@ -1427,10 +1435,19 @@ export async function createUser(
         userData.employee_id || null
       )
       .run();
+
+    console.log('User created successfully, result:', result);
     return result.meta.last_row_id;
   } catch (error) {
     console.error('Error creating user:', error);
-    return null;
+    console.error('User data that failed:', {
+      username: userData.username,
+      email: userData.email,
+      full_name: userData.full_name,
+      role: userData.role,
+      employee_id: userData.employee_id
+    });
+    throw error; // Re-throw instead of returning null so we can see the actual error
   }
 }
 

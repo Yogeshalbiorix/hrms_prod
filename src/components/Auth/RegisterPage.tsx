@@ -42,7 +42,7 @@ export const RegisterPage: React.FC<RegisterPageProps> = ({ onSuccess, onLoginCl
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          username: values.username,
+          username: values.username || undefined, // Optional - will be auto-generated if not provided
           password: values.password,
           email: values.email,
           full_name: values.full_name,
@@ -130,23 +130,6 @@ export const RegisterPage: React.FC<RegisterPageProps> = ({ onSuccess, onLoginCl
 
               <Col xs={24} sm={12}>
                 <Form.Item
-                  name="username"
-                  label="Username"
-                  rules={[
-                    { required: true, message: 'Please enter a username' },
-                    { min: 3, message: 'Username must be at least 3 characters' },
-                    { pattern: /^[a-zA-Z0-9_]+$/, message: 'Only letters, numbers, and underscores allowed' }
-                  ]}
-                >
-                  <Input
-                    prefix={<UserOutlined />}
-                    placeholder="johndoe"
-                  />
-                </Form.Item>
-              </Col>
-
-              <Col xs={24} sm={12}>
-                <Form.Item
                   name="email"
                   label="Email"
                   rules={[
@@ -157,6 +140,23 @@ export const RegisterPage: React.FC<RegisterPageProps> = ({ onSuccess, onLoginCl
                   <Input
                     prefix={<MailOutlined />}
                     placeholder="john@example.com"
+                  />
+                </Form.Item>
+              </Col>
+
+              <Col xs={24} sm={12}>
+                <Form.Item
+                  name="username"
+                  label="Username (Optional)"
+                  tooltip="Leave empty to auto-generate from your email"
+                  rules={[
+                    { min: 3, message: 'Username must be at least 3 characters' },
+                    { pattern: /^[a-zA-Z0-9_]+$/, message: 'Only letters, numbers, and underscores allowed' }
+                  ]}
+                >
+                  <Input
+                    prefix={<UserOutlined />}
+                    placeholder="Leave empty to auto-generate"
                   />
                 </Form.Item>
               </Col>

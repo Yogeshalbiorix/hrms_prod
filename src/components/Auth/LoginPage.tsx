@@ -196,19 +196,6 @@ export default function LoginPage() {
             </Form.Item>
           </Form>
 
-          {/* Demo Credentials */}
-          <Alert
-            message="Demo Credentials"
-            description={
-              <Space direction="vertical" size="small">
-                <Text>Username: <Text code strong>admin</Text></Text>
-                <Text>Password: <Text code strong>admin123</Text></Text>
-              </Space>
-            }
-            type="info"
-            showIcon
-          />
-
           <Divider plain>
             <Text type="secondary">Don't have an account?</Text>
           </Divider>
