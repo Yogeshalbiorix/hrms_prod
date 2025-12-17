@@ -141,7 +141,7 @@ export async function searchEmployees(
   return result.results || [];
 }
 
-export async function createEmployee(db: any, employee: Employee, syncRemote: boolean = false): Promise<{ id: number; employee_id: string }> {
+export async function createEmployee(db: any, employee: Employee, syncRemote: boolean = false): Promise<{ id: number; employee_id: string; username?: string; password?: string }> {
   // Get count for employee ID generation
   const countResult = await db.prepare('SELECT COUNT(*) as count FROM employees').first();
   const count = countResult?.count || 0;
@@ -193,6 +193,53 @@ export async function createEmployee(db: any, employee: Employee, syncRemote: bo
   ];
 
   const result = await db.prepare(query).bind(...params).run();
+  const newEmployeeId = result.meta.last_row_id;
+
+  // Automatically create user account for the employee
+  let username: string | undefined;
+  let generatedPassword: string | undefined;
+
+  try {
+    // Import bcryptjs for password hashing
+    const bcrypt = await import('bcryptjs');
+
+    // Generate username from email (part before @) or first name + last name
+    username = employee.email.split('@')[0].toLowerCase().replace(/[^a-z0-9]/g, '');
+
+    // Check if username already exists, if so, append employee ID
+    const existingUser = await db.prepare('SELECT id FROM users WHERE username = ?').bind(username).first();
+    if (existingUser) {
+      username = `${username}${employeeId.slice(-3)}`;
+    }
+
+    // Generate a random password (8 characters: letters + numbers)
+    generatedPassword = Math.random().toString(36).slice(-8) + Math.random().toString(36).slice(-2).toUpperCase();
+
+    // Hash the password
+    const passwordHash = await bcrypt.hash(generatedPassword, 10);
+
+    // Determine role based on position (default to 'employee')
+    let role = 'employee';
+    const positionLower = employee.position?.toLowerCase() || '';
+    if (positionLower.includes('admin') || positionLower.includes('administrator')) {
+      role = 'admin';
+    } else if (positionLower.includes('hr') || positionLower.includes('human resource')) {
+      role = 'hr';
+    } else if (positionLower.includes('manager')) {
+      role = 'manager';
+    }
+
+    // Create user account
+    const fullName = `${employee.first_name} ${employee.last_name}`;
+    await db.prepare(
+      'INSERT INTO users (username, password_hash, email, full_name, role, employee_id, is_active) VALUES (?, ?, ?, ?, ?, ?, 1)'
+    ).bind(username, passwordHash, employee.email, fullName, role, newEmployeeId).run();
+
+    console.log(`User account created for employee ${employeeId}: username=${username}`);
+  } catch (error) {
+    console.error('Error creating user account for employee:', error);
+    // Don't fail the employee creation if user account creation fails
+  }
 
   // Sync to remote database if enabled
   if (syncRemote) {
@@ -206,8 +253,10 @@ export async function createEmployee(db: any, employee: Employee, syncRemote: bo
   }
 
   return {
-    id: result.meta.last_row_id,
-    employee_id: employeeId
+    id: newEmployeeId,
+    employee_id: employeeId,
+    username,
+    password: generatedPassword
   };
 }
 

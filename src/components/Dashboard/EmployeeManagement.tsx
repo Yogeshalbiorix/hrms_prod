@@ -179,15 +179,59 @@ export default function EmployeeManagement() {
         body: JSON.stringify(payload),
       });
 
-      const data = await response.json() as { success: boolean; error?: string };
+      const data = await response.json() as {
+        success: boolean;
+        error?: string;
+        message?: string;
+        data?: {
+          username?: string;
+          temporary_password?: string;
+          employee_id?: string;
+        }
+      };
       if (data.success) {
         setShowAddDialog(false);
         resetForm();
         fetchEmployees();
-        Modal.success({
-          title: 'Success',
-          content: 'Employee created successfully!',
-        });
+
+        // Show success message with username and password if created
+        if (data.data?.username && data.data?.temporary_password) {
+          Modal.success({
+            title: 'Employee & User Account Created Successfully!',
+            content: (
+              <div>
+                <p style={{ marginBottom: 12 }}>Employee has been created with the following login credentials:</p>
+                <div style={{
+                  background: '#f6f8fa',
+                  padding: '12px 16px',
+                  borderRadius: 6,
+                  border: '1px solid #d1d5db',
+                  fontFamily: 'monospace'
+                }}>
+                  <div style={{ marginBottom: 8 }}>
+                    <strong>Username:</strong> <span style={{ color: '#059669' }}>{data.data.username}</span>
+                  </div>
+                  <div style={{ marginBottom: 8 }}>
+                    <strong>Password:</strong> <span style={{ color: '#dc2626' }}>{data.data.temporary_password}</span>
+                  </div>
+                  <div>
+                    <strong>Employee ID:</strong> {data.data.employee_id}
+                  </div>
+                </div>
+                <p style={{ marginTop: 12, fontSize: 12, color: '#6b7280' }}>
+                  ⚠️ Please save these credentials securely and share them with the employee.
+                  The employee should change their password after first login.
+                </p>
+              </div>
+            ),
+            width: 600,
+          });
+        } else {
+          Modal.success({
+            title: 'Success',
+            content: 'Employee created successfully!',
+          });
+        }
       } else {
         Modal.error({
           title: 'Error',

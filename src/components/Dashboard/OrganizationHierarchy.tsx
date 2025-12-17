@@ -48,6 +48,7 @@ interface Employee {
   manager_id?: number;
   profile_image?: string;
   hierarchy_level?: number;
+  status?: string;
 }
 
 interface OrgNode {

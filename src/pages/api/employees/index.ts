@@ -105,10 +105,21 @@ export const POST: APIRoute = async ({ request, locals }) => {
     // Create employee with remote sync enabled
     const result = await createEmployee(db, body, true);
 
+    // Prepare response message
+    let message = 'Employee created successfully (synced to both databases)';
+    if (result.username && result.password) {
+      message += `. User account created - Username: ${result.username}, Password: ${result.password}`;
+    }
+
     return new Response(JSON.stringify({
       success: true,
-      message: 'Employee created successfully (synced to both databases)',
-      data: result
+      message: message,
+      data: {
+        id: result.id,
+        employee_id: result.employee_id,
+        username: result.username,
+        temporary_password: result.password
+      }
     }), {
       status: 201,
       headers: { 'Content-Type': 'application/json' }
