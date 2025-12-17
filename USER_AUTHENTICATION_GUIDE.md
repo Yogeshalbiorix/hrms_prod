@@ -182,7 +182,7 @@ Request a password reset.
   "message": "If the email exists, a password reset link has been sent",
   "dev_only": {
     "token": "abc123...",
-    "resetLink": "http://localhost:4321/reset-password?token=abc123...",
+    "resetLink": "https://yogeshs-ultra-awesome-site-d54a59.webflow.io/reset-password?token=abc123...",
     "expiresAt": "2025-01-15T10:30:00Z"
   }
 }
@@ -408,7 +408,7 @@ Get user's activity log (authenticated).
 
 ### Test User Registration
 ```bash
-curl -X POST http://localhost:4321/api/auth/register \
+curl -X POST https://yogeshs-ultra-awesome-site-d54a59.webflow.io/api/auth/register \
   -H "Content-Type: application/json" \
   -d '{
     "username": "testuser",
@@ -421,7 +421,7 @@ curl -X POST http://localhost:4321/api/auth/register \
 
 ### Test Forgot Password
 ```bash
-curl -X POST http://localhost:4321/api/auth/forgot-password \
+curl -X POST https://yogeshs-ultra-awesome-site-d54a59.webflow.io/api/auth/forgot-password \
   -H "Content-Type: application/json" \
   -d '{
     "email": "test@example.com"
@@ -430,7 +430,7 @@ curl -X POST http://localhost:4321/api/auth/forgot-password \
 
 ### Test Reset Password
 ```bash
-curl -X POST http://localhost:4321/api/auth/reset-password \
+curl -X POST https://yogeshs-ultra-awesome-site-d54a59.webflow.io/api/auth/reset-password \
   -H "Content-Type: application/json" \
   -d '{
     "token": "YOUR_TOKEN_HERE",

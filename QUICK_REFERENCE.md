@@ -7,7 +7,7 @@
 | Login | http://localhost:3000 |
 | Register | Click "Create Account" on login page |
 | Forgot Password | Click "Forgot password?" on login page |
-| Reset Password | http://localhost:3000/reset-password?token=YOUR_TOKEN |
+| Reset Password |https://yogeshs-ultra-awesome-site-d54a59.webflow.io/reset-password?token=YOUR_TOKEN |
 | User Profile | (Add route in your app) |
 
 ## 📱 API Endpoints
@@ -52,12 +52,12 @@ npm run dev
 npx wrangler d1 execute hrms-database --local --file=./db/user-auth-enhancements.sql
 
 # Test registration
-curl -X POST http://localhost:3000/api/auth/register \
+curl -X POSThttps://yogeshs-ultra-awesome-site-d54a59.webflow.io/api/auth/register \
   -H "Content-Type: application/json" \
   -d '{"username":"test","password":"Test1234","email":"test@test.com","full_name":"Test User"}'
 
 # Test forgot password
-curl -X POST http://localhost:3000/api/auth/forgot-password \
+curl -X POSThttps://yogeshs-ultra-awesome-site-d54a59.webflow.io/api/auth/forgot-password \
   -H "Content-Type: application/json" \
   -d '{"email":"test@test.com"}'
 ```

@@ -197,7 +197,7 @@
 
 #### Test Registration API
 ```bash
-curl -X POST http://localhost:3000/api/auth/register \
+curl -X POST https://yogeshs-ultra-awesome-site-d54a59.webflow.io/api/auth/register \
   -H "Content-Type: application/json" \
   -d '{
     "username": "johndoe",
@@ -210,14 +210,14 @@ curl -X POST http://localhost:3000/api/auth/register \
 
 #### Test Forgot Password API
 ```bash
-curl -X POST http://localhost:3000/api/auth/forgot-password \
+curl -X POST https://yogeshs-ultra-awesome-site-d54a59.webflow.io/api/auth/forgot-password \
   -H "Content-Type: application/json" \
   -d '{"email": "john@example.com"}'
 ```
 
 #### Test Reset Password API
 ```bash
-curl -X POST http://localhost:3000/api/auth/reset-password \
+curl -X POST https://yogeshs-ultra-awesome-site-d54a59.webflow.io/api/auth/reset-password \
   -H "Content-Type: application/json" \
   -d '{
     "token": "YOUR_TOKEN_HERE",
