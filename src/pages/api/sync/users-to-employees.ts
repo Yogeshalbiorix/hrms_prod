@@ -1,9 +1,10 @@
 // API endpoint to sync users table to employees table
 import type { APIRoute } from 'astro';
+import { getDB } from '../../../lib/db';
 
 export const POST: APIRoute = async ({ locals }) => {
   try {
-    const db = locals?.runtime?.env?.DB;
+    const db = getDB(locals.runtime?.env || locals.env);
 
     if (!db) {
       return new Response(JSON.stringify({
@@ -109,7 +110,7 @@ export const POST: APIRoute = async ({ locals }) => {
 
 export const GET: APIRoute = async ({ locals }) => {
   try {
-    const db = locals?.runtime?.env?.DB;
+    const db = getDB(locals.runtime?.env || locals.env);
 
     if (!db) {
       return new Response(JSON.stringify({
@@ -150,3 +151,4 @@ export const GET: APIRoute = async ({ locals }) => {
     });
   }
 };
+

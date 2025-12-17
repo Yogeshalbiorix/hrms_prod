@@ -1,10 +1,10 @@
 // API endpoint for individual department operations (GET, PUT, DELETE)
 import type { APIRoute } from 'astro';
-import { updateDepartment, deleteDepartment, getDepartmentEmployeeCount } from '../../../lib/db';
+import { updateDepartment, deleteDepartment, getDepartmentEmployeeCount, getDB } from '../../../lib/db';
 
 export const PUT: APIRoute = async ({ params, request, locals }) => {
   try {
-    const db = locals?.runtime?.env?.DB || (import.meta as any).env?.DB;
+    const db = getDB(locals.runtime?.env || locals.env);
     if (!db) {
       return new Response(JSON.stringify({
         success: false,
@@ -93,7 +93,7 @@ export const PUT: APIRoute = async ({ params, request, locals }) => {
 
 export const DELETE: APIRoute = async ({ params, locals }) => {
   try {
-    const db = locals?.runtime?.env?.DB || (import.meta as any).env?.DB;
+    const db = getDB(locals.runtime?.env || locals.env);
     if (!db) {
       return new Response(JSON.stringify({
         success: false,

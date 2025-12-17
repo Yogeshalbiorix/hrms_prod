@@ -3,10 +3,11 @@
  */
 import type { APIRoute } from 'astro';
 import { sendActivityEmail } from '../../../lib/email-service';
+import { getDB } from '../../../lib/db';
 
 export const POST: APIRoute = async ({ request, locals }) => {
   try {
-    const db = locals?.runtime?.env?.DB || (import.meta as any).env?.DB;
+    const db = getDB(locals.runtime?.env || locals.env);
     if (!db) {
       return new Response(JSON.stringify({
         success: false,
@@ -83,7 +84,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
 
 export const GET: APIRoute = async ({ locals, url }) => {
   try {
-    const db = locals?.runtime?.env?.DB || (import.meta as any).env?.DB;
+    const db = getDB(locals.runtime?.env || locals.env);
     if (!db) {
       return new Response(JSON.stringify({
         success: false,
@@ -135,3 +136,4 @@ export const GET: APIRoute = async ({ locals, url }) => {
     });
   }
 };
+

@@ -1,9 +1,10 @@
 // API endpoint for employee attendance details
 import type { APIRoute } from 'astro';
+import { getDB } from '../../../../lib/db';
 
 export const GET: APIRoute = async ({ params, locals, url }) => {
   try {
-    const db = locals?.runtime?.env?.DB || (import.meta as any).env?.DB;
+    const db = getDB(locals.runtime?.env || locals.env);
 
     if (!db) {
       return new Response(JSON.stringify({

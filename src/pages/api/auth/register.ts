@@ -5,12 +5,13 @@ import {
   getUserByUsername,
   getUserByEmail,
   createEmployee,
-  createAuditLog
+  createAuditLog,
+  getDB
 } from '../../../lib/db';
 
 export const POST: APIRoute = async ({ request, locals }) => {
   try {
-    const db = locals.runtime.env.DB as any;
+    const db = getDB(locals.runtime?.env || locals.env);
     const body = await request.json() as any;
 
     const { username, password, email, full_name, phone, position, department_id } = body;
@@ -179,3 +180,4 @@ export const POST: APIRoute = async ({ request, locals }) => {
     );
   }
 };
+

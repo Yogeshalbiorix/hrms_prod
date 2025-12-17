@@ -4,43 +4,43 @@
 // DELETE: Delete employee (soft delete)
 
 import type { APIRoute } from 'astro';
-import { getEmployeeById, updateEmployee, deleteEmployee, hardDeleteEmployee } from '../../../lib/db';
+import { getEmployeeById, updateEmployee, deleteEmployee, hardDeleteEmployee, getDB } from '../../../lib/db';
 
 export const GET: APIRoute = async ({ params, locals }) => {
   try {
-    const db = locals?.runtime?.env?.DB;
-    
+    const db = getDB(locals.runtime?.env || locals.env);
+
     if (!db) {
       return new Response(JSON.stringify({ error: 'Database not configured' }), {
         status: 500,
         headers: { 'Content-Type': 'application/json' }
       });
     }
-    
+
     const id = parseInt(params.id || '0');
-    
+
     if (!id || isNaN(id)) {
-      return new Response(JSON.stringify({ 
+      return new Response(JSON.stringify({
         success: false,
-        error: 'Invalid employee ID' 
+        error: 'Invalid employee ID'
       }), {
         status: 400,
         headers: { 'Content-Type': 'application/json' }
       });
     }
-    
+
     const employee = await getEmployeeById(db, id);
-    
+
     if (!employee) {
-      return new Response(JSON.stringify({ 
+      return new Response(JSON.stringify({
         success: false,
-        error: 'Employee not found' 
+        error: 'Employee not found'
       }), {
         status: 404,
         headers: { 'Content-Type': 'application/json' }
       });
     }
-    
+
     return new Response(JSON.stringify({
       success: true,
       data: employee
@@ -48,10 +48,10 @@ export const GET: APIRoute = async ({ params, locals }) => {
       status: 200,
       headers: { 'Content-Type': 'application/json' }
     });
-    
+
   } catch (error) {
     console.error('Error fetching employee:', error);
-    return new Response(JSON.stringify({ 
+    return new Response(JSON.stringify({
       success: false,
       error: 'Failed to fetch employee',
       message: error instanceof Error ? error.message : 'Unknown error'
@@ -64,44 +64,44 @@ export const GET: APIRoute = async ({ params, locals }) => {
 
 export const PUT: APIRoute = async ({ params, request, locals }) => {
   try {
-    const db = locals?.runtime?.env?.DB;
-    
+    const db = getDB(locals.runtime?.env || locals.env);
+
     if (!db) {
       return new Response(JSON.stringify({ error: 'Database not configured' }), {
         status: 500,
         headers: { 'Content-Type': 'application/json' }
       });
     }
-    
+
     const id = parseInt(params.id || '0');
-    
+
     if (!id || isNaN(id)) {
-      return new Response(JSON.stringify({ 
+      return new Response(JSON.stringify({
         success: false,
-        error: 'Invalid employee ID' 
+        error: 'Invalid employee ID'
       }), {
         status: 400,
         headers: { 'Content-Type': 'application/json' }
       });
     }
-    
+
     // Check if employee exists
     const existingEmployee = await getEmployeeById(db, id);
     if (!existingEmployee) {
-      return new Response(JSON.stringify({ 
+      return new Response(JSON.stringify({
         success: false,
-        error: 'Employee not found' 
+        error: 'Employee not found'
       }), {
         status: 404,
         headers: { 'Content-Type': 'application/json' }
       });
     }
-    
+
     const body = await request.json();
-    
+
     // Update employee
     const success = await updateEmployee(db, id, body);
-    
+
     if (!success) {
       return new Response(JSON.stringify({
         success: false,
@@ -111,10 +111,10 @@ export const PUT: APIRoute = async ({ params, request, locals }) => {
         headers: { 'Content-Type': 'application/json' }
       });
     }
-    
+
     // Fetch updated employee
     const updatedEmployee = await getEmployeeById(db, id);
-    
+
     return new Response(JSON.stringify({
       success: true,
       message: 'Employee updated successfully',
@@ -123,10 +123,10 @@ export const PUT: APIRoute = async ({ params, request, locals }) => {
       status: 200,
       headers: { 'Content-Type': 'application/json' }
     });
-    
+
   } catch (error) {
     console.error('Error updating employee:', error);
-    
+
     // Check for unique constraint violations
     if (error instanceof Error && error.message.includes('UNIQUE constraint')) {
       return new Response(JSON.stringify({
@@ -137,7 +137,7 @@ export const PUT: APIRoute = async ({ params, request, locals }) => {
         headers: { 'Content-Type': 'application/json' }
       });
     }
-    
+
     return new Response(JSON.stringify({
       success: false,
       error: 'Failed to update employee',
@@ -153,42 +153,42 @@ export const PATCH: APIRoute = PUT; // PATCH uses same logic as PUT
 
 export const DELETE: APIRoute = async ({ params, request, locals }) => {
   try {
-    const db = locals?.runtime?.env?.DB;
-    
+    const db = getDB(locals.runtime?.env || locals.env);
+
     if (!db) {
       return new Response(JSON.stringify({ error: 'Database not configured' }), {
         status: 500,
         headers: { 'Content-Type': 'application/json' }
       });
     }
-    
+
     const id = parseInt(params.id || '0');
-    
+
     if (!id || isNaN(id)) {
-      return new Response(JSON.stringify({ 
+      return new Response(JSON.stringify({
         success: false,
-        error: 'Invalid employee ID' 
+        error: 'Invalid employee ID'
       }), {
         status: 400,
         headers: { 'Content-Type': 'application/json' }
       });
     }
-    
+
     // Check if employee exists
     const existingEmployee = await getEmployeeById(db, id);
     if (!existingEmployee) {
-      return new Response(JSON.stringify({ 
+      return new Response(JSON.stringify({
         success: false,
-        error: 'Employee not found' 
+        error: 'Employee not found'
       }), {
         status: 404,
         headers: { 'Content-Type': 'application/json' }
       });
     }
-    
+
     const url = new URL(request.url);
     const hard = url.searchParams.get('hard') === 'true';
-    
+
     let success;
     if (hard) {
       // Hard delete - permanently remove
@@ -197,7 +197,7 @@ export const DELETE: APIRoute = async ({ params, request, locals }) => {
       // Soft delete - set status to terminated
       success = await deleteEmployee(db, id);
     }
-    
+
     if (!success) {
       return new Response(JSON.stringify({
         success: false,
@@ -207,7 +207,7 @@ export const DELETE: APIRoute = async ({ params, request, locals }) => {
         headers: { 'Content-Type': 'application/json' }
       });
     }
-    
+
     return new Response(JSON.stringify({
       success: true,
       message: hard ? 'Employee permanently deleted' : 'Employee terminated successfully'
@@ -215,7 +215,7 @@ export const DELETE: APIRoute = async ({ params, request, locals }) => {
       status: 200,
       headers: { 'Content-Type': 'application/json' }
     });
-    
+
   } catch (error) {
     console.error('Error deleting employee:', error);
     return new Response(JSON.stringify({

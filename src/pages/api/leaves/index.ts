@@ -5,22 +5,14 @@ import {
   createLeave,
   deleteLeave,
   getLeaveStats,
-  type Leave
+  type Leave,
+  getDB
 } from '../../../lib/db';
 import { sendActivityEmail } from '../../../lib/email-service';
 
 export const GET: APIRoute = async ({ locals, url }) => {
   try {
-    const db = locals?.runtime?.env?.DB || (import.meta as any).env?.DB;
-    if (!db) {
-      return new Response(JSON.stringify({
-        success: false,
-        error: 'Database not configured'
-      }), {
-        status: 500,
-        headers: { 'Content-Type': 'application/json' }
-      });
-    }
+    const db = getDB(locals.runtime?.env || locals.env);
 
     // Get query parameters for filtering
     const employeeId = url.searchParams.get('employee_id');
@@ -69,17 +61,7 @@ export const GET: APIRoute = async ({ locals, url }) => {
 
 export const POST: APIRoute = async ({ request, locals }) => {
   try {
-    const db = locals?.runtime?.env?.DB || (import.meta as any).env?.DB;
-    if (!db) {
-      return new Response(JSON.stringify({
-        success: false,
-        error: 'Database not configured'
-      }), {
-        status: 500,
-        headers: { 'Content-Type': 'application/json' }
-      });
-    }
-
+    const db = getDB(locals.runtime?.env || locals.env);
     const body = await request.json() as any;
 
     // Validate required fields
@@ -162,7 +144,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
 
 export const DELETE: APIRoute = async ({ request, locals }) => {
   try {
-    const db = locals?.runtime?.env?.DB || (import.meta as any).env?.DB;
+    const db = getDB(locals.runtime?.env || locals.env);
     if (!db) {
       return new Response(JSON.stringify({
         success: false,
@@ -215,3 +197,4 @@ export const DELETE: APIRoute = async ({ request, locals }) => {
     });
   }
 };
+

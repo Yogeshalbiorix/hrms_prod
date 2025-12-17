@@ -1,12 +1,13 @@
 import type { APIRoute } from 'astro';
 import {
   getUserFromSession,
-  getUserAuditLogs
+  getUserAuditLogs,
+  getDB
 } from '../../../lib/db';
 
 export const GET: APIRoute = async ({ request, locals, cookies }) => {
   try {
-    const db = locals.runtime.env.DB;
+    const db = getDB(locals.runtime?.env || locals.env);
     const sessionToken = cookies.get('session_token')?.value;
 
     if (!sessionToken) {
@@ -52,3 +53,4 @@ export const GET: APIRoute = async ({ request, locals, cookies }) => {
     );
   }
 };
+

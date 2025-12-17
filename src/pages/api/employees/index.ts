@@ -3,11 +3,11 @@
 // POST: Create new employee
 
 import type { APIRoute } from 'astro';
-import { getAllEmployees, searchEmployees, createEmployee, getEmployeeStats } from '../../../lib/db';
+import { getAllEmployees, searchEmployees, createEmployee, getEmployeeStats, getDB } from '../../../lib/db';
 
 export const GET: APIRoute = async ({ request, locals }) => {
   try {
-    const db = locals?.runtime?.env?.DB;
+    const db = getDB(locals.runtime?.env || locals.env);
 
     if (!db) {
       return new Response(JSON.stringify({ error: 'Database not configured' }), {
@@ -79,7 +79,7 @@ export const GET: APIRoute = async ({ request, locals }) => {
 
 export const POST: APIRoute = async ({ request, locals }) => {
   try {
-    const db = locals?.runtime?.env?.DB;
+    const db = getDB(locals.runtime?.env || locals.env);
 
     if (!db) {
       return new Response(JSON.stringify({ error: 'Database not configured' }), {
@@ -149,3 +149,4 @@ export const POST: APIRoute = async ({ request, locals }) => {
     });
   }
 };
+

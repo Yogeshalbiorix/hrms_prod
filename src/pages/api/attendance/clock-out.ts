@@ -3,7 +3,7 @@ import { getDB, getUserFromSession } from '../../../lib/db';
 
 export const POST: APIRoute = async ({ request, locals }) => {
   try {
-    const db = getDB(locals.runtime.env);
+    const db = getDB(locals.runtime?.env || locals.env);
 
     // Get session token from Authorization header
     const authHeader = request.headers.get('Authorization');
@@ -117,3 +117,4 @@ export const POST: APIRoute = async ({ request, locals }) => {
     );
   }
 };
+

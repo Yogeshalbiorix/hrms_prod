@@ -3,22 +3,14 @@ import type { APIRoute } from 'astro';
 import {
   getLeaveById,
   updateLeave,
-  type Leave
+  type Leave,
+  getDB
 } from '../../../lib/db';
 import { sendActivityEmail } from '../../../lib/email-service';
 
 export const GET: APIRoute = async ({ params, locals }) => {
   try {
-    const db = locals?.runtime?.env?.DB || (import.meta as any).env?.DB;
-    if (!db) {
-      return new Response(JSON.stringify({
-        success: false,
-        error: 'Database not configured'
-      }), {
-        status: 500,
-        headers: { 'Content-Type': 'application/json' }
-      });
-    }
+    const db = getDB(locals.runtime?.env || locals.env);
 
     const id = parseInt(params.id || '0');
     if (!id) {
@@ -64,7 +56,7 @@ export const GET: APIRoute = async ({ params, locals }) => {
 
 export const PUT: APIRoute = async ({ params, request, locals }) => {
   try {
-    const db = locals?.runtime?.env?.DB || (import.meta as any).env?.DB;
+    const db = getDB(locals.runtime?.env || locals.env);
     if (!db) {
       return new Response(JSON.stringify({
         success: false,

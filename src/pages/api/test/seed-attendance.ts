@@ -3,7 +3,7 @@ import { getDB } from '../../../lib/db';
 
 export const POST: APIRoute = async ({ locals }) => {
   try {
-    const db = getDB(locals.runtime.env);
+    const db = getDB(locals.runtime?.env || locals.env);
 
     // Get all employees
     const employees = await db.prepare('SELECT id FROM employees LIMIT 5').all();
@@ -157,3 +157,4 @@ export const POST: APIRoute = async ({ locals }) => {
     );
   }
 };
+

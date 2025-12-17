@@ -43,9 +43,30 @@ export interface EmployeeWithDepartment extends Employee {
   department_name?: string;
 }
 
+// Helper to get environment from locals (handles both dev and production)
+export function getEnvFromLocals(locals: any) {
+  // In production (Cloudflare Pages), env is at locals.env
+  // In development with platformProxy, it's at locals.runtime.env
+  return locals.env || locals.runtime?.env;
+}
+
 // Get database instance (works with Cloudflare D1)
 export function getDB(env: any) {
-  return env.DB; // Cloudflare D1 binding
+  if (!env) {
+    throw new Error('Runtime environment is not available. Database binding failed.');
+  }
+
+  // Direct access to DB (production on Cloudflare Pages)
+  if (env.DB) {
+    return env.DB;
+  }
+
+  // Check import.meta.env for local development
+  if (typeof import.meta !== 'undefined' && (import.meta as any).env?.DB) {
+    return (import.meta as any).env.DB;
+  }
+
+  throw new Error('Database (DB) binding not found. Please check your wrangler.jsonc configuration and Cloudflare Pages settings.');
 }
 
 // Generate unique employee ID

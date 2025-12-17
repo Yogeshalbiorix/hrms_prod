@@ -1,5 +1,6 @@
 // API endpoint to sync data to remote database
 import type { APIRoute } from 'astro';
+import { getDB } from '../../../lib/db';
 
 export const POST: APIRoute = async ({ request, locals }) => {
   try {
@@ -17,7 +18,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
     }
 
     // Get remote database binding
-    const remoteDB = locals?.runtime?.env?.DB;
+    const remoteDB = getDB(locals.runtime?.env || locals.env);
 
     if (!remoteDB) {
       return new Response(JSON.stringify({
@@ -54,3 +55,4 @@ export const POST: APIRoute = async ({ request, locals }) => {
     });
   }
 };
+

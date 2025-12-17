@@ -9,7 +9,7 @@ import { getDB } from '../../../lib/db';
 
 export const GET: APIRoute = async ({ params, locals }) => {
   try {
-    const db = getDB(locals.runtime.env);
+    const db = getDB(locals.runtime?.env || locals.env);
 
     const id = parseInt(params.id || '0');
     if (!id) {
@@ -67,7 +67,7 @@ export const GET: APIRoute = async ({ params, locals }) => {
 
 export const PUT: APIRoute = async ({ params, request, locals }) => {
   try {
-    const db = getDB(locals.runtime.env);
+    const db = getDB(locals.runtime?.env || locals.env);
 
     const id = parseInt(params.id || '0');
     if (!id) {

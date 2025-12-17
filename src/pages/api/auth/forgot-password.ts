@@ -3,13 +3,14 @@ import crypto from 'crypto';
 import {
   getUserByEmail,
   createPasswordResetToken,
-  createAuditLog
+  createAuditLog,
+  getDB
 } from '../../../lib/db';
 import { sendPasswordResetEmail } from '../../../lib/email-service';
 
 export const POST: APIRoute = async ({ request, locals }) => {
   try {
-    const db = locals.runtime.env.DB;
+    const db = getDB(locals.runtime?.env || locals.env);
     const body = await request.json() as any;
 
     const { email } = body;
@@ -120,3 +121,4 @@ export const POST: APIRoute = async ({ request, locals }) => {
     );
   }
 };
+

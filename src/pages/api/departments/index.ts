@@ -4,12 +4,13 @@ import {
   getAllDepartments,
   createDepartment,
   deleteDepartment,
-  getDepartmentEmployeeCount
+  getDepartmentEmployeeCount,
+  getDB
 } from '../../../lib/db';
 
 export const GET: APIRoute = async ({ locals }) => {
   try {
-    const db = locals?.runtime?.env?.DB || (import.meta as any).env?.DB;
+    const db = getDB(locals.runtime?.env || locals.env);
     if (!db) {
       return new Response(JSON.stringify({
         success: false,
@@ -54,7 +55,7 @@ export const GET: APIRoute = async ({ locals }) => {
 
 export const POST: APIRoute = async ({ request, locals }) => {
   try {
-    const db = locals?.runtime?.env?.DB || (import.meta as any).env?.DB;
+    const db = getDB(locals.runtime?.env || locals.env);
     if (!db) {
       return new Response(JSON.stringify({
         success: false,
@@ -106,7 +107,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
 
 export const DELETE: APIRoute = async ({ request, locals }) => {
   try {
-    const db = locals?.runtime?.env?.DB || (import.meta as any).env?.DB;
+    const db = getDB(locals.runtime?.env || locals.env);
     if (!db) {
       return new Response(JSON.stringify({
         success: false,
@@ -162,3 +163,4 @@ export const DELETE: APIRoute = async ({ request, locals }) => {
     });
   }
 };
+

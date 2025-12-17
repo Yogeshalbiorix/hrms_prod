@@ -3,12 +3,13 @@ import type { APIRoute } from 'astro';
 import {
   getPayrollById,
   updatePayroll,
+  getDB,
   type Payroll
 } from '../../../lib/db';
 
 export const GET: APIRoute = async ({ params, locals }) => {
   try {
-    const db = locals?.runtime?.env?.DB || (import.meta as any).env?.DB;
+    const db = getDB(locals.runtime?.env || locals.env);
     if (!db) {
       return new Response(JSON.stringify({
         success: false,
@@ -63,7 +64,7 @@ export const GET: APIRoute = async ({ params, locals }) => {
 
 export const PUT: APIRoute = async ({ params, request, locals }) => {
   try {
-    const db = locals?.runtime?.env?.DB || (import.meta as any).env?.DB;
+    const db = getDB(locals.runtime?.env || locals.env);
     if (!db) {
       return new Response(JSON.stringify({
         success: false,

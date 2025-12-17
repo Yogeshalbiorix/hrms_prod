@@ -3,7 +3,7 @@ import { getDB, deleteSession } from '../../../lib/db';
 
 export const POST: APIRoute = async ({ request, locals }) => {
   try {
-    const db = getDB(locals.runtime.env);
+    const db = getDB(locals.runtime?.env || locals.env);
     const body = await request.json();
     const { sessionToken } = body;
 
@@ -36,3 +36,4 @@ export const POST: APIRoute = async ({ request, locals }) => {
     );
   }
 };
+
