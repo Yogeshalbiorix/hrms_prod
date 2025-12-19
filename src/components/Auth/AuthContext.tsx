@@ -67,6 +67,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const data = await response.json() as { authenticated: boolean; user: any };
         if (data.authenticated) {
           setUser(data.user);
+          // Update localStorage with latest user data
+          localStorage.setItem('user', JSON.stringify(data.user));
           return true;
         }
       }

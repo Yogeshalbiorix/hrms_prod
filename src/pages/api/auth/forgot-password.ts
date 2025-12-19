@@ -87,26 +87,45 @@ export const POST: APIRoute = async ({ request, locals }) => {
     // Send password reset email
     const resetLink = `${new URL(request.url).origin}/reset-password?token=${token}`;
 
+    let emailSent = false;
     try {
-      await sendPasswordResetEmail(
+      emailSent = await sendPasswordResetEmail(
         email,
         user.full_name || user.username,
         resetLink,
         expiresAtISO
       );
 
-      console.log('✅ Password reset email sent successfully to:', email);
+      if (emailSent) {
+        console.log('✅ Password reset email sent successfully to:', email);
+      } else {
+        console.error('❌ Failed to send password reset email');
+      }
     } catch (emailError) {
       console.error('❌ Failed to send password reset email:', emailError);
       // Continue even if email fails - user can request again
     }
 
     // Return success response (never expose actual token in production)
+    const response: any = {
+      success: true,
+      message: 'If the email exists, a password reset link has been sent to your email address'
+    };
+
+    // In development, include the reset link for testing
+    if (process.env.NODE_ENV !== 'production') {
+      response.dev_only = {
+        resetLink,
+        token,
+        expiresAt: expiresAtISO,
+        emailSent,
+        note: 'This information is only visible in development mode'
+      };
+      console.log('🔗 Development Reset Link:', resetLink);
+    }
+
     return new Response(
-      JSON.stringify({
-        success: true,
-        message: 'If the email exists, a password reset link has been sent to your email address'
-      }),
+      JSON.stringify(response),
       { status: 200, headers: { 'Content-Type': 'application/json' } }
     );
 

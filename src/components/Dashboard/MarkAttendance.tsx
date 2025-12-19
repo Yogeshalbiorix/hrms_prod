@@ -297,37 +297,40 @@ export default function MarkAttendance() {
             </Space>
           </Col>
           <Col xs={24} md={12} style={{ textAlign: 'right' }}>
-            {!todayAttendance.clockedIn && !todayAttendance.clockOutTime ? (
-              <Button
-                type="primary"
-                size="large"
-                icon={<LoginOutlined />}
-                onClick={() => setShowClockInModal(true)}
-                style={{
-                  height: '60px',
-                  fontSize: '18px',
-                  background: 'white',
-                  color: '#667eea',
-                  border: 'none',
-                }}
-              >
-                Clock In
-              </Button>
-            ) : todayAttendance.clockedIn && !todayAttendance.clockOutTime ? (
-              <Button
-                type="primary"
-                size="large"
-                danger
-                icon={<LogoutOutlined />}
-                onClick={() => setShowClockOutModal(true)}
-                style={{ height: '60px', fontSize: '18px' }}
-              >
-                Clock Out
-              </Button>
-            ) : (
+            {todayAttendance.clockOutTime ? (
               <Tag color="success" style={{ fontSize: '16px', padding: '8px 16px' }}>
                 <CheckCircleOutlined /> Attendance Marked
               </Tag>
+            ) : (
+              <Space size="middle">
+                <Button
+                  type="primary"
+                  size="large"
+                  icon={<LoginOutlined />}
+                  onClick={() => setShowClockInModal(true)}
+                  disabled={todayAttendance.clockedIn}
+                  style={{
+                    height: '60px',
+                    fontSize: '18px',
+                    background: todayAttendance.clockedIn ? '#f0f0f0' : 'white',
+                    color: todayAttendance.clockedIn ? '#d9d9d9' : '#667eea',
+                    border: 'none',
+                  }}
+                >
+                  Clock In
+                </Button>
+                <Button
+                  type="primary"
+                  size="large"
+                  danger
+                  icon={<LogoutOutlined />}
+                  onClick={() => setShowClockOutModal(true)}
+                  disabled={!todayAttendance.clockedIn}
+                  style={{ height: '60px', fontSize: '18px' }}
+                >
+                  Clock Out
+                </Button>
+              </Space>
             )}
           </Col>
         </Row>

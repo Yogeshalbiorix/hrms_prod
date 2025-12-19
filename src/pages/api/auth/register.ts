@@ -14,30 +14,16 @@ export const POST: APIRoute = async ({ request, locals }) => {
     const db = getDB(locals.runtime?.env || locals.env);
     const body = await request.json() as any;
 
-    let { username, password, email, full_name, phone, position, department_id } = body;
+    const { username, password, email, full_name, phone, position, department_id } = body;
 
-    // Validate required fields (username is optional, will be auto-generated)
-    if (!password || !email || !full_name) {
+    // Validate required fields (username is now required)
+    if (!username || !password || !email || !full_name) {
       return new Response(
         JSON.stringify({
-          error: 'Password, email, and full name are required'
+          error: 'Username, password, email, and full name are required'
         }),
         { status: 400, headers: { 'Content-Type': 'application/json' } }
       );
-    }
-
-    // Auto-generate username if not provided
-    if (!username) {
-      // Generate username from email (part before @)
-      username = email.split('@')[0].toLowerCase().replace(/[^a-z0-9]/g, '');
-
-      // Check if username already exists, if so, append random number
-      const existingUser = await getUserByUsername(db, username);
-      if (existingUser) {
-        username = `${username}${Math.floor(Math.random() * 9000) + 1000}`;
-      }
-
-      console.log('Auto-generated username:', username);
     }
 
     // Validate email format
@@ -76,11 +62,24 @@ export const POST: APIRoute = async ({ request, locals }) => {
       );
     }
 
-    // Check if email already exists
+    // Check if email already exists in users table
     const existingEmail = await getUserByEmail(db, email);
     if (existingEmail) {
       return new Response(
-        JSON.stringify({ error: 'Email already registered' }),
+        JSON.stringify({ error: 'Email already registered. Please use a different email or login if you already have an account.' }),
+        { status: 409, headers: { 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Check if email already exists in employees table
+    const existingEmployeeEmail = await db
+      .prepare('SELECT id FROM employees WHERE email = ?')
+      .bind(email)
+      .first();
+
+    if (existingEmployeeEmail) {
+      return new Response(
+        JSON.stringify({ error: 'Email already registered in employees. Please use a different email.' }),
         { status: 409, headers: { 'Content-Type': 'application/json' } }
       );
     }
@@ -114,7 +113,8 @@ export const POST: APIRoute = async ({ request, locals }) => {
 
     let newEmployee;
     try {
-      newEmployee = await createEmployee(db, employeeData);
+      // Pass true as third parameter (skipUserCreation) to prevent automatic user creation
+      newEmployee = await createEmployee(db, employeeData, false, true);
       console.log('Employee created successfully:', newEmployee);
     } catch (empError: any) {
       console.error('Error creating employee:', empError);
@@ -162,16 +162,27 @@ export const POST: APIRoute = async ({ request, locals }) => {
     } catch (userError: any) {
       console.error('Failed to create user account:', userError);
 
+      // Delete the employee record we just created since user creation failed
+      try {
+        await db
+          .prepare('DELETE FROM employees WHERE id = ?')
+          .bind(newEmployee.id)
+          .run();
+        console.log('Rolled back employee creation due to user creation failure');
+      } catch (rollbackError) {
+        console.error('Failed to rollback employee creation:', rollbackError);
+      }
+
       // Check if it's a unique constraint error
       if (userError?.message?.includes('UNIQUE constraint')) {
         if (userError?.message?.includes('username')) {
           return new Response(
-            JSON.stringify({ error: 'Username already exists' }),
+            JSON.stringify({ error: 'Username already exists. Please choose a different username.' }),
             { status: 409, headers: { 'Content-Type': 'application/json' } }
           );
         } else if (userError?.message?.includes('email')) {
           return new Response(
-            JSON.stringify({ error: 'Email already registered' }),
+            JSON.stringify({ error: 'Email already registered. Please use a different email or login if you already have an account.' }),
             { status: 409, headers: { 'Content-Type': 'application/json' } }
           );
         }

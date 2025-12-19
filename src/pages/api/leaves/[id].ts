@@ -4,13 +4,35 @@ import {
   getLeaveById,
   updateLeave,
   type Leave,
-  getDB
+  getDB,
+  getUserFromSession
 } from '../../../lib/db';
 import { sendActivityEmail } from '../../../lib/email-service';
 
-export const GET: APIRoute = async ({ params, locals }) => {
+export const GET: APIRoute = async ({ request, params, locals }) => {
   try {
     const db = getDB(locals.runtime?.env || locals.env);
+
+    // Get session token from Authorization header
+    const authHeader = request.headers.get('Authorization');
+    const sessionToken = authHeader?.replace('Bearer ', '');
+
+    if (!sessionToken) {
+      return new Response(
+        JSON.stringify({ success: false, error: 'Unauthorized - No session token' }),
+        { status: 401, headers: { 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Validate session and get user
+    const sessionUser = await getUserFromSession(db, sessionToken);
+
+    if (!sessionUser) {
+      return new Response(
+        JSON.stringify({ success: false, error: 'Unauthorized - Invalid session' }),
+        { status: 401, headers: { 'Content-Type': 'application/json' } }
+      );
+    }
 
     const id = parseInt(params.id || '0');
     if (!id) {
@@ -57,6 +79,28 @@ export const GET: APIRoute = async ({ params, locals }) => {
 export const PUT: APIRoute = async ({ params, request, locals }) => {
   try {
     const db = getDB(locals.runtime?.env || locals.env);
+
+    // Get session token from Authorization header
+    const authHeader = request.headers.get('Authorization');
+    const sessionToken = authHeader?.replace('Bearer ', '');
+
+    if (!sessionToken) {
+      return new Response(
+        JSON.stringify({ success: false, error: 'Unauthorized - No session token' }),
+        { status: 401, headers: { 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Validate session and get user
+    const sessionUser = await getUserFromSession(db, sessionToken);
+
+    if (!sessionUser) {
+      return new Response(
+        JSON.stringify({ success: false, error: 'Unauthorized - Invalid session' }),
+        { status: 401, headers: { 'Content-Type': 'application/json' } }
+      );
+    }
+
     if (!db) {
       return new Response(JSON.stringify({
         success: false,
@@ -97,7 +141,8 @@ export const PUT: APIRoute = async ({ params, request, locals }) => {
       status: body.status,
       approved_by: body.approved_by,
       approval_date: body.approval_date,
-      notes: body.notes
+      notes: body.notes,
+      rejection_reason: body.rejection_reason
     };
 
     const success = await updateLeave(db, id, leave);
@@ -138,7 +183,7 @@ export const PUT: APIRoute = async ({ params, request, locals }) => {
               end_date: leaveDetails.end_date,
               total_days: leaveDetails.total_days,
               approved_by: body.approved_by || 'Manager',
-              rejection_reason: body.notes
+              rejection_reason: body.rejection_reason || body.notes
             }
           ).catch(err => console.error('Failed to send leave status email:', err));
         }

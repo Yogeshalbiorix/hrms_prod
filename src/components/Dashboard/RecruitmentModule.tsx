@@ -203,7 +203,12 @@ export default function RecruitmentModule() {
   const fetchJobs = async () => {
     try {
       setLoading(true);
-      const response = await fetch(`${baseUrl}/api/jobs`);
+      const sessionToken = localStorage.getItem('sessionToken');
+      const response = await fetch(`${baseUrl}/api/jobs`, {
+        headers: {
+          'Authorization': `Bearer ${sessionToken}`
+        }
+      });
       const data = await response.json() as { success: boolean; data?: JobOpening[]; error?: string };
       if (data.success) {
         setJobs(data.data || []);
@@ -217,7 +222,12 @@ export default function RecruitmentModule() {
 
   const fetchDepartments = async () => {
     try {
-      const response = await fetch(`${baseUrl}/api/departments`);
+      const sessionToken = localStorage.getItem('sessionToken');
+      const response = await fetch(`${baseUrl}/api/departments`, {
+        headers: {
+          'Authorization': `Bearer ${sessionToken}`
+        }
+      });
       const data = await response.json() as { success: boolean; data?: any[]; error?: string };
       if (data.success) {
         setDepartments(data.data || []);
@@ -235,9 +245,13 @@ export default function RecruitmentModule() {
       const method = isEditing ? 'PUT' : 'POST';
       const payload = isEditing ? { ...values, id: editingJobId } : values;
 
+      const sessionToken = localStorage.getItem('sessionToken');
       const response = await fetch(`${baseUrl}/api/jobs`, {
         method,
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${sessionToken}`
+        },
         body: JSON.stringify(payload),
       });
 
@@ -270,9 +284,13 @@ export default function RecruitmentModule() {
       cancelText: 'Cancel',
       onOk: async () => {
         try {
+          const sessionToken = localStorage.getItem('sessionToken');
           const response = await fetch(`${baseUrl}/api/jobs`, {
             method: 'DELETE',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${sessionToken}`
+            },
             body: JSON.stringify({ id }),
           });
 

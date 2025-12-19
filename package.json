@@ -22,7 +22,7 @@
     "db:query:remote": "wrangler d1 execute hrms-database --remote --command",
     "db:info": "wrangler d1 info hrms-database",
     "db:verify": "wrangler d1 execute hrms-database --remote --command=\"SELECT name FROM sqlite_master WHERE type='table' ORDER BY name;\"",
-    "deploy": "npm run build && wrangler deploy"
+    "deploy:local": "npm run build && wrangler pages dev dist --compatibility-date=2024-01-01 --d1=DB"
   },
   "dependencies": {
     "@ant-design/icons": "5.6.1",

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Card, Table, Tag, Space, Button, DatePicker, Select, Statistic, Row, Col, Modal, Form, Input, message, Tooltip, Empty } from 'antd';
+import { Card, Table, Tag, Space, Button, DatePicker, Select, Statistic, Row, Col, Modal, Form, Input, message, Tooltip, Empty, Descriptions } from 'antd';
 import {
   CalendarOutlined,
   CheckCircleOutlined,
@@ -32,6 +32,7 @@ interface LeaveRecord {
   approved_by?: string;
   approval_date?: string;
   notes?: string;
+  rejection_reason?: string;
   created_at: string;
 }
 
@@ -55,6 +56,9 @@ export default function LeaveManagement() {
   const [searchQuery, setSearchQuery] = useState('');
   const [employees, setEmployees] = useState<any[]>([]);
   const [form] = Form.useForm();
+  const [rejectModalVisible, setRejectModalVisible] = useState(false);
+  const [rejectingLeave, setRejectingLeave] = useState<LeaveRecord | null>(null);
+  const [rejectionReason, setRejectionReason] = useState('');
 
   const { RangePicker } = DatePicker;
 
@@ -63,6 +67,23 @@ export default function LeaveManagement() {
     fetchStats();
     fetchEmployees();
   }, [filterStatus, filterLeaveType]);
+
+  // Populate form when editing a record
+  useEffect(() => {
+    if (selectedRecord && showEditModal) {
+      form.setFieldsValue({
+        employee_id: selectedRecord.employee_id,
+        leave_type: selectedRecord.leave_type,
+        start_date: selectedRecord.start_date ? dayjs(selectedRecord.start_date) : null,
+        end_date: selectedRecord.end_date ? dayjs(selectedRecord.end_date) : null,
+        reason: selectedRecord.reason,
+        notes: selectedRecord.notes,
+        status: selectedRecord.status
+      });
+    } else if (showAddModal) {
+      form.resetFields();
+    }
+  }, [selectedRecord, showEditModal, showAddModal, form]);
 
   const fetchLeaves = async () => {
     try {
@@ -129,6 +150,13 @@ export default function LeaveManagement() {
 
   const handleAddLeave = async (formData: any) => {
     try {
+      // Format dates properly
+      const formattedData = {
+        ...formData,
+        start_date: formData.start_date ? dayjs(formData.start_date).format('YYYY-MM-DD') : undefined,
+        end_date: formData.end_date ? dayjs(formData.end_date).format('YYYY-MM-DD') : undefined
+      };
+
       const sessionToken = localStorage.getItem('sessionToken');
       const response = await fetch('/api/leaves', {
         method: 'POST',
@@ -136,27 +164,23 @@ export default function LeaveManagement() {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${sessionToken}`
         },
-        body: JSON.stringify(formData)
+        body: JSON.stringify(formattedData)
       });
 
       const data = await response.json() as any;
 
       if (data.success) {
+        message.success('Leave request created successfully');
+        form.resetFields();
         setShowAddModal(false);
         fetchLeaves();
         fetchStats();
       } else {
-        Modal.error({
-          title: 'Error',
-          content: data.error || 'Failed to create leave request',
-        });
+        message.error(data.error || 'Failed to create leave request');
       }
     } catch (error) {
       console.error('Error creating leave:', error);
-      Modal.error({
-        title: 'Error',
-        content: 'Failed to create leave request',
-      });
+      message.error('Failed to create leave request');
     }
   };
 
@@ -164,6 +188,13 @@ export default function LeaveManagement() {
     if (!selectedRecord) return;
 
     try {
+      // Format dates properly
+      const formattedData = {
+        ...formData,
+        start_date: formData.start_date ? dayjs(formData.start_date).format('YYYY-MM-DD') : undefined,
+        end_date: formData.end_date ? dayjs(formData.end_date).format('YYYY-MM-DD') : undefined
+      };
+
       const sessionToken = localStorage.getItem('sessionToken');
       const response = await fetch(`/api/leaves/${selectedRecord.id}`, {
         method: 'PUT',
@@ -171,28 +202,24 @@ export default function LeaveManagement() {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${sessionToken}`
         },
-        body: JSON.stringify(formData)
+        body: JSON.stringify(formattedData)
       });
 
       const data = await response.json() as any;
 
       if (data.success) {
+        message.success('Leave request updated successfully');
+        form.resetFields();
         setShowEditModal(false);
         setSelectedRecord(null);
         fetchLeaves();
         fetchStats();
       } else {
-        Modal.error({
-          title: 'Error',
-          content: data.error || 'Failed to update leave request',
-        });
+        message.error(data.error || 'Failed to update leave request');
       }
     } catch (error) {
       console.error('Error updating leave:', error);
-      Modal.error({
-        title: 'Error',
-        content: 'Failed to update leave request',
-      });
+      message.error('Failed to update leave request');
     }
   };
 
@@ -218,13 +245,11 @@ export default function LeaveManagement() {
           const data = await response.json() as any;
 
           if (data.success) {
+            message.success('Leave request deleted successfully');
             fetchLeaves();
             fetchStats();
           } else {
-            Modal.error({
-              title: 'Error',
-              content: data.error || 'Failed to delete leave request',
-            });
+            message.error(data.error || 'Failed to delete leave request');
           }
         } catch (error) {
           console.error('Error deleting leave:', error);
@@ -237,7 +262,7 @@ export default function LeaveManagement() {
     });
   };
 
-  const handleApproveReject = async (id: number, status: 'approved' | 'rejected') => {
+  const handleApprove = async (id: number) => {
     try {
       const sessionToken = localStorage.getItem('sessionToken');
       const response = await fetch(`/api/leaves/${id}`, {
@@ -247,29 +272,78 @@ export default function LeaveManagement() {
           'Authorization': `Bearer ${sessionToken}`
         },
         body: JSON.stringify({
-          status,
+          status: 'approved',
           approval_date: new Date().toISOString(),
-          approved_by: 'Current User' // Replace with actual user
+          approved_by: 'Current User'
         })
       });
 
       const data = await response.json() as any;
 
       if (data.success) {
+        message.success('Leave request approved successfully');
         fetchLeaves();
         fetchStats();
       } else {
-        Modal.error({
-          title: 'Error',
-          content: data.error || 'Failed to update leave status',
-        });
+        message.error(data.error || 'Failed to approve leave');
       }
     } catch (error) {
-      console.error('Error updating leave:', error);
-      Modal.error({
-        title: 'Error',
-        content: 'Failed to update leave status',
+      console.error('Error approving leave:', error);
+      message.error('Failed to approve leave status');
+    }
+  };
+
+  const showRejectModal = (record: LeaveRecord) => {
+    setRejectingLeave(record);
+    setRejectionReason('');
+    setRejectModalVisible(true);
+  };
+
+  const handleReject = async () => {
+    if (!rejectingLeave) return;
+
+    if (!rejectionReason.trim()) {
+      message.error('Please provide a reason for rejection');
+      return;
+    }
+
+    if (rejectionReason.trim().length < 10) {
+      message.error('Rejection reason must be at least 10 characters long');
+      return;
+    }
+
+    try {
+      const sessionToken = localStorage.getItem('sessionToken');
+      const response = await fetch(`/api/leaves/${rejectingLeave.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${sessionToken}`
+        },
+        body: JSON.stringify({
+          status: 'rejected',
+          approval_date: new Date().toISOString(),
+          approved_by: 'Current User',
+          rejection_reason: rejectionReason,
+          notes: rejectionReason
+        })
       });
+
+      const data = await response.json() as any;
+
+      if (data.success) {
+        message.success('Leave request rejected successfully');
+        setRejectModalVisible(false);
+        setRejectingLeave(null);
+        setRejectionReason('');
+        fetchLeaves();
+        fetchStats();
+      } else {
+        message.error(data.error || 'Failed to reject leave');
+      }
+    } catch (error) {
+      console.error('Error rejecting leave:', error);
+      message.error('Failed to reject leave');
     }
   };
 
@@ -386,6 +460,25 @@ export default function LeaveManagement() {
       render: (reason: string) => reason || '-',
     },
     {
+      title: 'Rejection Reason',
+      dataIndex: 'rejection_reason',
+      key: 'rejection_reason',
+      width: 200,
+      ellipsis: true,
+      render: (reason: string, record) => (
+        record.status === 'rejected' && reason ? (
+          <Tooltip title={reason}>
+            <span style={{ color: '#ff4d4f' }}>
+              <FileTextOutlined style={{ marginRight: 4 }} />
+              {reason}
+            </span>
+          </Tooltip>
+        ) : record.status === 'rejected' && !reason ? (
+          <span style={{ color: '#999' }}>No reason provided</span>
+        ) : null
+      ),
+    },
+    {
       title: 'Actions',
       key: 'actions',
       width: 150,
@@ -399,7 +492,7 @@ export default function LeaveManagement() {
                   type="text"
                   style={{ color: '#52c41a' }}
                   icon={<CheckCircleOutlined />}
-                  onClick={() => handleApproveReject(record.id, 'approved')}
+                  onClick={() => handleApprove(record.id)}
                 />
               </Tooltip>
               <Tooltip title="Reject">
@@ -407,7 +500,7 @@ export default function LeaveManagement() {
                   type="text"
                   danger
                   icon={<CloseCircleOutlined />}
-                  onClick={() => handleApproveReject(record.id, 'rejected')}
+                  onClick={() => showRejectModal(record)}
                 />
               </Tooltip>
             </>
@@ -634,10 +727,6 @@ export default function LeaveManagement() {
           form={form}
           layout="vertical"
           onFinish={selectedRecord ? handleUpdateLeave : handleAddLeave}
-          initialValues={selectedRecord || {
-            leave_type: 'vacation',
-            status: 'pending'
-          }}
         >
           {!selectedRecord && (
             <Form.Item
@@ -715,6 +804,89 @@ export default function LeaveManagement() {
             <Input.TextArea rows={2} placeholder="Additional notes..." />
           </Form.Item>
         </Form>
+      </Modal>
+
+      {/* Rejection Reason Modal */}
+      <Modal
+        title={
+          <Space>
+            <CloseCircleOutlined style={{ color: '#ff4d4f' }} />
+            <span>Reject Leave Request</span>
+          </Space>
+        }
+        open={rejectModalVisible}
+        onOk={handleReject}
+        onCancel={() => {
+          setRejectModalVisible(false);
+          setRejectingLeave(null);
+          setRejectionReason('');
+        }}
+        okText="Reject"
+        okButtonProps={{ danger: true }}
+        cancelText="Cancel"
+        width={600}
+      >
+        {rejectingLeave && (
+          <div>
+            <Card size="small" style={{ marginBottom: 16, background: '#f5f5f5' }}>
+              <Descriptions column={2} size="small">
+                <Descriptions.Item label="Employee">
+                  {rejectingLeave.employee_name}
+                </Descriptions.Item>
+                <Descriptions.Item label="Employee ID">
+                  {rejectingLeave.employee_code}
+                </Descriptions.Item>
+                <Descriptions.Item label="Leave Type">
+                  {getLeaveTypeTag(rejectingLeave.leave_type)}
+                </Descriptions.Item>
+                <Descriptions.Item label="Duration">
+                  {rejectingLeave.total_days} days
+                </Descriptions.Item>
+                <Descriptions.Item label="From - To" span={2}>
+                  {dayjs(rejectingLeave.start_date).format('MMM DD, YYYY')} - {dayjs(rejectingLeave.end_date).format('MMM DD, YYYY')}
+                </Descriptions.Item>
+                {rejectingLeave.reason && (
+                  <Descriptions.Item label="Employee Reason" span={2}>
+                    {rejectingLeave.reason}
+                  </Descriptions.Item>
+                )}
+              </Descriptions>
+            </Card>
+
+            <div style={{ marginBottom: 8 }}>
+              <label style={{ fontWeight: 500, color: '#ff4d4f' }}>
+                Rejection Reason <span style={{ color: '#ff4d4f' }}>*</span>
+              </label>
+              <span style={{ fontSize: '12px', color: '#999', marginLeft: 8 }}>
+                (Minimum 10 characters)
+              </span>
+            </div>
+            <Input.TextArea
+              rows={5}
+              placeholder="Please provide a clear and detailed reason for rejecting this leave request. For example:
+- Insufficient staffing during requested period
+- Leave quota exceeded
+- Documentation not provided
+- Business critical period
+This will be sent to the employee via email notification."
+              value={rejectionReason}
+              onChange={(e) => setRejectionReason(e.target.value)}
+              maxLength={500}
+              showCount
+              status={rejectionReason.trim().length > 0 && rejectionReason.trim().length < 10 ? 'error' : ''}
+            />
+            {rejectionReason.trim().length > 0 && rejectionReason.trim().length < 10 && (
+              <div style={{ marginTop: 4, color: '#ff4d4f', fontSize: '12px' }}>
+                <ExclamationCircleOutlined style={{ marginRight: 4 }} />
+                Please provide at least 10 characters for rejection reason
+              </div>
+            )}
+            <div style={{ marginTop: 8, color: '#1890ff', fontSize: '12px' }}>
+              <ExclamationCircleOutlined style={{ marginRight: 4 }} />
+              The employee will receive an email notification with your rejection reason.
+            </div>
+          </div>
+        )}
       </Modal>
     </div>
   );

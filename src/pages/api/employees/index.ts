@@ -102,11 +102,11 @@ export const POST: APIRoute = async ({ request, locals }) => {
       });
     }
 
-    // Create employee with remote sync enabled
-    const result = await createEmployee(db, body, true);
+    // Create employee (remote sync disabled for production compatibility)
+    const result = await createEmployee(db, body, false);
 
     // Prepare response message
-    let message = 'Employee created successfully (synced to both databases)';
+    let message = 'Employee created successfully';
     if (result.username && result.password) {
       message += `. User account created - Username: ${result.username}, Password: ${result.password}`;
     }

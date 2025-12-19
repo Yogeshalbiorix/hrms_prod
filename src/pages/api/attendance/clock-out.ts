@@ -59,20 +59,25 @@ export const POST: APIRoute = async ({ request, locals }) => {
     const body = await request.json().catch(() => ({})) as { notes?: string };
     const notes = body.notes || '';
 
-    const clockOutTime = new Date().toTimeString().split(' ')[0]; // HH:MM:SS
+    // Format time as HH:MM:SS
+    const now = new Date();
+    const hours = String(now.getHours()).padStart(2, '0');
+    const minutes = String(now.getMinutes()).padStart(2, '0');
+    const seconds = String(now.getSeconds()).padStart(2, '0');
+    const clockOutTime = `${hours}:${minutes}:${seconds}`;
 
-    // Calculate working hours
+    // Calculate working hours using Date objects for accurate timezone handling
     const clockIn = attendance.clock_in as string;
-    const clockInParts = clockIn.split(':');
-    const clockOutParts = clockOutTime.split(':');
+    const [inHours, inMinutes, inSeconds] = clockIn.split(':').map(Number);
+    const [outHours, outMinutes, outSeconds] = clockOutTime.split(':').map(Number);
 
-    const clockInMinutes = parseInt(clockInParts[0]) * 60 + parseInt(clockInParts[1]);
-    const clockOutMinutes = parseInt(clockOutParts[0]) * 60 + parseInt(clockOutParts[1]);
+    const clockInDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), inHours, inMinutes, inSeconds || 0);
+    const clockOutDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), outHours, outMinutes, outSeconds || 0);
 
-    const totalMinutes = clockOutMinutes - clockInMinutes;
-    const hours = Math.floor(totalMinutes / 60);
-    const minutes = totalMinutes % 60;
-    const workingHours = `${hours}h ${minutes}m`;
+    const totalMinutes = Math.floor((clockOutDate.getTime() - clockInDate.getTime()) / (1000 * 60));
+    const workingHours = Math.floor(totalMinutes / 60);
+    const workingMinutes = totalMinutes % 60;
+    const workingHoursFormatted = `${workingHours}h ${workingMinutes}m`;
 
     // Update existing notes with clock-out notes if provided
     let updatedNotes = attendance.notes || '';
@@ -87,7 +92,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
         SET clock_out = ?, working_hours = ?, notes = ?, updated_at = CURRENT_TIMESTAMP
         WHERE id = ?
       `)
-      .bind(clockOutTime, workingHours, updatedNotes, attendance.id)
+      .bind(clockOutTime, workingHoursFormatted, updatedNotes, attendance.id)
       .run();
 
     return new Response(
@@ -99,7 +104,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
           date: today,
           clock_in: clockIn,
           clock_out: clockOutTime,
-          working_hours: workingHours,
+          working_hours: workingHoursFormatted,
           total_minutes: totalMinutes
         }
       }),

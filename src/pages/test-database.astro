@@ -1,0 +1,218 @@
+---
+// Test Database Page - for debugging database connectivity and seeding
+---
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Database Test - HRMS</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 1200px;
+      margin: 50px auto;
+      padding: 20px;
+      background: #f5f5f5;
+    }
+    .container {
+      background: white;
+      padding: 30px;
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    h1 {
+      color: #1890ff;
+      margin-bottom: 30px;
+    }
+    .section {
+      margin: 20px 0;
+      padding: 15px;
+      background: #f9f9f9;
+      border-radius: 4px;
+      border-left: 4px solid #1890ff;
+    }
+    button {
+      background: #1890ff;
+      color: white;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 16px;
+      margin: 5px;
+    }
+    button:hover {
+      background: #40a9ff;
+    }
+    button:disabled {
+      background: #d9d9d9;
+      cursor: not-allowed;
+    }
+    .result {
+      margin-top: 20px;
+      padding: 15px;
+      background: white;
+      border: 1px solid #d9d9d9;
+      border-radius: 4px;
+      font-family: 'Courier New', monospace;
+      font-size: 14px;
+      white-space: pre-wrap;
+      max-height: 500px;
+      overflow-y: auto;
+    }
+    .success {
+      color: #52c41a;
+      font-weight: bold;
+    }
+    .error {
+      color: #ff4d4f;
+      font-weight: bold;
+    }
+    .warning {
+      color: #faad14;
+      font-weight: bold;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🗄️ Database Test & Seed Tool</h1>
+    
+    <div class="section">
+      <h2>1. Check Database Status</h2>
+      <p>Click this button to check if the database is connected and has data.</p>
+      <button id="checkStatus">Check Database Status</button>
+      <div id="statusResult" class="result" style="display: none;"></div>
+    </div>
+
+    <div class="section">
+      <h2>2. Seed Database</h2>
+      <p>If the database is empty, use this button to populate it with sample data.</p>
+      <button id="seedDatabase">Seed Database</button>
+      <div id="seedResult" class="result" style="display: none;"></div>
+    </div>
+
+    <div class="section">
+      <h2>3. Test Employees API</h2>
+      <p>Test the employees API endpoint to ensure it returns data correctly.</p>
+      <button id="testEmployees">Test Employees API</button>
+      <div id="employeesResult" class="result" style="display: none;"></div>
+    </div>
+  </div>
+
+  <script>
+    const sessionToken = localStorage.getItem('sessionToken');
+
+    // Check Database Status
+    document.getElementById('checkStatus').addEventListener('click', async () => {
+      const button = document.getElementById('checkStatus');
+      const resultDiv = document.getElementById('statusResult');
+      
+      button.disabled = true;
+      button.textContent = 'Checking...';
+      resultDiv.style.display = 'block';
+      resultDiv.textContent = 'Fetching database status...';
+      
+      try {
+        const response = await fetch('/api/test/database-status', {
+          headers: {
+            'Authorization': `Bearer ${sessionToken}`
+          }
+        });
+        const data = await response.json();
+        
+        if (response.ok) {
+          resultDiv.innerHTML = `<span class="success">✅ Database Connected</span>\n\n${JSON.stringify(data, null, 2)}`;
+        } else {
+          resultDiv.innerHTML = `<span class="error">❌ Error:</span>\n\n${JSON.stringify(data, null, 2)}`;
+        }
+      } catch (error) {
+        resultDiv.innerHTML = `<span class="error">❌ Request Failed:</span>\n\n${error.message}`;
+      } finally {
+        button.disabled = false;
+        button.textContent = 'Check Database Status';
+      }
+    });
+
+    // Seed Database
+    document.getElementById('seedDatabase').addEventListener('click', async () => {
+      const button = document.getElementById('seedDatabase');
+      const resultDiv = document.getElementById('seedResult');
+      
+      if (!confirm('This will populate the database with sample data. Continue?')) {
+        return;
+      }
+
+      button.disabled = true;
+      button.textContent = 'Seeding...';
+      resultDiv.style.display = 'block';
+      resultDiv.textContent = 'Populating database with sample data...';
+      
+      try {
+        const response = await fetch('/api/test/seed-database', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${sessionToken}`
+          }
+        });
+        const data = await response.json();
+        
+        if (response.ok) {
+          resultDiv.innerHTML = `<span class="success">✅ Database Seeded Successfully</span>\n\n${JSON.stringify(data, null, 2)}`;
+        } else {
+          resultDiv.innerHTML = `<span class="error">❌ Seeding Failed:</span>\n\n${JSON.stringify(data, null, 2)}`;
+        }
+      } catch (error) {
+        resultDiv.innerHTML = `<span class="error">❌ Request Failed:</span>\n\n${error.message}`;
+      } finally {
+        button.disabled = false;
+        button.textContent = 'Seed Database';
+      }
+    });
+
+    // Test Employees API
+    document.getElementById('testEmployees').addEventListener('click', async () => {
+      const button = document.getElementById('testEmployees');
+      const resultDiv = document.getElementById('employeesResult');
+      
+      button.disabled = true;
+      button.textContent = 'Testing...';
+      resultDiv.style.display = 'block';
+      resultDiv.textContent = 'Fetching employees...';
+      
+      try {
+        const response = await fetch('/api/employees?limit=5', {
+          headers: {
+            'Authorization': `Bearer ${sessionToken}`
+          }
+        });
+        const data = await response.json();
+        
+        if (response.ok) {
+          resultDiv.innerHTML = `<span class="success">✅ Employees API Working</span>\n\n${JSON.stringify(data, null, 2)}`;
+        } else {
+          resultDiv.innerHTML = `<span class="error">❌ API Error:</span>\n\n${JSON.stringify(data, null, 2)}`;
+        }
+      } catch (error) {
+        resultDiv.innerHTML = `<span class="error">❌ Request Failed:</span>\n\n${error.message}`;
+      } finally {
+        button.disabled = false;
+        button.textContent = 'Test Employees API';
+      }
+    });
+
+    // Check if session token exists
+    if (!sessionToken) {
+      document.body.innerHTML = `
+        <div class="container">
+          <h1>⚠️ Not Authenticated</h1>
+          <p>You need to be logged in to use this tool.</p>
+          <p><a href="/">Go to Login</a></p>
+        </div>
+      `;
+    }
+  </script>
+</body>
+</html>

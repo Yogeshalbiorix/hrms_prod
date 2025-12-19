@@ -9,8 +9,10 @@ import {
 
 export const GET: APIRoute = async ({ params, locals }) => {
   try {
+    console.log('GET /api/payroll/[id] - params:', params);
     const db = getDB(locals.runtime?.env || locals.env);
     if (!db) {
+      console.error('Payroll [id] API: Database not configured');
       return new Response(JSON.stringify({
         success: false,
         error: 'Database not configured'
@@ -21,6 +23,7 @@ export const GET: APIRoute = async ({ params, locals }) => {
     }
 
     const id = parseInt(params.id || '0');
+    console.log('Fetching payroll with id:', id);
     if (!id) {
       return new Response(JSON.stringify({
         success: false,

@@ -4,7 +4,7 @@
  */
 {
 	"$schema": "node_modules/wrangler/config-schema.json",
-	"name": "hrms-prod",
+	"name": "hrms-dev",
 	"pages_build_output_dir": "dist",
 	"compatibility_date": "2025-04-15",
 	"compatibility_flags": [
@@ -23,8 +23,7 @@
 	"kv_namespaces": [
 		{
 			"binding": "SESSION",
-			"id": "50e35864ff574dfc8560f4bfe6792d46",
-			"remote": true
+			"id": "50e35864ff574dfc8560f4bfe6792d46"
 		}
 	]
 	/**

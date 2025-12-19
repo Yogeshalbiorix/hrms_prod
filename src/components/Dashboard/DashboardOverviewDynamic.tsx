@@ -17,6 +17,8 @@ import {
   Alert,
   Timeline,
   List,
+  Modal,
+  message,
 } from 'antd';
 import {
   UserOutlined,
@@ -78,7 +80,11 @@ interface Department {
   employeeCount?: number;
 }
 
-export default function DashboardOverviewDynamic() {
+interface DashboardOverviewDynamicProps {
+  onNavigate?: (tab: string) => void;
+}
+
+export default function DashboardOverviewDynamic({ onNavigate }: DashboardOverviewDynamicProps) {
   const [stats, setStats] = useState<DashboardStats>({
     totalEmployees: 0,
     activeEmployees: 0,
@@ -101,13 +107,20 @@ export default function DashboardOverviewDynamic() {
     try {
       setIsLoading(true);
 
+      // Get session token for authentication
+      const sessionToken = localStorage.getItem('sessionToken');
+      const headers = {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${sessionToken}`
+      };
+
       // Fetch all required data in parallel
       const [employeesRes, attendanceRes, leavesRes, payrollRes, departmentsRes] = await Promise.all([
-        fetch('/api/employees'),
-        fetch('/api/attendance'),
-        fetch('/api/leaves'),
-        fetch('/api/payroll'),
-        fetch('/api/departments')
+        fetch('/api/employees', { headers }),
+        fetch('/api/attendance', { headers }),
+        fetch('/api/leaves', { headers }),
+        fetch('/api/payroll', { headers }),
+        fetch('/api/departments', { headers })
       ]);
 
       const employees = await employeesRes.json() as any;
@@ -115,6 +128,18 @@ export default function DashboardOverviewDynamic() {
       const leaves = await leavesRes.json() as any;
       const payroll = await payrollRes.json() as any;
       const depts = await departmentsRes.json() as any;
+
+      // Debug logging
+      console.log('API Responses:', {
+        employees: { success: employees.success, count: employees.data?.length || 0 },
+        attendance: { success: attendance.success, count: attendance.data?.length || 0 },
+        departments: { success: depts.success, count: depts.data?.length || 0 }
+      });
+
+      // Check for API errors
+      if (!employees.success) {
+        console.error('Employees API error:', employees.error);
+      }
 
       // Calculate statistics
       const allEmployeeData = employees.data || [];
@@ -224,6 +249,23 @@ export default function DashboardOverviewDynamic() {
 
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
+      // Show error message to user
+      const errorMessage = error instanceof Error ? error.message : 'Failed to load dashboard data';
+      console.error('Dashboard error details:', errorMessage);
+
+      // Set default empty states
+      setStats({
+        totalEmployees: 0,
+        activeEmployees: 0,
+        presentToday: 0,
+        onLeave: 0,
+        absent: 0,
+        pendingLeaves: 0,
+        totalPayroll: 0,
+        avgPerformance: 0
+      });
+      setDepartments([]);
+      setRecentActivities([]);
     } finally {
       setIsLoading(false);
     }
@@ -243,6 +285,44 @@ export default function DashboardOverviewDynamic() {
   const attendanceRate = stats.totalEmployees > 0
     ? ((stats.presentToday / stats.totalEmployees) * 100).toFixed(1)
     : '0';
+
+  const handleSeedDatabase = async () => {
+    try {
+      message.loading('Seeding database...', 0);
+      const sessionToken = localStorage.getItem('sessionToken');
+      const response = await fetch('/api/test/seed-database', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${sessionToken}`
+        }
+      });
+      const result = await response.json() as { success: boolean; message?: string; error?: string };
+      message.destroy();
+
+      if (result.success) {
+        Modal.success({
+          title: 'Success!',
+          content: result.message || 'Database seeded successfully. Refreshing data...',
+        });
+        // Refresh dashboard data
+        setTimeout(() => {
+          fetchDashboardData();
+        }, 1000);
+      } else {
+        Modal.error({
+          title: 'Error',
+          content: result.error || 'Failed to seed database',
+        });
+      }
+    } catch (error) {
+      message.destroy();
+      console.error('Seed error:', error);
+      Modal.error({
+        title: 'Error',
+        content: 'Failed to seed database. Please try again.',
+      });
+    }
+  };
 
   return (
     <div>
@@ -663,7 +743,7 @@ export default function DashboardOverviewDynamic() {
                   color: '#fff',
                   border: 'none',
                 }}
-                onClick={() => { }}
+                onClick={() => onNavigate?.('employees')}
               >
                 <div style={{ marginLeft: 12 }}>
                   <div style={{ fontWeight: 600, fontSize: 14 }}>Add New Employee</div>
@@ -685,7 +765,7 @@ export default function DashboardOverviewDynamic() {
                   color: '#fff',
                   border: 'none',
                 }}
-                onClick={() => { }}
+                onClick={() => onNavigate?.('attendance')}
               >
                 <div style={{ marginLeft: 12 }}>
                   <div style={{ fontWeight: 600, fontSize: 14 }}>Mark Attendance</div>
@@ -707,7 +787,7 @@ export default function DashboardOverviewDynamic() {
                   color: '#fff',
                   border: 'none',
                 }}
-                onClick={() => { }}
+                onClick={() => onNavigate?.('attendance')}
               >
                 <div style={{ marginLeft: 12 }}>
                   <div style={{ fontWeight: 600, fontSize: 14 }}>Review Leave Requests</div>
@@ -731,7 +811,7 @@ export default function DashboardOverviewDynamic() {
                   color: '#fff',
                   border: 'none',
                 }}
-                onClick={() => { }}
+                onClick={() => onNavigate?.('payroll')}
               >
                 <div style={{ marginLeft: 12 }}>
                   <div style={{ fontWeight: 600, fontSize: 14 }}>Process Payroll</div>

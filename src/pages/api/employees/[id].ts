@@ -8,9 +8,11 @@ import { getEmployeeById, updateEmployee, deleteEmployee, hardDeleteEmployee, ge
 
 export const GET: APIRoute = async ({ params, locals }) => {
   try {
+    console.log('GET /api/employees/[id] - params:', params);
     const db = getDB(locals.runtime?.env || locals.env);
 
     if (!db) {
+      console.error('Database not configured');
       return new Response(JSON.stringify({ error: 'Database not configured' }), {
         status: 500,
         headers: { 'Content-Type': 'application/json' }
@@ -18,8 +20,10 @@ export const GET: APIRoute = async ({ params, locals }) => {
     }
 
     const id = parseInt(params.id || '0');
+    console.log('Fetching employee with id:', id);
 
     if (!id || isNaN(id)) {
+      console.error('Invalid employee ID:', params.id);
       return new Response(JSON.stringify({
         success: false,
         error: 'Invalid employee ID'
@@ -30,6 +34,7 @@ export const GET: APIRoute = async ({ params, locals }) => {
     }
 
     const employee = await getEmployeeById(db, id);
+    console.log('Employee found:', employee ? 'yes' : 'no');
 
     if (!employee) {
       return new Response(JSON.stringify({
@@ -98,11 +103,14 @@ export const PUT: APIRoute = async ({ params, request, locals }) => {
     }
 
     const body = await request.json();
+    console.log('Update employee request:', { id, body });
 
     // Update employee
     const success = await updateEmployee(db, id, body);
+    console.log('Update employee success:', success);
 
     if (!success) {
+      console.error('Update employee failed for id:', id);
       return new Response(JSON.stringify({
         success: false,
         error: 'Failed to update employee'

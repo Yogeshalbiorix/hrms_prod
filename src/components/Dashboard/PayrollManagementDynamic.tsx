@@ -99,7 +99,12 @@ export default function PayrollManagementDynamic() {
       const params = new URLSearchParams();
       if (filterStatus) params.append('status', filterStatus);
 
-      const response = await fetch(`/api/payroll?${params}`);
+      const sessionToken = localStorage.getItem('sessionToken');
+      const response = await fetch(`/api/payroll?${params}`, {
+        headers: {
+          'Authorization': `Bearer ${sessionToken}`
+        }
+      });
       const data = await response.json() as { success: boolean; data: any[] };
 
       if (data.success) {
@@ -114,7 +119,12 @@ export default function PayrollManagementDynamic() {
 
   const fetchStats = async () => {
     try {
-      const response = await fetch('/api/payroll?stats=true');
+      const sessionToken = localStorage.getItem('sessionToken');
+      const response = await fetch('/api/payroll?stats=true', {
+        headers: {
+          'Authorization': `Bearer ${sessionToken}`
+        }
+      });
       const data = await response.json() as { success: boolean; data: any };
 
       if (data.success) {
@@ -127,7 +137,12 @@ export default function PayrollManagementDynamic() {
 
   const fetchEmployees = async () => {
     try {
-      const response = await fetch('/api/employees');
+      const sessionToken = localStorage.getItem('sessionToken');
+      const response = await fetch('/api/employees', {
+        headers: {
+          'Authorization': `Bearer ${sessionToken}`
+        }
+      });
       const data = await response.json() as { success: boolean; data: any[] };
 
       if (data.success) {
@@ -147,9 +162,13 @@ export default function PayrollManagementDynamic() {
         pay_date: values.pay_date ? dayjs(values.pay_date).format('YYYY-MM-DD') : '',
       };
 
+      const sessionToken = localStorage.getItem('sessionToken');
       const response = await fetch('/api/payroll', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${sessionToken}`
+        },
         body: JSON.stringify(formData)
       });
 
@@ -179,9 +198,13 @@ export default function PayrollManagementDynamic() {
         action: 'generate_bulk'
       };
 
+      const sessionToken = localStorage.getItem('sessionToken');
       const response = await fetch('/api/payroll', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${sessionToken}`
+        },
         body: JSON.stringify(formData)
       });
 
@@ -212,9 +235,13 @@ export default function PayrollManagementDynamic() {
     if (!selectedRecord) return;
 
     try {
+      const sessionToken = localStorage.getItem('sessionToken');
       const response = await fetch(`/api/payroll/${selectedRecord.id}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${sessionToken}`
+        },
         body: JSON.stringify(formData)
       });
 
@@ -249,9 +276,13 @@ export default function PayrollManagementDynamic() {
       okButtonProps: { danger: true },
       onOk: async () => {
         try {
+          const sessionToken = localStorage.getItem('sessionToken');
           const response = await fetch('/api/payroll', {
             method: 'DELETE',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${sessionToken}`
+            },
             body: JSON.stringify({ id })
           });
 
@@ -279,9 +310,13 @@ export default function PayrollManagementDynamic() {
 
   const handleStatusChange = async (id: number, newStatus: string) => {
     try {
+      const sessionToken = localStorage.getItem('sessionToken');
       const response = await fetch(`/api/payroll/${id}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${sessionToken}`
+        },
         body: JSON.stringify({ status: newStatus })
       });
 

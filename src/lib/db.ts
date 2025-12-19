@@ -26,6 +26,8 @@ export interface Employee {
   emergency_contact_name?: string;
   emergency_contact_phone?: string;
   emergency_contact_relationship?: string;
+  manager_id?: number;
+  hierarchy_level?: number;
   created_at?: string;
   updated_at?: string;
   created_by?: string;
@@ -92,17 +94,24 @@ export async function getAllEmployees(db: any, limit = 100, offset = 0): Promise
 }
 
 export async function getEmployeeById(db: any, id: number): Promise<EmployeeWithDepartment | null> {
-  const query = `
-    SELECT 
-      e.*,
-      d.name as department_name
-    FROM employees e
-    LEFT JOIN departments d ON e.department_id = d.id
-    WHERE e.id = ?
-  `;
+  try {
+    const query = `
+      SELECT 
+        e.*,
+        d.name as department_name
+      FROM employees e
+      LEFT JOIN departments d ON e.department_id = d.id
+      WHERE e.id = ?
+    `;
 
-  const result = await db.prepare(query).bind(id).first();
-  return result || null;
+    console.log('getEmployeeById - Executing query for id:', id);
+    const result = await db.prepare(query).bind(id).first();
+    console.log('getEmployeeById - Result:', result ? 'Found' : 'Not found');
+    return result || null;
+  } catch (error) {
+    console.error('Error in getEmployeeById:', error);
+    throw error;
+  }
 }
 
 export async function getEmployeeByEmployeeId(db: any, employeeId: string): Promise<EmployeeWithDepartment | null> {
@@ -162,7 +171,7 @@ export async function searchEmployees(
   return result.results || [];
 }
 
-export async function createEmployee(db: any, employee: Employee, syncRemote: boolean = false): Promise<{ id: number; employee_id: string; username?: string; password?: string }> {
+export async function createEmployee(db: any, employee: Employee, syncRemote: boolean = false, skipUserCreation: boolean = false): Promise<{ id: number; employee_id: string; username?: string; password?: string }> {
   // Get count for employee ID generation
   const countResult = await db.prepare('SELECT COUNT(*) as count FROM employees').first();
   const count = countResult?.count || 0;
@@ -220,46 +229,49 @@ export async function createEmployee(db: any, employee: Employee, syncRemote: bo
   let username: string | undefined;
   let generatedPassword: string | undefined;
 
-  try {
-    // Import bcryptjs for password hashing
-    const bcrypt = await import('bcryptjs');
+  // Skip user creation if requested (e.g., when called from register.ts)
+  if (!skipUserCreation) {
+    try {
+      // Import bcryptjs for password hashing
+      const bcrypt = await import('bcryptjs');
 
-    // Generate username from email (part before @) or first name + last name
-    username = employee.email.split('@')[0].toLowerCase().replace(/[^a-z0-9]/g, '');
+      // Generate username from email (part before @) or first name + last name
+      username = employee.email.split('@')[0].toLowerCase().replace(/[^a-z0-9]/g, '');
 
-    // Check if username already exists, if so, append employee ID
-    const existingUser = await db.prepare('SELECT id FROM users WHERE username = ?').bind(username).first();
-    if (existingUser) {
-      username = `${username}${employeeId.slice(-3)}`;
+      // Check if username already exists, if so, append employee ID
+      const existingUser = await db.prepare('SELECT id FROM users WHERE username = ?').bind(username).first();
+      if (existingUser) {
+        username = `${username}${employeeId.slice(-3)}`;
+      }
+
+      // Generate a random password (8 characters: letters + numbers)
+      generatedPassword = Math.random().toString(36).slice(-8) + Math.random().toString(36).slice(-2).toUpperCase();
+
+      // Hash the password
+      const passwordHash = await bcrypt.hash(generatedPassword, 10);
+
+      // Determine role based on position (default to 'employee')
+      let role = 'employee';
+      const positionLower = employee.position?.toLowerCase() || '';
+      if (positionLower.includes('admin') || positionLower.includes('administrator')) {
+        role = 'admin';
+      } else if (positionLower.includes('hr') || positionLower.includes('human resource')) {
+        role = 'hr';
+      } else if (positionLower.includes('manager')) {
+        role = 'manager';
+      }
+
+      // Create user account
+      const fullName = `${employee.first_name} ${employee.last_name}`;
+      await db.prepare(
+        'INSERT INTO users (username, password_hash, email, full_name, role, employee_id, is_active) VALUES (?, ?, ?, ?, ?, ?, 1)'
+      ).bind(username, passwordHash, employee.email, fullName, role, newEmployeeId).run();
+
+      console.log(`User account created for employee ${employeeId}: username=${username}`);
+    } catch (error) {
+      console.error('Error creating user account for employee:', error);
+      // Don't fail the employee creation if user account creation fails
     }
-
-    // Generate a random password (8 characters: letters + numbers)
-    generatedPassword = Math.random().toString(36).slice(-8) + Math.random().toString(36).slice(-2).toUpperCase();
-
-    // Hash the password
-    const passwordHash = await bcrypt.hash(generatedPassword, 10);
-
-    // Determine role based on position (default to 'employee')
-    let role = 'employee';
-    const positionLower = employee.position?.toLowerCase() || '';
-    if (positionLower.includes('admin') || positionLower.includes('administrator')) {
-      role = 'admin';
-    } else if (positionLower.includes('hr') || positionLower.includes('human resource')) {
-      role = 'hr';
-    } else if (positionLower.includes('manager')) {
-      role = 'manager';
-    }
-
-    // Create user account
-    const fullName = `${employee.first_name} ${employee.last_name}`;
-    await db.prepare(
-      'INSERT INTO users (username, password_hash, email, full_name, role, employee_id, is_active) VALUES (?, ?, ?, ?, ?, ?, 1)'
-    ).bind(username, passwordHash, employee.email, fullName, role, newEmployeeId).run();
-
-    console.log(`User account created for employee ${employeeId}: username=${username}`);
-  } catch (error) {
-    console.error('Error creating user account for employee:', error);
-    // Don't fail the employee creation if user account creation fails
   }
 
   // Sync to remote database if enabled
@@ -393,8 +405,16 @@ export async function updateEmployee(db: any, id: number, employee: Partial<Empl
   const query = `UPDATE employees SET ${fields.join(', ')} WHERE id = ?`;
   values.push(id);
 
-  const result = await db.prepare(query).bind(...values).run();
-  return result.success;
+  console.log('Updating employee:', { id, fields, values });
+
+  try {
+    const result = await db.prepare(query).bind(...values).run();
+    console.log('Update result:', result);
+    return result.success !== false; // Return true if success is not explicitly false
+  } catch (error) {
+    console.error('Error in updateEmployee:', error);
+    throw error;
+  }
 }
 
 export async function deleteEmployee(db: any, id: number): Promise<boolean> {
@@ -721,6 +741,7 @@ export interface Leave {
   approved_by?: string;
   approval_date?: string;
   notes?: string;
+  rejection_reason?: string;
   created_at?: string;
   updated_at?: string;
 }
@@ -791,37 +812,50 @@ export async function getLeaveById(db: any, id: number): Promise<LeaveWithEmploy
 }
 
 export async function createLeave(db: any, leave: Leave, syncRemote: boolean = false): Promise<number> {
-  const query = `
-    INSERT INTO employee_leave_history (
-      employee_id, leave_type, start_date, end_date, total_days,
-      reason, status, notes
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-  `;
+  try {
+    const query = `
+      INSERT INTO employee_leave_history (
+        employee_id, leave_type, start_date, end_date, total_days,
+        reason, status, notes
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `;
 
-  const params = [
-    leave.employee_id,
-    leave.leave_type,
-    leave.start_date,
-    leave.end_date,
-    leave.total_days,
-    leave.reason || null,
-    leave.status,
-    leave.notes || null
-  ];
+    const params = [
+      leave.employee_id,
+      leave.leave_type,
+      leave.start_date,
+      leave.end_date,
+      leave.total_days,
+      leave.reason || null,
+      leave.status,
+      leave.notes || null
+    ];
 
-  const result = await db.prepare(query).bind(...params).run();
+    console.log('Creating leave with params:', params);
 
-  // Sync to remote database if enabled
-  if (syncRemote) {
-    try {
-      const { executeSync } = await import('./db-sync');
-      await executeSync(db, query, params);
-    } catch (error) {
-      console.warn('Remote sync failed for leave creation:', error);
+    const result = await db.prepare(query).bind(...params).run();
+
+    console.log('Leave insert result:', result);
+
+    if (!result || !result.meta || !result.meta.last_row_id) {
+      throw new Error('Failed to get inserted leave ID from database');
     }
-  }
 
-  return result.meta.last_row_id;
+    // Sync to remote database if enabled
+    if (syncRemote) {
+      try {
+        const { executeSync } = await import('./db-sync');
+        await executeSync(db, query, params);
+      } catch (error) {
+        console.warn('Remote sync failed for leave creation:', error);
+      }
+    }
+
+    return result.meta.last_row_id;
+  } catch (error) {
+    console.error('Error in createLeave:', error);
+    throw error;
+  }
 }
 
 export async function updateLeave(db: any, id: number, leave: Partial<Leave>): Promise<boolean> {
@@ -871,6 +905,11 @@ export async function updateLeave(db: any, id: number, leave: Partial<Leave>): P
   if (leave.notes !== undefined) {
     updates.push('notes = ?');
     bindings.push(leave.notes);
+  }
+
+  if (leave.rejection_reason !== undefined) {
+    updates.push('rejection_reason = ?');
+    bindings.push(leave.rejection_reason);
   }
 
   updates.push('updated_at = CURRENT_TIMESTAMP');
@@ -937,59 +976,73 @@ export async function getAllPayrolls(
   limit = 100,
   offset = 0
 ): Promise<PayrollWithEmployee[]> {
-  let query = `
-    SELECT 
-      p.*,
-      (e.first_name || ' ' || e.last_name) as employee_name,
-      e.employee_id as employee_code,
-      d.name as department_name,
-      e.position
-    FROM payroll p
-    INNER JOIN employees e ON p.employee_id = e.id
-    LEFT JOIN departments d ON e.department_id = d.id
-    WHERE 1=1
-  `;
+  try {
+    let query = `
+      SELECT 
+        p.*,
+        (e.first_name || ' ' || e.last_name) as employee_name,
+        e.employee_id as employee_code,
+        d.name as department_name,
+        e.position
+      FROM payroll p
+      INNER JOIN employees e ON p.employee_id = e.id
+      LEFT JOIN departments d ON e.department_id = d.id
+      WHERE 1=1
+    `;
 
-  const bindings: any[] = [];
+    const bindings: any[] = [];
 
-  if (filters?.employee_id) {
-    query += ` AND p.employee_id = ?`;
-    bindings.push(filters.employee_id);
+    if (filters?.employee_id) {
+      query += ` AND p.employee_id = ?`;
+      bindings.push(filters.employee_id);
+    }
+
+    if (filters?.status) {
+      query += ` AND p.status = ?`;
+      bindings.push(filters.status);
+    }
+
+    if (filters?.pay_period) {
+      query += ` AND (p.pay_period_start <= ? AND p.pay_period_end >= ?)`;
+      bindings.push(filters.pay_period, filters.pay_period);
+    }
+
+    query += ` ORDER BY p.pay_date DESC, p.created_at DESC LIMIT ? OFFSET ?`;
+    bindings.push(limit, offset);
+
+    console.log('getAllPayrolls - Executing query with filters:', filters);
+    const result = await db.prepare(query).bind(...bindings).all();
+    console.log('getAllPayrolls - Results count:', result.results?.length || 0);
+    return result.results || [];
+  } catch (error) {
+    console.error('Error in getAllPayrolls:', error);
+    throw error;
   }
-
-  if (filters?.status) {
-    query += ` AND p.status = ?`;
-    bindings.push(filters.status);
-  }
-
-  if (filters?.pay_period) {
-    query += ` AND (p.pay_period_start <= ? AND p.pay_period_end >= ?)`;
-    bindings.push(filters.pay_period, filters.pay_period);
-  }
-
-  query += ` ORDER BY p.pay_date DESC, p.created_at DESC LIMIT ? OFFSET ?`;
-  bindings.push(limit, offset);
-
-  const result = await db.prepare(query).bind(...bindings).all();
-  return result.results || [];
 }
 
 export async function getPayrollById(db: any, id: number): Promise<PayrollWithEmployee | null> {
-  const query = `
-    SELECT 
-      p.*,
-      (e.first_name || ' ' || e.last_name) as employee_name,
-      e.employee_id as employee_code,
-      d.name as department_name,
-      e.position
-    FROM payroll p
-    INNER JOIN employees e ON p.employee_id = e.id
-    LEFT JOIN departments d ON e.department_id = d.id
-    WHERE p.id = ?
-  `;
+  try {
+    const query = `
+      SELECT 
+        p.*,
+        (e.first_name || ' ' || e.last_name) as employee_name,
+        e.employee_id as employee_code,
+        d.name as department_name,
+        e.position
+      FROM payroll p
+      INNER JOIN employees e ON p.employee_id = e.id
+      LEFT JOIN departments d ON e.department_id = d.id
+      WHERE p.id = ?
+    `;
 
-  const result = await db.prepare(query).bind(id).first();
-  return result || null;
+    console.log('getPayrollById - Executing query for id:', id);
+    const result = await db.prepare(query).bind(id).first();
+    console.log('getPayrollById - Result:', result ? 'Found' : 'Not found');
+    return result || null;
+  } catch (error) {
+    console.error('Error in getPayrollById:', error);
+    throw error;
+  }
 }
 
 export async function createPayroll(db: any, payroll: Payroll): Promise<number> {
@@ -1454,7 +1507,7 @@ export async function createUser(
 export async function updateUserPassword(db: any, userId: number, passwordHash: string): Promise<boolean> {
   try {
     const result = await db
-      .prepare('UPDATE users SET password_hash = ?, last_password_change = CURRENT_TIMESTAMP WHERE id = ?')
+      .prepare('UPDATE users SET password_hash = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?')
       .bind(passwordHash, userId)
       .run();
     return result.success;

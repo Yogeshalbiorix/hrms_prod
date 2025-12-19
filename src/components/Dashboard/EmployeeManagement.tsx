@@ -748,6 +748,10 @@ export default function EmployeeManagement() {
                           value={formData.date_of_birth ? dayjs(formData.date_of_birth) : null}
                           onChange={(date) => setFormData({ ...formData, date_of_birth: date ? date.format('YYYY-MM-DD') : '' })}
                           format="YYYY-MM-DD"
+                          disabledDate={(current) => {
+                            // Disable dates less than 18 years ago
+                            return current && current > dayjs().subtract(18, 'year');
+                          }}
                         />
                       </Form.Item>
 

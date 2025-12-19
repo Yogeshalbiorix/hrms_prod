@@ -5,9 +5,15 @@ import { AuthProvider, useAuth } from './Auth/AuthContext';
 import LoginPage from './Auth/LoginPage';
 import HRMSDashboard from './Dashboard/HRMSDashboard';
 import UserDashboard from './Dashboard/UserDashboard';
+import ResetPasswordPage from './Auth/ResetPasswordPage';
 
 function AppContent() {
   const { user, isLoading } = useAuth();
+
+  // Check if we're on the reset-password page
+  if (typeof window !== 'undefined' && window.location.pathname === '/reset-password') {
+    return <ResetPasswordPage onBackToLogin={() => window.location.href = '/'} />;
+  }
 
   if (isLoading) {
     return (

@@ -58,8 +58,12 @@ export const POST: APIRoute = async ({ request, locals }) => {
       );
     }
 
-    const now = new Date().toISOString();
-    const clockInTime = new Date().toTimeString().split(' ')[0]; // HH:MM:SS
+    const now = new Date();
+    // Format time as HH:MM:SS
+    const hours = String(now.getHours()).padStart(2, '0');
+    const minutes = String(now.getMinutes()).padStart(2, '0');
+    const seconds = String(now.getSeconds()).padStart(2, '0');
+    const clockInTime = `${hours}:${minutes}:${seconds}`;
 
     if (!user?.employee_id) {
       return new Response(
@@ -82,7 +86,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
         latitude,
         longitude,
         address: location_address || 'Unknown',
-        timestamp: now
+        timestamp: now.toISOString()
       }) : null;
 
     // Prepare notes
@@ -111,7 +115,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
         'present',
         finalNotes,
         locationData,
-        now
+        now.toISOString()
       )
       .run();
 

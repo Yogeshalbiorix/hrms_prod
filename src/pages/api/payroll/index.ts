@@ -12,8 +12,10 @@ import {
 
 export const GET: APIRoute = async ({ locals, url }) => {
   try {
+    console.log('GET /api/payroll - URL:', url.toString());
     const db = getDB(locals.runtime?.env || locals.env);
     if (!db) {
+      console.error('Payroll API: Database not configured');
       return new Response(JSON.stringify({
         success: false,
         error: 'Database not configured'
@@ -25,6 +27,7 @@ export const GET: APIRoute = async ({ locals, url }) => {
 
     // Get query parameters for filtering
     const employeeId = url.searchParams.get('employee_id');
+    console.log('Payroll filters:', { employeeId });
     const status = url.searchParams.get('status') || undefined;
     const payPeriod = url.searchParams.get('pay_period') || undefined;
     const statsOnly = url.searchParams.get('stats') === 'true';

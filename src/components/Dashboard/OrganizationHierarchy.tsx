@@ -6,7 +6,6 @@ import {
   Form,
   Select,
   Input,
-  message,
   Space,
   Typography,
   Avatar,
@@ -18,7 +17,8 @@ import {
   Badge,
   Tabs,
   Segmented,
-  Alert
+  Alert,
+  App
 } from 'antd';
 import {
   UserOutlined,
@@ -58,6 +58,10 @@ interface OrgNode {
 }
 
 export default function OrganizationHierarchy() {
+  console.log('OrganizationHierarchy component rendered');
+
+  const { message } = App.useApp();
+
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [filteredEmployees, setFilteredEmployees] = useState<Employee[]>([]);
   const [orgTree, setOrgTree] = useState<OrgNode[]>([]);
@@ -76,6 +80,7 @@ export default function OrganizationHierarchy() {
   const chartRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    console.log('Fetching data for OrganizationHierarchy...');
     fetchCurrentUser();
     fetchEmployees();
   }, []);
@@ -323,6 +328,7 @@ export default function OrganizationHierarchy() {
   };
 
   const handleDragStart = (e: React.DragEvent, employee: Employee) => {
+    console.log('Drag started for employee:', employee.first_name, employee.last_name);
     setDraggedEmployee(employee);
     setIsDragging(true);
     e.dataTransfer.effectAllowed = 'move';
@@ -359,10 +365,14 @@ export default function OrganizationHierarchy() {
     e.preventDefault();
     e.stopPropagation();
 
+    console.log('Drop event triggered on:', targetEmployee.first_name, targetEmployee.last_name);
+    console.log('Dragged employee:', draggedEmployee);
+
     setDropTargetId(null);
     setIsDragging(false);
 
     if (!draggedEmployee || draggedEmployee.id === targetEmployee.id) {
+      console.log('No dragged employee or dropping on self, aborting');
       setDraggedEmployee(null);
       return;
     }
@@ -376,10 +386,17 @@ export default function OrganizationHierarchy() {
     };
 
     if (wouldCreateCircularRef(draggedEmployee.id, targetEmployee.id)) {
+      console.log('Circular reference detected');
       message.error('Cannot assign: This would create a circular reporting structure');
       setDraggedEmployee(null);
       return;
     }
+
+    console.log('Updating hierarchy via API...', {
+      employeeId: draggedEmployee.id,
+      newManagerId: targetEmployee.id,
+      newLevel: (targetEmployee.hierarchy_level || 3) + 1
+    });
 
     try {
       const sessionToken = localStorage.getItem('sessionToken');
@@ -395,7 +412,9 @@ export default function OrganizationHierarchy() {
         }),
       });
 
+      console.log('API Response status:', response.status);
       const result = await response.json() as any;
+      console.log('API Response data:', result);
 
       if (result.success) {
         message.success(
@@ -403,6 +422,7 @@ export default function OrganizationHierarchy() {
         );
         await fetchEmployees();
       } else {
+        console.error('API returned error:', result.error);
         message.error(result.error || 'Failed to update reporting relationship');
       }
     } catch (error) {

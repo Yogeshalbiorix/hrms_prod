@@ -24,6 +24,7 @@ import EmployeeManagement from './EmployeeManagement';
 import DepartmentManagement from './DepartmentManagement';
 import AttendanceLeave from './AttendanceLeaveWrapper';
 import AdminAttendanceView from './AdminAttendanceView';
+import AdminActivityRequests from './AdminActivityRequests';
 import PayrollManagement from './PayrollManagementDynamic';
 import RecruitmentModule from './RecruitmentModule';
 import PerformanceManagement from './PerformanceManagement';
@@ -127,6 +128,8 @@ export default function HRMSDashboard() {
       dashboard: 'Dashboard Overview',
       employees: 'Employee Management',
       departments: 'Department Management',
+      attendance: 'Attendance & Leave Management',
+      activityrequests: 'Activity Requests',
       organization: 'Organization Directory',
       hierarchy: 'Organization Hierarchy',
       myteam: 'My Team',
@@ -144,11 +147,15 @@ export default function HRMSDashboard() {
   const renderContent = () => {
     switch (activeTab) {
       case 'dashboard':
-        return <DashboardOverviewDynamic />;
+        return <DashboardOverviewDynamic onNavigate={setActiveTab} />;
       case 'employees':
         return <EmployeeManagement />;
       case 'departments':
         return <DepartmentManagement />;
+      case 'attendance':
+        return <AttendanceLeave />;
+      case 'activityrequests':
+        return <AdminActivityRequests />;
       case 'organization':
         return <OrganizationDirectory />;
       case 'hierarchy':
@@ -170,7 +177,7 @@ export default function HRMSDashboard() {
       case 'profile':
         return <ProfilePage />;
       default:
-        return <DashboardOverviewDynamic />;
+        return <DashboardOverviewDynamic onNavigate={setActiveTab} />;
     }
   };
 
@@ -189,6 +196,16 @@ export default function HRMSDashboard() {
       key: 'departments',
       icon: <BankOutlined style={{ fontSize: '18px' }} />,
       label: 'Departments',
+    },
+    {
+      key: 'attendance',
+      icon: <CalendarOutlined style={{ fontSize: '18px' }} />,
+      label: 'Attendance & Leave',
+    },
+    {
+      key: 'activityrequests',
+      icon: <SolutionOutlined style={{ fontSize: '18px' }} />,
+      label: 'Activity Requests',
     },
     {
       key: 'organization',

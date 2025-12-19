@@ -42,6 +42,7 @@ interface Department {
 }
 
 export default function DepartmentManagement() {
+  const [modal, contextHolder] = Modal.useModal();
   const [departments, setDepartments] = useState<Department[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -60,7 +61,12 @@ export default function DepartmentManagement() {
   const fetchDepartments = async () => {
     try {
       setLoading(true);
-      const response = await fetch(`${baseUrl}/api/departments`);
+      const sessionToken = localStorage.getItem('sessionToken');
+      const response = await fetch(`${baseUrl}/api/departments`, {
+        headers: {
+          'Authorization': `Bearer ${sessionToken}`
+        }
+      });
       const data = await response.json() as any;
       if (data.success) {
         setDepartments(data.data);
@@ -84,9 +90,13 @@ export default function DepartmentManagement() {
         return;
       }
 
+      const sessionToken = localStorage.getItem('sessionToken');
       const response = await fetch(`${baseUrl}/api/departments`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${sessionToken}`
+        },
         body: JSON.stringify(formData),
       });
 
@@ -135,9 +145,13 @@ export default function DepartmentManagement() {
 
       if (!editingDepartment) return;
 
+      const sessionToken = localStorage.getItem('sessionToken');
       const response = await fetch(`${baseUrl}/api/departments/${editingDepartment.id}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${sessionToken}`
+        },
         body: JSON.stringify(formData),
       });
 
@@ -183,8 +197,12 @@ export default function DepartmentManagement() {
       okButtonProps: { danger: true },
       onOk: async () => {
         try {
+          const sessionToken = localStorage.getItem('sessionToken');
           const response = await fetch(`${baseUrl}/api/departments/${id}`, {
             method: 'DELETE',
+            headers: {
+              'Authorization': `Bearer ${sessionToken}`
+            }
           });
 
           const data = await response.json() as any;
@@ -285,251 +303,254 @@ export default function DepartmentManagement() {
   ];
 
   return (
-    <div style={{ padding: '24px', background: '#f5f5f5', minHeight: '100vh' }}>
-      {/* Header */}
-      <Row justify="space-between" align="middle" style={{ marginBottom: 24 }}>
-        <Col>
-          <Title level={2} style={{ margin: 0, color: '#1e40af' }}>
-            <BankOutlined style={{ marginRight: 8 }} />
-            Department Management
-          </Title>
-          <Text type="secondary">Organize and manage company departments</Text>
-        </Col>
-        <Col>
-          <Button
-            type="primary"
-            size="large"
-            icon={<PlusOutlined />}
-            onClick={() => {
-              resetForm();
-              setShowAddDialog(true);
-            }}
-            style={{ background: '#2563eb' }}
-          >
-            Add Department
-          </Button>
-        </Col>
-      </Row>
-
-      {/* Statistics Row */}
-      <Row gutter={16} style={{ marginBottom: 24 }}>
-        <Col xs={24} sm={12} lg={8}>
-          <Card>
-            <Statistic
-              title="Total Departments"
-              value={departments.length}
-              prefix={<BankOutlined />}
-              valueStyle={{ color: '#2563eb' }}
-            />
-          </Card>
-        </Col>
-        <Col xs={24} sm={12} lg={8}>
-          <Card>
-            <Statistic
-              title="Total Employees"
-              value={departments.reduce((sum, dept) => sum + (dept.employee_count || 0), 0)}
-              prefix={<TeamOutlined />}
-              valueStyle={{ color: '#059669' }}
-            />
-          </Card>
-        </Col>
-        <Col xs={24} sm={12} lg={8}>
-          <Card>
-            <Statistic
-              title="Average Team Size"
-              value={departments.length > 0
-                ? Math.round(departments.reduce((sum, dept) => sum + (dept.employee_count || 0), 0) / departments.length)
-                : 0
-              }
-              prefix={<TeamOutlined />}
-              valueStyle={{ color: '#dc2626' }}
-            />
-          </Card>
-        </Col>
-      </Row>
-
-      {/* Search and Table */}
-      <Card>
-        <Space direction="vertical" size="large" style={{ width: '100%' }}>
-          <Input
-            size="large"
-            placeholder="Search departments..."
-            prefix={<SearchOutlined />}
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            allowClear
-          />
-
-          {loading ? (
-            <div style={{ textAlign: 'center', padding: '60px 0' }}>
-              <Spin size="large" tip="Loading departments..." />
-            </div>
-          ) : (
-            <Table
-              columns={columns}
-              dataSource={filteredDepartments}
-              rowKey="id"
-              pagination={{
-                pageSize: 10,
-                showSizeChanger: true,
-                showTotal: (total) => `Total ${total} departments`,
+    <>
+      {contextHolder}
+      <div style={{ padding: '24px', background: '#f5f5f5', minHeight: '100vh' }}>
+        {/* Header */}
+        <Row justify="space-between" align="middle" style={{ marginBottom: 24 }}>
+          <Col>
+            <Title level={2} style={{ margin: 0, color: '#1e40af' }}>
+              <BankOutlined style={{ marginRight: 8 }} />
+              Department Management
+            </Title>
+            <Text type="secondary">Organize and manage company departments</Text>
+          </Col>
+          <Col>
+            <Button
+              type="primary"
+              size="large"
+              icon={<PlusOutlined />}
+              onClick={() => {
+                resetForm();
+                setShowAddDialog(true);
               }}
-              locale={{
-                emptyText: (
-                  <Empty
-                    image={Empty.PRESENTED_IMAGE_SIMPLE}
-                    description={
-                      searchTerm
-                        ? 'No departments found matching your search'
-                        : 'No departments yet. Create your first department!'
-                    }
-                  >
-                    {!searchTerm && (
-                      <Button
-                        type="primary"
-                        icon={<PlusOutlined />}
-                        onClick={() => {
-                          resetForm();
-                          setShowAddDialog(true);
-                        }}
-                      >
-                        Add Department
-                      </Button>
-                    )}
-                  </Empty>
-                ),
-              }}
-            />
-          )}
-        </Space>
-      </Card>
+              style={{ background: '#2563eb' }}
+            >
+              Add Department
+            </Button>
+          </Col>
+        </Row>
 
-      {/* Add Department Modal */}
-      <Modal
-        title={
-          <Space>
-            <BankOutlined style={{ color: '#2563eb' }} />
-            <span>Add New Department</span>
-          </Space>
-        }
-        open={showAddDialog}
-        onOk={handleAddDepartment}
-        onCancel={() => {
-          setShowAddDialog(false);
-          resetForm();
-        }}
-        okText="Create Department"
-        cancelText="Cancel"
-        width={600}
-        okButtonProps={{ size: 'large', icon: <PlusOutlined /> }}
-        cancelButtonProps={{ size: 'large' }}
-      >
-        <Form layout="vertical" style={{ marginTop: 24 }}>
-          <Form.Item
-            label={<span style={{ fontWeight: 500 }}>Department Name <span style={{ color: '#ef4444' }}>*</span></span>}
-            required
-          >
+        {/* Statistics Row */}
+        <Row gutter={16} style={{ marginBottom: 24 }}>
+          <Col xs={24} sm={12} lg={8}>
+            <Card>
+              <Statistic
+                title="Total Departments"
+                value={departments.length}
+                prefix={<BankOutlined />}
+                valueStyle={{ color: '#2563eb' }}
+              />
+            </Card>
+          </Col>
+          <Col xs={24} sm={12} lg={8}>
+            <Card>
+              <Statistic
+                title="Total Employees"
+                value={departments.reduce((sum, dept) => sum + (dept.employee_count || 0), 0)}
+                prefix={<TeamOutlined />}
+                valueStyle={{ color: '#059669' }}
+              />
+            </Card>
+          </Col>
+          <Col xs={24} sm={12} lg={8}>
+            <Card>
+              <Statistic
+                title="Average Team Size"
+                value={departments.length > 0
+                  ? Math.round(departments.reduce((sum, dept) => sum + (dept.employee_count || 0), 0) / departments.length)
+                  : 0
+                }
+                prefix={<TeamOutlined />}
+                valueStyle={{ color: '#dc2626' }}
+              />
+            </Card>
+          </Col>
+        </Row>
+
+        {/* Search and Table */}
+        <Card>
+          <Space direction="vertical" size="large" style={{ width: '100%' }}>
             <Input
               size="large"
-              placeholder="e.g., Engineering, Sales, HR"
-              value={formData.name}
-              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              prefix={<BankOutlined style={{ color: '#9ca3af' }} />}
+              placeholder="Search departments..."
+              prefix={<SearchOutlined />}
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              allowClear
             />
-          </Form.Item>
 
-          <Form.Item
-            label={<span style={{ fontWeight: 500 }}>Description</span>}
-          >
-            <TextArea
-              rows={4}
-              placeholder="Brief description of the department..."
-              value={formData.description}
-              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-            />
-          </Form.Item>
-
-          <Card
-            size="small"
-            style={{ background: '#eff6ff', border: '1px solid #bfdbfe' }}
-          >
-            <Space align="start">
-              <ExclamationCircleOutlined style={{ color: '#2563eb', fontSize: 18 }} />
-              <div>
-                <Text strong style={{ color: '#1e40af' }}>Note:</Text>
-                <br />
-                <Text type="secondary">
-                  After creating the department, you can assign employees to it through Employee Management.
-                </Text>
+            {loading ? (
+              <div style={{ textAlign: 'center', padding: '60px 0' }}>
+                <Spin size="large" tip="Loading departments..." />
               </div>
-            </Space>
-          </Card>
-        </Form>
-      </Modal>
-
-      {/* Edit Department Modal */}
-      <Modal
-        title={
-          <Space>
-            <EditOutlined style={{ color: '#2563eb' }} />
-            <span>Edit Department</span>
+            ) : (
+              <Table
+                columns={columns}
+                dataSource={filteredDepartments}
+                rowKey="id"
+                pagination={{
+                  pageSize: 10,
+                  showSizeChanger: true,
+                  showTotal: (total) => `Total ${total} departments`,
+                }}
+                locale={{
+                  emptyText: (
+                    <Empty
+                      image={Empty.PRESENTED_IMAGE_SIMPLE}
+                      description={
+                        searchTerm
+                          ? 'No departments found matching your search'
+                          : 'No departments yet. Create your first department!'
+                      }
+                    >
+                      {!searchTerm && (
+                        <Button
+                          type="primary"
+                          icon={<PlusOutlined />}
+                          onClick={() => {
+                            resetForm();
+                            setShowAddDialog(true);
+                          }}
+                        >
+                          Add Department
+                        </Button>
+                      )}
+                    </Empty>
+                  ),
+                }}
+              />
+            )}
           </Space>
-        }
-        open={showEditDialog}
-        onOk={handleUpdateDepartment}
-        onCancel={() => {
-          setShowEditDialog(false);
-          setEditingDepartment(null);
-          resetForm();
-        }}
-        okText="Update Department"
-        cancelText="Cancel"
-        width={600}
-        okButtonProps={{ size: 'large' }}
-        cancelButtonProps={{ size: 'large' }}
-      >
-        <Form layout="vertical" style={{ marginTop: 24 }}>
-          <Form.Item
-            label={<span style={{ fontWeight: 500 }}>Department Name <span style={{ color: '#ef4444' }}>*</span></span>}
-            required
-          >
-            <Input
-              size="large"
-              placeholder="e.g., Engineering, Sales, HR"
-              value={formData.name}
-              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              prefix={<BankOutlined style={{ color: '#9ca3af' }} />}
-            />
-          </Form.Item>
+        </Card>
 
-          <Form.Item
-            label={<span style={{ fontWeight: 500 }}>Description</span>}
-          >
-            <TextArea
-              rows={4}
-              placeholder="Brief description of the department..."
-              value={formData.description}
-              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-            />
-          </Form.Item>
-
-          <Card
-            size="small"
-            style={{ background: '#fef3c7', border: '1px solid #fde68a' }}
-          >
-            <Space align="start">
-              <ExclamationCircleOutlined style={{ color: '#d97706', fontSize: 18 }} />
-              <div>
-                <Text strong style={{ color: '#92400e' }}>Important:</Text>
-                <br />
-                <Text type="secondary">
-                  Changing the department name will affect all associated employees and reports.
-                </Text>
-              </div>
+        {/* Add Department Modal */}
+        <Modal
+          title={
+            <Space>
+              <BankOutlined style={{ color: '#2563eb' }} />
+              <span>Add New Department</span>
             </Space>
-          </Card>
-        </Form>
-      </Modal>
-    </div>
+          }
+          open={showAddDialog}
+          onOk={handleAddDepartment}
+          onCancel={() => {
+            setShowAddDialog(false);
+            resetForm();
+          }}
+          okText="Create Department"
+          cancelText="Cancel"
+          width={600}
+          okButtonProps={{ size: 'large', icon: <PlusOutlined /> }}
+          cancelButtonProps={{ size: 'large' }}
+        >
+          <Form layout="vertical" style={{ marginTop: 24 }}>
+            <Form.Item
+              label={<span style={{ fontWeight: 500 }}>Department Name <span style={{ color: '#ef4444' }}>*</span></span>}
+              required
+            >
+              <Input
+                size="large"
+                placeholder="e.g., Engineering, Sales, HR"
+                value={formData.name}
+                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                prefix={<BankOutlined style={{ color: '#9ca3af' }} />}
+              />
+            </Form.Item>
+
+            <Form.Item
+              label={<span style={{ fontWeight: 500 }}>Description</span>}
+            >
+              <TextArea
+                rows={4}
+                placeholder="Brief description of the department..."
+                value={formData.description}
+                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+              />
+            </Form.Item>
+
+            <Card
+              size="small"
+              style={{ background: '#eff6ff', border: '1px solid #bfdbfe' }}
+            >
+              <Space align="start">
+                <ExclamationCircleOutlined style={{ color: '#2563eb', fontSize: 18 }} />
+                <div>
+                  <Text strong style={{ color: '#1e40af' }}>Note:</Text>
+                  <br />
+                  <Text type="secondary">
+                    After creating the department, you can assign employees to it through Employee Management.
+                  </Text>
+                </div>
+              </Space>
+            </Card>
+          </Form>
+        </Modal>
+
+        {/* Edit Department Modal */}
+        <Modal
+          title={
+            <Space>
+              <EditOutlined style={{ color: '#2563eb' }} />
+              <span>Edit Department</span>
+            </Space>
+          }
+          open={showEditDialog}
+          onOk={handleUpdateDepartment}
+          onCancel={() => {
+            setShowEditDialog(false);
+            setEditingDepartment(null);
+            resetForm();
+          }}
+          okText="Update Department"
+          cancelText="Cancel"
+          width={600}
+          okButtonProps={{ size: 'large' }}
+          cancelButtonProps={{ size: 'large' }}
+        >
+          <Form layout="vertical" style={{ marginTop: 24 }}>
+            <Form.Item
+              label={<span style={{ fontWeight: 500 }}>Department Name <span style={{ color: '#ef4444' }}>*</span></span>}
+              required
+            >
+              <Input
+                size="large"
+                placeholder="e.g., Engineering, Sales, HR"
+                value={formData.name}
+                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                prefix={<BankOutlined style={{ color: '#9ca3af' }} />}
+              />
+            </Form.Item>
+
+            <Form.Item
+              label={<span style={{ fontWeight: 500 }}>Description</span>}
+            >
+              <TextArea
+                rows={4}
+                placeholder="Brief description of the department..."
+                value={formData.description}
+                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+              />
+            </Form.Item>
+
+            <Card
+              size="small"
+              style={{ background: '#fef3c7', border: '1px solid #fde68a' }}
+            >
+              <Space align="start">
+                <ExclamationCircleOutlined style={{ color: '#d97706', fontSize: 18 }} />
+                <div>
+                  <Text strong style={{ color: '#92400e' }}>Important:</Text>
+                  <br />
+                  <Text type="secondary">
+                    Changing the department name will affect all associated employees and reports.
+                  </Text>
+                </div>
+              </Space>
+            </Card>
+          </Form>
+        </Modal>
+      </div>
+    </>
   );
 }

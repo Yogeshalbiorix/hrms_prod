@@ -3,7 +3,7 @@
  */
 import type { APIRoute } from 'astro';
 import { sendActivityEmail } from '../../../lib/email-service';
-import { getDB } from '../../../lib/db';
+import { getDB, getUserFromSession } from '../../../lib/db';
 
 export const POST: APIRoute = async ({ request, locals }) => {
   try {
@@ -18,8 +18,31 @@ export const POST: APIRoute = async ({ request, locals }) => {
       });
     }
 
-    const body = await request.json();
+    // Get session token from Authorization header
+    const authHeader = request.headers.get('Authorization');
+    const sessionToken = authHeader?.replace('Bearer ', '');
+
+    if (!sessionToken) {
+      return new Response(
+        JSON.stringify({ success: false, error: 'Unauthorized - No session token' }),
+        { status: 401, headers: { 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Validate session and get user
+    const sessionUser = await getUserFromSession(db, sessionToken);
+
+    if (!sessionUser) {
+      return new Response(
+        JSON.stringify({ success: false, error: 'Unauthorized - Invalid session' }),
+        { status: 401, headers: { 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const body = await request.json() as any;
     const { employee_id, date, clock_in, clock_out, reason } = body;
+
+    console.log('Regularization request payload:', body);
 
     // Validate required fields
     if (!employee_id || !date || !clock_in || !clock_out) {
