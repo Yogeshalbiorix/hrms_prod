@@ -17,7 +17,8 @@
 		{
 			"binding": "DB",
 			"database_name": "hrms-database",
-			"database_id": "344fe95a-d6e9-4fcd-b331-601b5353d55f"
+			"database_id": "344fe95a-d6e9-4fcd-b331-601b5353d55f",
+			"migrations_dir": "./migrations"
 		}
 	],
 	"kv_namespaces": [

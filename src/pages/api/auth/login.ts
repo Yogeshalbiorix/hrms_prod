@@ -53,7 +53,14 @@ export const POST: APIRoute = async ({ request, locals }) => {
     }
 
     // Verify password
+    // Verify password
     const isPasswordValid = await verifyPassword(password, user.password_hash || '');
+
+    console.log(
+      'DEBUG bcrypt test:',
+      await bcrypt.compare('admin123', user.password_hash || '')
+    );
+
     console.log('Password valid:', isPasswordValid);
 
     if (!isPasswordValid) {
