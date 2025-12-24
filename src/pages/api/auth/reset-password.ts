@@ -8,6 +8,7 @@ import {
   createAuditLog,
   getDB
 } from '../../../lib/db';
+import { sendPasswordChangedEmail } from '../../../lib/email-service';
 
 export const POST: APIRoute = async ({ request, locals }) => {
   try {
@@ -87,6 +88,20 @@ export const POST: APIRoute = async ({ request, locals }) => {
       ip_address: clientIP,
       user_agent: userAgent
     });
+
+    // Send confirmation email
+    try {
+      const user = await db
+        .prepare('SELECT email, full_name, username FROM users WHERE id = ?')
+        .bind(resetToken.user_id)
+        .first();
+
+      if (user) {
+        await sendPasswordChangedEmail(user.email, user.full_name || user.username);
+      }
+    } catch (emailErr) {
+      console.error('Failed to send password changed email:', emailErr);
+    }
 
     return new Response(
       JSON.stringify({

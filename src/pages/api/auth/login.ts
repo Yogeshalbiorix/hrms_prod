@@ -1,5 +1,5 @@
 import type { APIRoute } from 'astro';
-import { getDB, getUserByUsername } from '../../../lib/db';
+import { getDB, getUserByCredential } from '../../../lib/db';
 import crypto from 'crypto';
 import bcrypt from 'bcryptjs';
 
@@ -42,7 +42,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
     }
 
     // Get user
-    const user = await getUserByUsername(db, username);
+    const user = await getUserByCredential(db, username);
     console.log('User found:', user ? { id: user.id, username: user.username, has_password: !!user.password_hash } : 'Not found');
 
     if (!user) {
@@ -52,7 +52,6 @@ export const POST: APIRoute = async ({ request, locals }) => {
       );
     }
 
-    // Verify password
     // Verify password
     const isPasswordValid = await verifyPassword(password, user.password_hash || '');
 
@@ -78,44 +77,51 @@ export const POST: APIRoute = async ({ request, locals }) => {
       );
     }
 
-    // Generate session token
-    const sessionToken = generateSessionToken();
-    const expiresAt = getExpirationDate();
+    // ---------------------------------------------------
+    // 2FA IMPLEMENTATION
+    // ---------------------------------------------------
 
-    // Get IP and User-Agent
-    const ipAddress = request.headers.get('x-forwarded-for') || request.headers.get('cf-connecting-ip') || 'unknown';
-    const userAgent = request.headers.get('user-agent') || 'unknown';
+    // 1. Generate OTP
+    const { createOTP } = await import('../../../lib/db');
+    const otpCode = await createOTP(db, user.email);
 
-    // Create session
-    await db
-      .prepare(
-        'INSERT INTO sessions (user_id, session_token, expires_at, ip_address, user_agent) VALUES (?, ?, ?, ?, ?)'
-      )
-      .bind(user.id, sessionToken, expiresAt, ipAddress, userAgent)
-      .run();
+    // 2. Send OTP Email
+    const { sendEmail } = await import('../../../lib/email-service');
+    const emailResult = await sendEmail({
+      to: user.email,
+      subject: 'Your Login Validation Code',
+      html: `
+        <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
+          <h2>Login Verification</h2>
+          <p>Hello ${user.full_name},</p>
+          <p>Use the code below to complete your login:</p>
+          <div style="background: #f4f4f4; padding: 15px; text-align: center; font-size: 24px; font-weight: bold; letter-spacing: 5px; margin: 20px 0;">
+            ${otpCode}
+          </div>
+          <p>This code will expire in 10 minutes.</p>
+          <p>If you didn't attempt to login, please contact support immediately.</p>
+        </div>
+      `
+    });
 
-    // Update last login
-    await db
-      .prepare('UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE id = ?')
-      .bind(user.id)
-      .run();
+    if (!emailResult.success) {
+      console.error('Failed to send Step 2 login email:', emailResult.error);
+      return new Response(
+        JSON.stringify({
+          error: 'Failed to send verification code.',
+          details: emailResult.error
+        }),
+        { status: 500, headers: { 'Content-Type': 'application/json' } }
+      );
+    }
 
-    // Return user data (without password hash) and session token
-    const userData = {
-      id: user.id,
-      username: user.username,
-      email: user.email,
-      full_name: user.full_name,
-      role: user.role,
-      employee_id: user.employee_id,
-    };
-
+    // 3. Return 2FA Challenge to Frontend
     return new Response(
       JSON.stringify({
         success: true,
-        user: userData,
-        sessionToken,
-        expiresAt,
+        require_2fa: true,
+        email: user.email, // Send back email to obscure/display
+        message: 'Verification code sent to email'
       }),
       {
         status: 200,

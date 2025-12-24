@@ -73,7 +73,7 @@ export function getDB(env: any) {
 
 // Generate unique employee ID
 export function generateEmployeeId(count: number): string {
-  return `EMP${String(count + 1).padStart(3, '0')}`;
+  return `#ALBX${String(count + 1).padStart(3, '0')}`;
 }
 
 // Employee CRUD Operations
@@ -1259,6 +1259,20 @@ export async function getUserByUsername(db: any, username: string): Promise<User
   }
 }
 
+// Get user by username or email
+export async function getUserByCredential(db: any, credential: string): Promise<User | null> {
+  try {
+    const result = await db
+      .prepare('SELECT * FROM users WHERE (username = ? OR email = ?) AND is_active = 1')
+      .bind(credential, credential)
+      .first();
+    return result || null;
+  } catch (error) {
+    console.error('Error fetching user by credential:', error);
+    return null;
+  }
+}
+
 // Create new session
 export async function createSession(
   db: any,
@@ -1712,4 +1726,64 @@ export async function getUserAuditLogs(
     console.error('Error fetching audit logs:', error);
     return [];
   }
+}
+
+// OTP Management (for 2FA)
+
+export async function createOTP(db: any, email: string): Promise<string> {
+  const code = Math.floor(100000 + Math.random() * 900000).toString();
+  // Expires in 10 minutes
+  const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
+
+  // Upsert: Try update first, if no rows affected using changes meta, then insert
+  // But standard upsert syntax for SQLite/D1:
+  const query = `
+    INSERT INTO otp_codes (email, code, expires_at, attempts)
+    VALUES (?, ?, ?, 0)
+    ON CONFLICT(email) DO UPDATE SET
+      code = excluded.code,
+      expires_at = excluded.expires_at,
+      attempts = 0,
+      updated_at = CURRENT_TIMESTAMP
+  `;
+
+  await db.prepare(query).bind(email, code, expiresAt).run();
+
+  return code;
+}
+
+export async function verifyOTP(db: any, email: string, code: string): Promise<{ valid: boolean; message?: string }> {
+  try {
+    const record = await db.prepare('SELECT * FROM otp_codes WHERE email = ?').bind(email).first();
+
+    if (!record) {
+      return { valid: false, message: 'No OTP found for this email' };
+    }
+
+    if (new Date(record.expires_at) < new Date()) {
+      return { valid: false, message: 'OTP has expired' };
+    }
+
+    if (record.attempts >= 5) {
+      return { valid: false, message: 'Too many failed attempts. Please request a new OTP.' };
+    }
+
+    if (record.code !== code) {
+      // Increment attempts
+      await db.prepare('UPDATE otp_codes SET attempts = attempts + 1 WHERE email = ?').bind(email).run();
+      return { valid: false, message: 'Invalid OTP code' };
+    }
+
+    // Success! Delete the OTP to prevent reuse
+    await db.prepare('DELETE FROM otp_codes WHERE email = ?').bind(email).run();
+
+    return { valid: true };
+  } catch (error) {
+    console.error('Error verifying OTP:', error);
+    return { valid: false, message: 'Internal error verifying OTP' };
+  }
+}
+
+export async function deleteOTP(db: any, email: string): Promise<void> {
+  await db.prepare('DELETE FROM otp_codes WHERE email = ?').bind(email).run();
 }

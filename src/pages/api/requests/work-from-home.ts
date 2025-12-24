@@ -1,99 +1,109 @@
 /**
- * API Endpoint for Work From Home requests
+ * API Endpoint for Work From Home requests (Cloudflare compatible)
  */
-import type { APIRoute } from 'astro';
-import { sendActivityEmail } from '../../../lib/email-service';
-import { getDB } from '../../../lib/db';
 
+import type { APIRoute } from 'astro';
+import { getDB } from '../../../lib/db';
+import { sendEmail } from '../../../lib/email-service';
+
+/* ---------------------------------------------------
+   Helper: Send WFH email via Centralized Service
+--------------------------------------------------- */
+async function sendWFHEmail(
+  to: string,
+  userName: string,
+  date: string,
+  reason: string
+) {
+  const subject = '🏠 Work From Home Request Submitted - HRMS';
+
+  const html = `
+    <p>Hello <strong>${userName}</strong>,</p>
+
+    <p>Your <strong>Work From Home</strong> request has been submitted.</p>
+
+    <p><b>Date:</b> ${date}</p>
+    <p><b>Reason:</b> ${reason || 'No reason provided'}</p>
+
+    <p>Status: <strong>Pending Approval</strong></p>
+
+    <p>Regards,<br/><strong>HRMS Team</strong></p>
+  `;
+
+  await sendEmail({
+    to,
+    subject,
+    html,
+    to_name: userName
+  });
+}
+
+/* ---------------------------------------------------
+   POST: Create WFH request
+--------------------------------------------------- */
 export const POST: APIRoute = async ({ request, locals }) => {
   try {
     const db = getDB(locals.runtime?.env || locals.env);
-    if (!db) {
-      return new Response(JSON.stringify({
-        success: false,
-        error: 'Database not configured'
-      }), {
-        status: 500,
-        headers: { 'Content-Type': 'application/json' }
-      });
-    }
+    if (!db) return json(500, { error: 'Database not configured' });
 
-    const body = await request.json();
+    const body = await request.json().catch(() => null);
+    if (!body) return json(400, { error: 'Invalid JSON body' });
+
     const { employee_id, date, reason } = body;
 
-    // Validate required fields
     if (!employee_id || !date) {
-      return new Response(JSON.stringify({
-        success: false,
+      return json(400, {
         error: 'Missing required fields: employee_id, date'
-      }), {
-        status: 400,
-        headers: { 'Content-Type': 'application/json' }
       });
     }
 
-    // Insert work from home request
     const result = await db.prepare(`
-      INSERT INTO work_from_home_requests (employee_id, date, reason, status, created_at)
+      INSERT INTO work_from_home_requests
+      (employee_id, date, reason, status, created_at)
       VALUES (?, ?, ?, 'pending', datetime('now'))
-    `).bind(employee_id, date, reason || '').run();
+    `)
+      .bind(employee_id, date, reason || '')
+      .run();
 
-    // Get employee details for email notification
+    // Send email notification (non-blocking)
     try {
-      const employee = await db.prepare(
-        'SELECT email, first_name, last_name FROM employees WHERE id = ?'
-      ).bind(employee_id).first();
+      const employee = await db
+        .prepare('SELECT email, first_name, last_name FROM employees WHERE id = ?')
+        .bind(employee_id)
+        .first();
 
-      if (employee && employee.email) {
-        const userName = `${employee.first_name} ${employee.last_name}`;
-
-        // Send email notification asynchronously
-        sendActivityEmail(
+      if (employee?.email) {
+        sendWFHEmail(
           employee.email,
-          userName,
-          'work_from_home',
-          {
-            date,
-            reason: reason || 'No reason provided'
-          }
-        ).catch(err => console.error('Failed to send WFH email:', err));
+          `${employee.first_name} ${employee.last_name}`,
+          date,
+          reason || 'No reason provided'
+        ).catch(console.error);
       }
-    } catch (emailError) {
-      console.error('Error sending WFH notification email:', emailError);
+    } catch (emailErr) {
+      console.error('WFH email error:', emailErr);
     }
 
-    return new Response(JSON.stringify({
+    return json(201, {
       success: true,
       data: { id: result.meta.last_row_id },
       message: 'Work from home request submitted successfully'
-    }), {
-      status: 201,
-      headers: { 'Content-Type': 'application/json' }
     });
   } catch (error: any) {
-    console.error('Error creating work from home request:', error);
-    return new Response(JSON.stringify({
-      success: false,
+    console.error('Error creating WFH request:', error);
+    return json(500, {
       error: error.message || 'Failed to create work from home request'
-    }), {
-      status: 500,
-      headers: { 'Content-Type': 'application/json' }
     });
   }
 };
 
+/* ---------------------------------------------------
+   GET: List WFH requests
+--------------------------------------------------- */
 export const GET: APIRoute = async ({ locals, url }) => {
   try {
     const db = getDB(locals.runtime?.env || locals.env);
-    if (!db) {
-      return new Response(JSON.stringify({
-        success: false,
-        error: 'Database not configured'
-      }), {
-        status: 500,
-        headers: { 'Content-Type': 'application/json' }
-      });
-    }
+    if (!db) return json(500, { error: 'Database not configured' });
 
     const employeeId = url.searchParams.get('employee_id');
 
@@ -107,33 +117,33 @@ export const GET: APIRoute = async ({ locals, url }) => {
 
     if (employeeId) {
       query += ' WHERE w.employee_id = ?';
-      params.push(parseInt(employeeId));
+      params.push(Number(employeeId));
     }
 
     query += ' ORDER BY w.created_at DESC';
 
-    const stmt = params.length > 0
-      ? db.prepare(query).bind(...params)
-      : db.prepare(query);
+    const stmt =
+      params.length > 0
+        ? db.prepare(query).bind(...params)
+        : db.prepare(query);
 
     const { results } = await stmt.all();
 
-    return new Response(JSON.stringify({
-      success: true,
-      data: results
-    }), {
-      status: 200,
-      headers: { 'Content-Type': 'application/json' }
-    });
+    return json(200, { success: true, data: results });
   } catch (error: any) {
-    console.error('Error fetching work from home requests:', error);
-    return new Response(JSON.stringify({
-      success: false,
+    console.error('Error fetching WFH requests:', error);
+    return json(500, {
       error: error.message || 'Failed to fetch work from home requests'
-    }), {
-      status: 500,
-      headers: { 'Content-Type': 'application/json' }
     });
   }
 };
 
+/* ---------------------------------------------------
+   Helper
+--------------------------------------------------- */
+function json(status: number, body: any) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { 'Content-Type': 'application/json' }
+  });
+}

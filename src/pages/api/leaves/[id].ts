@@ -1,4 +1,5 @@
-// API endpoint for individual leave record operations
+// API endpoint for individual leave record operations (Cloudflare compatible)
+
 import type { APIRoute } from 'astro';
 import {
   getLeaveById,
@@ -7,129 +8,121 @@ import {
   getDB,
   getUserFromSession
 } from '../../../lib/db';
-import { sendActivityEmail } from '../../../lib/email-service';
+import { sendEmail } from '../../../lib/email-service';
 
+/* ---------------------------------------------------
+   Helper: Send Leave Status Email via Centralized Service
+--------------------------------------------------- */
+async function sendLeaveStatusEmail(
+  to: string,
+  userName: string,
+  status: 'approved' | 'rejected',
+  data: any
+) {
+  const subject =
+    status === 'approved'
+      ? '✅ Leave Request Approved - HRMS'
+      : '❌ Leave Request Rejected - HRMS';
+
+  const html = `
+    <p>Hello <strong>${userName}</strong>,</p>
+
+    <p>Your leave request has been
+      <strong>${status.toUpperCase()}</strong>.
+    </p>
+
+    <p><b>Leave Type:</b> ${data.leave_type}</p>
+    <p><b>Period:</b> ${data.start_date} → ${data.end_date}</p>
+    <p><b>Total Days:</b> ${data.total_days}</p>
+
+    ${status === 'approved'
+      ? `<p><b>Approved By:</b> ${data.approved_by}</p>`
+      : `<p><b>Rejection Reason:</b> ${data.rejection_reason || 'N/A'}</p>`
+    }
+
+    <p style="margin-top:16px;">
+      Regards,<br/>
+      <strong>HRMS Team</strong>
+    </p>
+  `;
+
+  await sendEmail({
+    to,
+    subject,
+    html,
+    to_name: userName
+  });
+}
+
+/* ---------------------------------------------------
+   GET: Fetch single leave record
+--------------------------------------------------- */
 export const GET: APIRoute = async ({ request, params, locals }) => {
   try {
     const db = getDB(locals.runtime?.env || locals.env);
 
-    // Get session token from Authorization header
     const authHeader = request.headers.get('Authorization');
     const sessionToken = authHeader?.replace('Bearer ', '');
 
     if (!sessionToken) {
-      return new Response(
-        JSON.stringify({ success: false, error: 'Unauthorized - No session token' }),
-        { status: 401, headers: { 'Content-Type': 'application/json' } }
-      );
+      return json(401, { error: 'Unauthorized - No session token' });
     }
 
-    // Validate session and get user
     const sessionUser = await getUserFromSession(db, sessionToken);
-
     if (!sessionUser) {
-      return new Response(
-        JSON.stringify({ success: false, error: 'Unauthorized - Invalid session' }),
-        { status: 401, headers: { 'Content-Type': 'application/json' } }
-      );
+      return json(401, { error: 'Unauthorized - Invalid session' });
     }
 
-    const id = parseInt(params.id || '0');
+    const id = Number(params.id);
     if (!id) {
-      return new Response(JSON.stringify({
-        success: false,
-        error: 'Invalid leave ID'
-      }), {
-        status: 400,
-        headers: { 'Content-Type': 'application/json' }
-      });
+      return json(400, { error: 'Invalid leave ID' });
     }
 
     const leave = await getLeaveById(db, id);
-
     if (!leave) {
-      return new Response(JSON.stringify({
-        success: false,
-        error: 'Leave record not found'
-      }), {
-        status: 404,
-        headers: { 'Content-Type': 'application/json' }
-      });
+      return json(404, { error: 'Leave record not found' });
     }
 
-    return new Response(JSON.stringify({
-      success: true,
-      data: leave
-    }), {
-      status: 200,
-      headers: { 'Content-Type': 'application/json' }
-    });
+    return json(200, { success: true, data: leave });
   } catch (error) {
     console.error('Error fetching leave:', error);
-    return new Response(JSON.stringify({
-      success: false,
-      error: 'Failed to fetch leave record'
-    }), {
-      status: 500,
-      headers: { 'Content-Type': 'application/json' }
-    });
+    return json(500, { error: 'Failed to fetch leave record' });
   }
 };
 
+/* ---------------------------------------------------
+   PUT: Update leave + send approval/rejection email
+--------------------------------------------------- */
 export const PUT: APIRoute = async ({ params, request, locals }) => {
   try {
     const db = getDB(locals.runtime?.env || locals.env);
 
-    // Get session token from Authorization header
     const authHeader = request.headers.get('Authorization');
     const sessionToken = authHeader?.replace('Bearer ', '');
 
     if (!sessionToken) {
-      return new Response(
-        JSON.stringify({ success: false, error: 'Unauthorized - No session token' }),
-        { status: 401, headers: { 'Content-Type': 'application/json' } }
-      );
+      return json(401, { error: 'Unauthorized - No session token' });
     }
 
-    // Validate session and get user
     const sessionUser = await getUserFromSession(db, sessionToken);
-
     if (!sessionUser) {
-      return new Response(
-        JSON.stringify({ success: false, error: 'Unauthorized - Invalid session' }),
-        { status: 401, headers: { 'Content-Type': 'application/json' } }
-      );
+      return json(401, { error: 'Unauthorized - Invalid session' });
     }
 
-    if (!db) {
-      return new Response(JSON.stringify({
-        success: false,
-        error: 'Database not configured'
-      }), {
-        status: 500,
-        headers: { 'Content-Type': 'application/json' }
-      });
-    }
-
-    const id = parseInt(params.id || '0');
+    const id = Number(params.id);
     if (!id) {
-      return new Response(JSON.stringify({
-        success: false,
-        error: 'Invalid leave ID'
-      }), {
-        status: 400,
-        headers: { 'Content-Type': 'application/json' }
-      });
+      return json(400, { error: 'Invalid leave ID' });
     }
 
-    const body = await request.json() as any;
+    const body = await request.json();
 
-    // Recalculate total days if dates changed
+    // Calculate total days
     let totalDays = body.total_days;
     if (body.start_date && body.end_date) {
-      const startDate = new Date(body.start_date);
-      const endDate = new Date(body.end_date);
-      totalDays = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+      const start = new Date(body.start_date);
+      const end = new Date(body.end_date);
+      totalDays =
+        Math.ceil((end.getTime() - start.getTime()) / 86400000) + 1;
     }
 
     const leave: Partial<Leave> = {
@@ -145,38 +138,29 @@ export const PUT: APIRoute = async ({ params, request, locals }) => {
       rejection_reason: body.rejection_reason
     };
 
-    const success = await updateLeave(db, id, leave);
-
-    if (!success) {
-      return new Response(JSON.stringify({
-        success: false,
-        error: 'Leave record not found'
-      }), {
-        status: 404,
-        headers: { 'Content-Type': 'application/json' }
-      });
+    const updated = await updateLeave(db, id, leave);
+    if (!updated) {
+      return json(404, { error: 'Leave record not found' });
     }
 
-    // Send email notification if status changed to approved or rejected
+    /* ---------- Send Email if Approved / Rejected ---------- */
     if (body.status === 'approved' || body.status === 'rejected') {
       try {
-        // Get leave details with employee info
         const leaveDetails = await db.prepare(`
-          SELECT l.*, e.email, e.first_name, e.last_name 
+          SELECT l.*, e.email, e.first_name, e.last_name
           FROM leaves l
           JOIN employees e ON l.employee_id = e.id
           WHERE l.id = ?
         `).bind(id).first();
 
-        if (leaveDetails && leaveDetails.email) {
-          const userName = `${leaveDetails.first_name} ${leaveDetails.last_name}`;
-          const activityType = body.status === 'approved' ? 'leave_approval' : 'leave_rejection';
+        if (leaveDetails?.email) {
+          const userName =
+            `${leaveDetails.first_name} ${leaveDetails.last_name}`;
 
-          // Send email notification asynchronously
-          sendActivityEmail(
+          await sendLeaveStatusEmail(
             leaveDetails.email,
             userName,
-            activityType,
+            body.status,
             {
               leave_type: leaveDetails.leave_type,
               start_date: leaveDetails.start_date,
@@ -185,29 +169,30 @@ export const PUT: APIRoute = async ({ params, request, locals }) => {
               approved_by: body.approved_by || 'Manager',
               rejection_reason: body.rejection_reason || body.notes
             }
-          ).catch(err => console.error('Failed to send leave status email:', err));
+          );
         }
-      } catch (emailError) {
-        console.error('Error sending leave status notification email:', emailError);
-        // Don't fail the request if email fails
+      } catch (emailErr) {
+        console.error('Leave status email failed:', emailErr);
+        // Do NOT fail API if email fails
       }
     }
 
-    return new Response(JSON.stringify({
+    return json(200, {
       success: true,
       message: 'Leave request updated successfully'
-    }), {
-      status: 200,
-      headers: { 'Content-Type': 'application/json' }
     });
   } catch (error) {
     console.error('Error updating leave:', error);
-    return new Response(JSON.stringify({
-      success: false,
-      error: 'Failed to update leave request'
-    }), {
-      status: 500,
-      headers: { 'Content-Type': 'application/json' }
-    });
+    return json(500, { error: 'Failed to update leave request' });
   }
 };
+
+/* ---------------------------------------------------
+   Helper: JSON response
+--------------------------------------------------- */
+function json(status: number, body: any) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { 'Content-Type': 'application/json' }
+  });
+}

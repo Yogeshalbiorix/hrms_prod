@@ -13,7 +13,12 @@ interface AuthContextType {
   user: User | null;
   sessionToken: string | null;
   isLoading: boolean;
-  login: (username: string, password: string) => Promise<{ success: boolean; error?: string }>;
+  login: (username: string, password: string) => Promise<{
+    success: boolean;
+    error?: string;
+    require_2fa?: boolean;
+    email?: string
+  }>;
   logout: () => Promise<void>;
   verifySession: () => Promise<boolean>;
 }
@@ -89,9 +94,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         body: JSON.stringify({ username, password }),
       });
 
-      const data = await response.json() as { success: boolean; sessionToken?: string; user?: any; error?: string };
+      const data = await response.json() as {
+        success: boolean;
+        sessionToken?: string;
+        user?: any;
+        error?: string;
+        require_2fa?: boolean;
+        email?: string;
+      };
 
       if (response.ok && data.success) {
+        // CASE: 2FA REQUIRED
+        if (data.require_2fa) {
+          return {
+            success: true,
+            require_2fa: true,
+            email: data.email
+          };
+        }
+
+        // CASE: STANDARD LOGIN (or verified session returned immediately)
         // Store session data
         localStorage.setItem('sessionToken', data.sessionToken!);
         localStorage.setItem('user', JSON.stringify(data.user));

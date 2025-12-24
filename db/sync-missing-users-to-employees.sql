@@ -1,30 +1,38 @@
 -- Create employee records for all users without employee_id
 
+
 INSERT INTO employees (
-    first_name, 
-    last_name, 
-    employee_id, 
-    email, 
-    phone, 
-    position, 
-    department_id, 
-    join_date, 
-    base_salary, 
-    status
+        first_name, 
+        last_name, 
+        employee_id, 
+        email, 
+        phone, 
+        position, 
+        department_id, 
+        join_date, 
+        base_salary, 
+        status
 )
 SELECT 
-    substr(u.username, 1, instr(u.username || ' ', ' ') - 1) as first_name,
-    substr(u.username, instr(u.username || ' ', ' ') + 1) as last_name,
-    'EMP' || substr('000' || u.id, -3) as employee_id,
-    u.email,
-    '0000000000' as phone,
-    'Employee' as position,
-    1 as department_id,
-    '2024-01-01' as join_date,
-    50000 as base_salary,
-    'active' as status
+        substr(u.username, 1, instr(u.username || ' ', ' ') - 1) as first_name,
+        substr(u.username, instr(u.username || ' ', ' ') + 1) as last_name,
+        'EMP' || substr('000' || u.id, -3) as employee_id,
+        u.email,
+        '0000000000' as phone,
+        'Employee' as position,
+        1 as department_id,
+        '2024-01-01' as join_date,
+        50000 as base_salary,
+        'active' as status
 FROM users u
-WHERE u.employee_id IS NULL;
+WHERE u.employee_id IS NULL
+    AND (
+        'EMP' || substr('000' || u.id, -3)
+        NOT IN (SELECT employee_id FROM employees)
+    )
+    AND (
+        u.email NOT IN (SELECT email FROM employees)
+    );
 
 -- Update users to link them with their new employee records
 UPDATE users

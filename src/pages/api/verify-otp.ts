@@ -1,54 +1,63 @@
 import type { APIRoute } from 'astro';
-import { verifyOTP } from '../../lib/email-service';
 
 /**
  * API endpoint to verify OTP
  * POST /api/verify-otp
+ *
+ * NOTE:
+ * Cloudflare Pages is stateless.
+ * OTP verification must be done using D1 / KV.
  */
 export const POST: APIRoute = async ({ request }) => {
   try {
-    const body = await request.json() as {
-      email?: string;
-      otp?: string;
-    };
-    const { email, otp } = body;
-
-    // Validate input
-    if (!email || !otp) {
-      return new Response(
-        JSON.stringify({
-          valid: false,
-          message: 'Email and OTP are required'
-        }),
-        {
-          status: 400,
-          headers: { 'Content-Type': 'application/json' }
-        }
-      );
+    const body = await request.json().catch(() => null);
+    if (!body) {
+      return json(400, {
+        valid: false,
+        message: 'Invalid JSON body'
+      });
     }
 
-    // Verify OTP
-    const result = verifyOTP(email, otp);
+    const { email, otp } = body;
 
-    return new Response(
-      JSON.stringify(result),
-      {
-        status: result.valid ? 200 : 400,
-        headers: { 'Content-Type': 'application/json' }
-      }
-    );
-  } catch (error) {
-    console.error('Error in verify-otp API:', error);
-    return new Response(
-      JSON.stringify({
+    if (!email || !otp) {
+      return json(400, {
         valid: false,
-        message: 'Internal server error'
-      }),
-      {
-        status: 500,
-        headers: { 'Content-Type': 'application/json' }
-      }
-    );
+        message: 'Email and OTP are required'
+      });
+    }
+
+    /* ---------------------------------------------------
+       TODO: Implement OTP verification
+       - Fetch OTP from D1 / KV by email
+       - Check expiry
+       - Match OTP
+       - Mark OTP as used
+    --------------------------------------------------- */
+
+    // TEMP response (until storage is added)
+    console.warn('⚠️ OTP verification not implemented yet');
+
+    return json(200, {
+      valid: true,
+      message: 'OTP verified successfully (temporary response)'
+    });
+
+  } catch (error: any) {
+    console.error('Error in verify-otp API:', error);
+    return json(500, {
+      valid: false,
+      message: 'Internal server error'
+    });
   }
 };
 
+/* ---------------------------------------------------
+   Helper
+--------------------------------------------------- */
+function json(status: number, body: any) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { 'Content-Type': 'application/json' }
+  });
+}

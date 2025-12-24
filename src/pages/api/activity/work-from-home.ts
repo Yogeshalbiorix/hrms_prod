@@ -22,29 +22,35 @@ export const POST: APIRoute = async ({ request, locals }) => {
     }
 
     const body = await request.json() as any;
-    const { date, reason } = body;
+    const { dates, reason } = body;
 
-    if (!date) {
-      return new Response(JSON.stringify({ error: 'Date is required' }), {
+    if (!dates || !Array.isArray(dates) || dates.length === 0) {
+      return new Response(JSON.stringify({ error: 'At least one date is required' }), {
         status: 400,
         headers: { 'Content-Type': 'application/json' }
       });
     }
 
-    // Insert work from home request
-    const result = await db
-      .prepare(`
-        INSERT INTO work_from_home_requests (employee_id, date, reason, status)
-        VALUES (?, ?, ?, 'pending')
-      `)
-      .bind(user.employee_id, date, reason || null)
-      .run();
+    // Insert work from home requests for each date
+    const insertedIds: number[] = [];
+    for (const date of dates) {
+      const result = await db
+        .prepare(`
+          INSERT INTO work_from_home_requests (employee_id, date, reason, status)
+          VALUES (?, ?, ?, 'pending')
+        `)
+        .bind(user.employee_id, date, reason || null)
+        .run();
+      if (result.meta?.last_row_id) {
+        insertedIds.push(result.meta.last_row_id);
+      }
+    }
 
     return new Response(
       JSON.stringify({
         success: true,
-        message: 'Work from home request submitted successfully',
-        data: { id: result.meta.last_row_id }
+        message: 'Work from home requests submitted successfully',
+        data: { ids: insertedIds }
       }),
       { status: 201, headers: { 'Content-Type': 'application/json' } }
     );

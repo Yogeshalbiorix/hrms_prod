@@ -50,16 +50,16 @@ CREATE INDEX IF NOT EXISTS idx_job_candidates_job ON job_candidates(job_id);
 CREATE INDEX IF NOT EXISTS idx_job_candidates_status ON job_candidates(status);
 CREATE INDEX IF NOT EXISTS idx_job_candidates_email ON job_candidates(email);
 
--- Sample job openings
-INSERT INTO job_openings (title, department_id, location, type, experience, openings, salary_range, description, requirements, status) VALUES
-('Senior Full Stack Developer', 1, 'Remote', 'full-time', '5+ years', 2, '$90k - $120k', 
- 'We are looking for an experienced Full Stack Developer to join our engineering team.', 
- 'Strong experience with React, Node.js, TypeScript, and AWS. Excellent problem-solving skills.', 'active'),
-
-('Product Marketing Manager', 2, 'New York, NY', 'full-time', '3-5 years', 1, '$70k - $90k',
- 'Lead our product marketing initiatives and drive growth.',
- 'Experience in B2B SaaS marketing, data analytics, and content strategy.', 'active'),
-
-('Data Analyst', 1, 'Hybrid', 'full-time', '2-4 years', 2, '$60k - $80k',
- 'Analyze data and provide insights to drive business decisions.',
- 'Proficiency in Python, SQL, and data visualization tools like Tableau.', 'active');
+-- Sample job openings (commented out to avoid UNIQUE constraint errors)
+-- INSERT INTO job_openings (title, department_id, location, type, experience, openings, salary_range, description, requirements, status) VALUES
+-- ('Senior Full Stack Developer', 1, 'Remote', 'full-time', '5+ years', 2, '$90k - $120k', 
+--  'We are looking for an experienced Full Stack Developer to join our engineering team.', 
+--  'Strong experience with React, Node.js, TypeScript, and AWS. Excellent problem-solving skills.', 'active'),
+--
+-- ('Product Marketing Manager', 2, 'New York, NY', 'full-time', '3-5 years', 1, '$70k - $90k',
+--  'Lead our product marketing initiatives and drive growth.',
+--  'Experience in B2B SaaS marketing, data analytics, and content strategy.', 'active'),
+--
+-- ('Data Analyst', 1, 'Hybrid', 'full-time', '2-4 years', 2, '$60k - $80k',
+--  'Analyze data and provide insights to drive business decisions.',
+--  'Proficiency in Python, SQL, and data visualization tools like Tableau.', 'active');

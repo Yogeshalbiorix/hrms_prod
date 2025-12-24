@@ -42,7 +42,16 @@ export const ForgotPasswordPage: React.FC<ForgotPasswordPageProps> = ({ onBackTo
         }),
       });
 
-      const data = await response.json() as any;
+      let data: any = null;
+      try {
+        data = await response.json();
+      } catch (jsonError) {
+        // If response is not valid JSON, handle gracefully
+        console.error('Failed to parse forgot password response as JSON:', jsonError);
+        message.error('Unexpected server response. Please try again later.');
+        setLoading(false);
+        return;
+      }
 
       if (response.ok) {
         setEmailSent(true);
@@ -93,28 +102,8 @@ export const ForgotPasswordPage: React.FC<ForgotPasswordPageProps> = ({ onBackTo
             ]}
           />
 
-          {/* DEV ONLY - Remove in production */}
-          {resetInfo && (
-            <Alert
-              message="Development Mode"
-              description={
-                <Space direction="vertical" style={{ width: '100%' }}>
-                  <Text strong>Reset Token (Dev Only):</Text>
-                  <Text copyable code>{resetInfo.token}</Text>
-                  <Text strong>Reset Link:</Text>
-                  <Text copyable style={{ fontSize: 12, wordBreak: 'break-all' }}>
-                    {resetInfo.resetLink}
-                  </Text>
-                  <Text type="secondary" style={{ fontSize: 12 }}>
-                    Expires: {new Date(resetInfo.expiresAt).toLocaleString()}
-                  </Text>
-                </Space>
-              }
-              type="warning"
-              showIcon
-              style={{ marginTop: 16 }}
-            />
-          )}
+          {/* Dev Mode Info Hidden as per request */}
+          {/* {resetInfo && (...)} */}
         </Card>
       </div>
     );

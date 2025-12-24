@@ -1,5 +1,6 @@
+﻿
 import React, { useState, useEffect, Suspense, lazy } from 'react';
-import { Layout, Menu, Card, Row, Col, Statistic, Avatar, Dropdown, Button, Typography, Space, Calendar, Badge, List, message, Table, Tag, Progress, Drawer, Timeline, Divider, Modal, Input, Spin, Form, DatePicker, Select, Descriptions, Tooltip, TimePicker } from 'antd';
+import { Layout, Menu, Card, Row, Col, Statistic, Avatar, Dropdown, Button, Typography, Space, Calendar, Badge, List, message, Table, Tag, Progress, Drawer, Timeline, Divider, Modal, Input, Spin, Form, DatePicker, Select, Descriptions, Tooltip, TimePicker, Tabs } from 'antd';
 import {
   UserOutlined,
   CalendarOutlined,
@@ -22,12 +23,18 @@ import {
   PlusOutlined,
   DeleteOutlined,
   ExclamationCircleOutlined,
+  ReadOutlined,
+  WarningOutlined,
+  FrownOutlined,
   EditOutlined,
   ReloadOutlined,
-  EyeOutlined
+  EyeOutlined,
+  InfoCircleOutlined
 } from '@ant-design/icons';
 import type { MenuProps } from 'antd';
 import { useAuth } from '../Auth/AuthContext';
+import AppHeader from './Header';
+import LeaveDashboard from './LeaveDashboard';
 import dayjs from 'dayjs';
 
 // Lazy load components
@@ -41,412 +48,257 @@ const { RangePicker } = DatePicker;
 const { TextArea } = Input;
 const { Option } = Select;
 
-interface LeaveRequest {
-  id: number;
-  employee_id: number;
-  leave_type: string;
-  start_date: string;
-  end_date: string;
-  total_days: number;
-  reason: string;
-  status: 'pending' | 'approved' | 'rejected' | 'cancelled';
-  approved_by?: string;
-  approval_date?: string;
-  rejection_reason?: string;
-  created_at: string;
-}
 
-export const UserDashboard: React.FC = () => {
-  const { user, logout, verifySession } = useAuth();
+
+
+const UserDashboard: React.FC = () => {
+  // Fetch attendance data for the logged-in user
+  const fetchAttendanceData = async () => {
+    try {
+      const sessionToken = localStorage.getItem('sessionToken');
+      const response = await fetch('/api/attendance/my-attendance?days=30', {
+        headers: { 'Authorization': `Bearer ${sessionToken}` }
+      });
+      const data = (await response.json()) as { success: boolean; data?: any };
+
+      if (data.success && data.data) {
+        // Helper to convert UTC time string (HH:MM:SS) to Local time string (HH:MM:SS)
+        const convertUTCToLocalTime = (utcTimeStr: string) => {
+          if (!utcTimeStr) return null;
+          const [h, m, s] = utcTimeStr.split(':').map(Number);
+          const date = new Date();
+          date.setUTCHours(h, m, s || 0);
+          const localH = String(date.getHours()).padStart(2, '0');
+          const localM = String(date.getMinutes()).padStart(2, '0');
+          const localS = String(date.getSeconds()).padStart(2, '0');
+          return `${localH}:${localM}:${localS}`;
+        };
+
+        // Transform records
+        const transformRecord = (record: any) => {
+          if (!record) return null;
+          return {
+            ...record,
+            clock_in: record.clock_in ? convertUTCToLocalTime(record.clock_in) : null,
+            clock_out: record.clock_out ? convertUTCToLocalTime(record.clock_out) : null,
+            sessions: record.sessions?.map((s: any) => ({
+              ...s,
+              clock_in: s.clock_in ? convertUTCToLocalTime(s.clock_in) : null,
+              clock_out: s.clock_out ? convertUTCToLocalTime(s.clock_out) : null,
+            }))
+          };
+        };
+
+        const localRecords = data.data.records.map(transformRecord);
+        const localToday = transformRecord(data.data.today); // This might be null if no record today
+
+        // If localToday is null, check if one of the records matches "today" in local date
+        // This handles edge case where UTC date was "yesterday" but Local date is "today" or vice versa
+        // But for now, relying on backend's "today" specific field is safer for logic continuity
+
+        const transformedData = {
+          ...data.data,
+          records: localRecords,
+          today: localToday
+        };
+
+        setAttendanceData(transformedData);
+        setTodayRecord(localToday);
+        setIsClockedIn(!!localToday && !localToday.clock_out && !!localToday.clock_in);
+      } else {
+        setAttendanceData(null);
+        setTodayRecord(null);
+        setIsClockedIn(false);
+      }
+    } catch (error) {
+      console.error('Error fetching attendance:', error);
+      setAttendanceData(null);
+      setTodayRecord(null);
+      setIsClockedIn(false);
+      message.error('Failed to load attendance data');
+    }
+  };
+
+  // Use AuthContext logout directly
+  const { logout } = useAuth();
+
+  // Fetch attendance data on mount
+  useEffect(() => {
+    fetchAttendanceData();
+    // Optionally, set up a timer to refresh data periodically
+    // const interval = setInterval(fetchAttendanceData, 5 * 60 * 1000); // every 5 min
+    // return () => clearInterval(interval);
+  }, []);
+
+  // State
+  const { user } = useAuth();
+  // Add missing collapsed state for Sider
   const [collapsed, setCollapsed] = useState(false);
-  const [selectedMenu, setSelectedMenu] = useState('attendance');
-  const [currentTime, setCurrentTime] = useState(new Date());
-  const [isClockedIn, setIsClockedIn] = useState(false);
-  const [todayRecord, setTodayRecord] = useState<any>(null);
-  const [attendanceData, setAttendanceData] = useState<any>(null);
-  const [loading, setLoading] = useState(false);
-  const [drawerVisible, setDrawerVisible] = useState(false);
-  const [selectedDayDetails, setSelectedDayDetails] = useState<any>(null);
-  const [detailsLoading, setDetailsLoading] = useState(false);
-  const [clockInModalVisible, setClockInModalVisible] = useState(false);
-  const [clockOutModalVisible, setClockOutModalVisible] = useState(false);
-  const [clockInNotes, setClockInNotes] = useState('');
-  const [clockOutNotes, setClockOutNotes] = useState('');
+  // Add missing elapsedTime state for time tracking
   const [elapsedTime, setElapsedTime] = useState(0);
-  const [is24HourFormat, setIs24HourFormat] = useState(true);
+  const [attendanceData, setAttendanceData] = useState<any>(null);
+  const [todayRecord, setTodayRecord] = useState<any>(null);
+  const [isClockedIn, setIsClockedIn] = useState(false); // Policy State
+  const [policyModalVisible, setPolicyModalVisible] = useState(false);
+  const [policyText, setPolicyText] = useState('');
+  const [holidays, setHolidays] = useState<any[]>([]);
 
-  // Work from home states
+  const fetchPolicy = async () => {
+    try {
+      const [pRes, hRes] = await Promise.all([
+        fetch('/api/admin/settings'),
+        fetch('/api/admin/holidays')
+      ]);
+      const pData = await pRes.json() as any;
+      const hData = await hRes.json() as any;
+      if (pData.text) setPolicyText(pData.text);
+      if (hData.holidays) setHolidays(hData.holidays);
+    } catch (err) {
+      message.error('Failed to load policy info');
+    }
+  };
+
+  const showPolicyModal = () => {
+    fetchPolicy();
+    setPolicyModalVisible(true);
+  };
+  const [leaveLoading, setLeaveLoading] = useState(false);
+  const [leaveRequests, setLeaveRequests] = useState<any[]>([]);
+  const [selectedMenu, setSelectedMenu] = useState<string>('attendance');
+  const [editingLeave, setEditingLeave] = useState<any | null>(null);
+  const [leaveModalVisible, setLeaveModalVisible] = useState(false);
+  const [leaveForm] = Form.useForm();
+  // Valid Hook usage at top level
+  const selectedLeaveType = Form.useWatch('leave_type', leaveForm);
+  const [selectedDayDetails, setSelectedDayDetails] = useState<any>(null);
+  const [regularizeDate, setRegularizeDate] = useState<string | null>(null);
+  const [regularizeForm] = Form.useForm();
+  const [regularizeModalVisible, setRegularizeModalVisible] = useState(false);
+  const [regularizeLoading, setRegularizeLoading] = useState(false);
+  const [drawerVisible, setDrawerVisible] = useState(false);
+  const [clockInModalVisible, setClockInModalVisible] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [clockInNotes, setClockInNotes] = useState('');
+  const [clockOutModalVisible, setClockOutModalVisible] = useState(false);
+  const [clockOutNotes, setClockOutNotes] = useState('');
   const [wfhModalVisible, setWfhModalVisible] = useState(false);
-  const [wfhDate, setWfhDate] = useState('');
+  const [wfhDates, setWfhDates] = useState<string[]>([]);
   const [wfhReason, setWfhReason] = useState('');
   const [wfhLoading, setWfhLoading] = useState(false);
-
-  // Partial day request states
   const [partialDayModalVisible, setPartialDayModalVisible] = useState(false);
   const [partialDayDate, setPartialDayDate] = useState('');
   const [partialStartTime, setPartialStartTime] = useState('');
   const [partialEndTime, setPartialEndTime] = useState('');
   const [partialDayReason, setPartialDayReason] = useState('');
   const [partialDayLoading, setPartialDayLoading] = useState(false);
-
-  // Activity requests history states
   const [activityRequests, setActivityRequests] = useState<any[]>([]);
   const [activityRequestsLoading, setActivityRequestsLoading] = useState(false);
+  const [detailsLoading, setDetailsLoading] = useState(false);
   const [requestDetailsModalVisible, setRequestDetailsModalVisible] = useState(false);
   const [selectedRequest, setSelectedRequest] = useState<any>(null);
+  const [is24HourFormat, setIs24HourFormat] = useState(false);
+  const [currentTime, setCurrentTime] = useState(new Date());
 
-  // My Team states
-  const [teamMembers, setTeamMembers] = useState<any[]>([]);
-  const [teamAttendance, setTeamAttendance] = useState<any>(null);
-  const [teamLoading, setTeamLoading] = useState(false);
-
-  // Leave request states
-  const [leaveRequests, setLeaveRequests] = useState<LeaveRequest[]>([]);
-  const [leaveModalVisible, setLeaveModalVisible] = useState(false);
-  const [leaveLoading, setLeaveLoading] = useState(false);
-  const [editingLeave, setEditingLeave] = useState<LeaveRequest | null>(null);
-  const [leaveForm] = Form.useForm();
-
-  // Regularization states
-  const [regularizeModalVisible, setRegularizeModalVisible] = useState(false);
-  const [regularizeLoading, setRegularizeLoading] = useState(false);
-  const [regularizeForm] = Form.useForm();
-  const [regularizeDate, setRegularizeDate] = useState('');
-
-  useEffect(() => {
-    const timer = setInterval(() => setCurrentTime(new Date()), 1000);
-    return () => clearInterval(timer);
-  }, []);
-
-  useEffect(() => {
-    fetchAttendanceData();
-  }, []);
-
-  // Force refresh user data on mount to ensure employee_id is up to date
-  useEffect(() => {
-    verifySession().then(() => {
-      console.log('User data refreshed on dashboard mount');
-    }).catch((error) => {
-      console.error('Error refreshing user data:', error);
-    });
-  }, []);
-
-  // Fetch activity requests when the requests tab is selected
-  useEffect(() => {
-    if (selectedMenu === 'requests') {
-      fetchActivityRequests();
-    }
-  }, [selectedMenu]);
-
-  // Timer for elapsed time since clock-in
+  // Timer effect for elapsedTime
   useEffect(() => {
     let interval: NodeJS.Timeout | null = null;
-
     if (isClockedIn && todayRecord?.clock_in) {
+      const today = new Date();
+      const [inHours, inMinutes, inSeconds] = todayRecord.clock_in.split(':').map(Number);
+      const clockInDate = new Date(today.getFullYear(), today.getMonth(), today.getDate(), inHours, inMinutes, inSeconds || 0);
       interval = setInterval(() => {
-        const clockInTime = todayRecord.clock_in;
-        const [hours, minutes, seconds] = clockInTime.split(':').map(Number);
-        const clockInDate = new Date();
-        clockInDate.setHours(hours, minutes, seconds, 0);
-
         const now = new Date();
-        const diff = Math.floor((now.getTime() - clockInDate.getTime()) / 1000);
-        setElapsedTime(diff > 0 ? diff : 0);
+        setElapsedTime(Math.floor((now.getTime() - clockInDate.getTime()) / 1000));
       }, 1000);
     } else {
       setElapsedTime(0);
     }
-
     return () => {
       if (interval) clearInterval(interval);
     };
   }, [isClockedIn, todayRecord]);
-
-  const fetchAttendanceData = async () => {
-    try {
-      const sessionToken = localStorage.getItem('sessionToken');
-      const response = await fetch('/api/attendance/my-attendance', {
-        headers: {
-          'Authorization': `Bearer ${sessionToken}`
-        }
-      });
-      const result = await response.json() as { success: boolean; data?: any; error?: string };
-      if (result.success) {
-        setAttendanceData(result.data);
-        setTodayRecord(result.data.today);
-        // User is clocked in if: 1) today record exists, 2) has clock_in time, 3) no clock_out time yet
-        setIsClockedIn(result.data.today && result.data.today.clock_in && !result.data.today.clock_out);
-      }
-    } catch (error) {
-      console.error('Error fetching attendance:', error);
-    }
+  // --- MISSING HANDLERS AND TYPES ---
+  // Add missing LeaveRequest type
+  type LeaveRequest = {
+    id: string;
+    status: string;
+    type: string;
+    [key: string]: any;
   };
 
-  const fetchLeaveRequests = async () => {
-    if (!user?.employee_id) {
-      console.error('Employee ID not found in user object:', user);
-      message.error('Employee ID not found. Please log out and log back in.');
-      setLeaveLoading(false);
-      return;
-    }
+  const [leaveBalance, setLeaveBalance] = useState<any>(null);
 
+  // Leave Request Handlers & Logic
+  const fetchLeaveRequests = async () => {
     setLeaveLoading(true);
     try {
       const sessionToken = localStorage.getItem('sessionToken');
-      const response = await fetch(`/api/leaves?employee_id=${user.employee_id}`, {
-        headers: {
-          'Authorization': `Bearer ${sessionToken}`
-        }
+      const response = await fetch('/api/leave', {
+        headers: { 'Authorization': `Bearer ${sessionToken}` }
       });
-      const result = await response.json() as { success: boolean; data?: LeaveRequest[]; error?: string };
-      if (result.success) {
-        setLeaveRequests(result.data || []);
-      } else {
-        message.error(result.error || 'Failed to fetch leave requests');
-        console.error('API error:', result.error);
+      const result = await response.json() as { success: boolean; data?: any[] };
+      if (result.success && result.data) {
+        setLeaveRequests(result.data);
       }
     } catch (error) {
       console.error('Error fetching leave requests:', error);
-      message.error('Failed to load leave requests');
-    } finally {
-      setLeaveLoading(false);
+    }
+    setLeaveLoading(false);
+  };
+
+  const fetchLeaveBalance = async () => {
+    try {
+      const sessionToken = localStorage.getItem('sessionToken');
+      const response = await fetch('/api/leave/balance', {
+        headers: { 'Authorization': `Bearer ${sessionToken}` }
+      });
+      const result = await response.json() as { success: boolean, data: any };
+      if (result.success) {
+        setLeaveBalance(result.data);
+      }
+    } catch (error) {
+      console.error('Error fetching leave balance:', error);
     }
   };
 
   useEffect(() => {
     if (selectedMenu === 'leave') {
       fetchLeaveRequests();
+      fetchLeaveBalance();
     }
   }, [selectedMenu]);
 
-  const handleLeaveSubmit = async (values: any) => {
-    try {
-      setLeaveLoading(true);
 
-      // Check if user has employee_id
-      if (!user?.employee_id) {
-        message.error('Employee ID not found. Please contact administrator.');
-        console.error('User employee_id is missing:', user);
-        return;
-      }
-
-      const [startDate, endDate] = values.dateRange;
-
-      const totalDays = Math.ceil(
-        (endDate.toDate().getTime() - startDate.toDate().getTime()) / (1000 * 60 * 60 * 24)
-      ) + 1;
-
-      const sessionToken = localStorage.getItem('sessionToken');
-
-      if (!sessionToken) {
-        message.error('Session expired. Please login again.');
-        console.error('Session token not found');
-        return;
-      }
-
-      // Determine if we're editing or creating
-      const isEditing = !!editingLeave;
-      const url = isEditing ? `/api/leaves/${editingLeave.id}` : '/api/leaves';
-      const method = isEditing ? 'PUT' : 'POST';
-
-      const leaveData = {
-        employee_id: user.employee_id,
-        leave_type: values.leave_type,
-        start_date: startDate.format('YYYY-MM-DD'),
-        end_date: endDate.format('YYYY-MM-DD'),
-        total_days: totalDays,
-        reason: values.reason,
-        status: 'pending'
-      };
-
-      console.log('Submitting leave request:', leaveData);
-
-      const response = await fetch(url, {
-        method,
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${sessionToken}`
-        },
-        body: JSON.stringify(leaveData)
-      });
-
-      console.log('Leave API response status:', response.status);
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('Leave API error response:', errorText);
-        try {
-          const errorData = JSON.parse(errorText);
-          message.error(errorData.error || `Failed to ${isEditing ? 'update' : 'submit'} leave request`);
-        } catch {
-          message.error(`Server error: ${response.status}`);
-        }
-        return;
-      }
-
-      const result = await response.json() as { success: boolean; data?: any; error?: string; details?: string };
-
-      console.log('Leave submission response:', result);
-
-      if (result.success) {
-        message.success(isEditing ? 'Leave request updated successfully!' : 'Leave request submitted successfully!');
-        setLeaveModalVisible(false);
-        setEditingLeave(null);
-        leaveForm.resetFields();
-        fetchLeaveRequests();
-      } else {
-        const errorMsg = result.details ? `${result.error}: ${result.details}` : result.error;
-        message.error(errorMsg || `Failed to ${isEditing ? 'update' : 'submit'} leave request`);
-        console.error('Leave submission failed:', result);
-      }
-    } catch (error) {
-      console.error('Error submitting leave:', error);
-      message.error(`Failed to ${editingLeave ? 'update' : 'submit'} leave request`);
-    } finally {
-      setLeaveLoading(false);
-    }
+  const handleRegularizeAttendance = () => {
+    setRegularizeModalVisible(true);
   };
 
-  const handleEditLeave = (leave: LeaveRequest) => {
-    setEditingLeave(leave);
+  const handleRegularizeSubmit = () => {
+    regularizeForm.validateFields().then(values => {
+      message.info('Regularize Submit feature coming soon!');
+      setRegularizeModalVisible(false);
+    });
+  };
+
+  const handleEditLeave = (record: LeaveRequest) => {
+    setEditingLeave(record);
     leaveForm.setFieldsValue({
-      leave_type: leave.leave_type,
-      dateRange: [dayjs(leave.start_date), dayjs(leave.end_date)],
-      reason: leave.reason
+      leave_type: record.leave_type,
+      dateRange: [dayjs(record.start_date), dayjs(record.end_date)],
+      reason: record.reason
     });
     setLeaveModalVisible(true);
   };
 
-  const handleRegularizeAttendance = () => {
-    console.log('Regularize button clicked');
-    console.log('Selected day details:', selectedDayDetails);
-
-    if (!selectedDayDetails?.date) {
-      console.error('No date selected');
-      message.error('Please select a date first');
-      return;
-    }
-
-    console.log('Setting up form with date:', selectedDayDetails.date);
-    setRegularizeDate(selectedDayDetails.date);
-
-    // Parse times from entries if available
-    let clockInTime = null;
-    let clockOutTime = null;
-
-    if (selectedDayDetails.entries && selectedDayDetails.entries.length > 0) {
-      const firstEntry = selectedDayDetails.entries[0];
-      console.log('First entry:', firstEntry);
-
-      if (firstEntry.clock_in) {
-        clockInTime = dayjs(firstEntry.clock_in, 'HH:mm:ss');
-      }
-      if (firstEntry.clock_out) {
-        clockOutTime = dayjs(firstEntry.clock_out, 'HH:mm:ss');
-      }
-    }
-
-    console.log('Clock in time:', clockInTime);
-    console.log('Clock out time:', clockOutTime);
-
-    regularizeForm.setFieldsValue({
-      date: dayjs(selectedDayDetails.date),
-      clock_in_time: clockInTime,
-      clock_out_time: clockOutTime,
-    });
-
-    console.log('Opening regularization modal');
-    setRegularizeModalVisible(true);
-  };
-
-  const handleRegularizeSubmit = async (values: any) => {
-    try {
-      setRegularizeLoading(true);
-
-      if (!user?.employee_id) {
-        message.error('Employee ID not found. Please contact administrator.');
-        return;
-      }
-
-      const sessionToken = localStorage.getItem('sessionToken');
-
-      if (!sessionToken) {
-        message.error('Session expired. Please login again.');
-        return;
-      }
-
-      const requestData = {
-        employee_id: user.employee_id,
-        date: values.date.format('YYYY-MM-DD'),
-        clock_in: values.clock_in_time?.format('HH:mm:ss'),
-        clock_out: values.clock_out_time?.format('HH:mm:ss'),
-        reason: values.reason
-      };
-
-      console.log('Submitting regularization request:', requestData);
-
-      const response = await fetch('/api/requests/regularization', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${sessionToken}`
-        },
-        body: JSON.stringify(requestData)
-      });
-
-      console.log('Regularization API response status:', response.status);
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('Regularization API error response:', errorText);
-        try {
-          const errorData = JSON.parse(errorText);
-          message.error(errorData.error || 'Failed to submit regularization request');
-        } catch {
-          message.error(`Server error: ${response.status}`);
-        }
-        return;
-      }
-
-      const result = await response.json() as { success: boolean; data?: any; error?: string; details?: string };
-
-      console.log('Regularization submission response:', result);
-
-      if (result.success) {
-        message.success('Regularization request submitted successfully!');
-        setRegularizeModalVisible(false);
-        regularizeForm.resetFields();
-        setDrawerVisible(false);
-        fetchAttendanceData();
-        if (selectedMenu === 'requests') {
-          fetchActivityRequests();
-        }
-      } else {
-        const errorMsg = result.details ? `${result.error}: ${result.details}` : result.error;
-        message.error(errorMsg || 'Failed to submit regularization request');
-        console.error('Regularization submission failed:', result);
-      }
-    } catch (error) {
-      console.error('Error submitting regularization:', error);
-      message.error('Failed to submit regularization request');
-    } finally {
-      setRegularizeLoading(false);
-    }
-  };
-
-  const handleCancelLeave = async (leaveId: number) => {
+  const handleCancelLeave = (id: string) => {
     Modal.confirm({
       title: 'Cancel Leave Request',
-      icon: <ExclamationCircleOutlined />,
       content: 'Are you sure you want to cancel this leave request?',
-      okText: 'Yes, Cancel',
-      okType: 'danger',
-      cancelText: 'No',
       onOk: async () => {
         try {
           const sessionToken = localStorage.getItem('sessionToken');
-          const response = await fetch(`/api/leaves/${leaveId}`, {
-            method: 'PUT',
+          const response = await fetch(`/api/leave/${id}`, {
+            method: 'PATCH',
             headers: {
               'Content-Type': 'application/json',
               'Authorization': `Bearer ${sessionToken}`
@@ -454,20 +306,118 @@ export const UserDashboard: React.FC = () => {
             body: JSON.stringify({ status: 'cancelled' })
           });
 
-          const result = await response.json() as { success: boolean; error?: string };
+          const result = await response.json() as any;
           if (result.success) {
             message.success('Leave request cancelled successfully');
             fetchLeaveRequests();
           } else {
-            message.error('Failed to cancel leave request');
+            message.error(result.error || 'Failed to cancel leave');
           }
-        } catch (error) {
-          console.error('Error cancelling leave:', error);
-          message.error('Failed to cancel leave request');
+        } catch (e) {
+          console.error('Cancel error:', e);
+          message.error('Failed to cancel leave');
         }
       }
     });
   };
+
+  const handleLeaveSubmit = async () => {
+    try {
+      const values = await leaveForm.validateFields();
+      setLeaveLoading(true);
+
+      const sessionToken = localStorage.getItem('sessionToken');
+      const payload = {
+        leave_type: values.leave_type,
+        start_date: values.dateRange[0].format('YYYY-MM-DD'),
+        end_date: values.dateRange[1].format('YYYY-MM-DD'),
+        reason: values.reason
+      };
+
+      const response = await fetch('/api/leave', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${sessionToken}`
+        },
+        body: JSON.stringify(payload)
+      });
+
+      const result = await response.json() as any;
+
+      if (result.success) {
+        message.success('Leave request submitted successfully');
+        setLeaveModalVisible(false);
+        leaveForm.resetFields();
+        fetchLeaveRequests();
+      } else {
+        message.error(result.error || 'Failed to submit leave request');
+      }
+    } catch (error) {
+      console.error('Submit error:', error);
+    }
+    setLeaveLoading(false);
+  };
+  const showPartialDayModal = () => {
+    const today = new Date().toISOString().split('T')[0];
+    setPartialDayDate(today);
+    setPartialDayModalVisible(true);
+  };
+
+  const handlePartialDayConfirm = async () => {
+    if (!partialDayDate || !partialStartTime || !partialEndTime) {
+      message.error('Please fill in all required fields');
+      return;
+    }
+
+    // Validate time range
+    const [startHours, startMinutes] = partialStartTime.split(':').map(Number);
+    const [endHours, endMinutes] = partialEndTime.split(':').map(Number);
+    const startTotalMinutes = startHours * 60 + startMinutes;
+    const endTotalMinutes = endHours * 60 + endMinutes;
+
+    if (endTotalMinutes <= startTotalMinutes) {
+      message.error('End time must be after start time');
+      return;
+    }
+
+    setPartialDayLoading(true);
+    try {
+      const sessionToken = localStorage.getItem('sessionToken');
+      const response = await fetch('/api/activity/partial-day', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${sessionToken}`
+        },
+        body: JSON.stringify({
+          date: partialDayDate,
+          start_time: partialStartTime,
+          end_time: partialEndTime,
+          reason: partialDayReason || 'Partial day request'
+        })
+      });
+      const result = await response.json() as any;
+      if (result.success) {
+        message.success('Partial day request submitted successfully');
+        setPartialDayModalVisible(false);
+        setPartialDayDate('');
+        setPartialStartTime('');
+        setPartialEndTime('');
+        setPartialDayReason('');
+        fetchActivityRequests(); // Refresh the requests list
+      } else {
+        message.error(result.error || 'Failed to submit partial day request');
+      }
+    } catch (error) {
+      message.error('Failed to submit partial day request');
+    }
+    setPartialDayLoading(false);
+  };
+
+
+  // All logic, handlers, and helpers are now inside the UserDashboard component.
+  // Remove any duplicate or out-of-scope code below this line.
 
   const getLeaveStatusColor = (status: string) => {
     const colors: Record<string, string> = {
@@ -637,17 +587,15 @@ export const UserDashboard: React.FC = () => {
 
   // Work from home handlers
   const showWfhModal = () => {
-    const today = new Date().toISOString().split('T')[0];
-    setWfhDate(today);
+    setWfhDates([]);
     setWfhModalVisible(true);
   };
 
   const handleWfhConfirm = async () => {
-    if (!wfhDate) {
-      message.error('Please select a date');
+    if (!wfhDates.length) {
+      message.error('Please select at least one date');
       return;
     }
-
     setWfhLoading(true);
     try {
       const sessionToken = localStorage.getItem('sessionToken');
@@ -658,7 +606,7 @@ export const UserDashboard: React.FC = () => {
           'Authorization': `Bearer ${sessionToken}`
         },
         body: JSON.stringify({
-          date: wfhDate,
+          dates: wfhDates, // send array of dates
           reason: wfhReason || 'Working from home'
         })
       });
@@ -666,7 +614,7 @@ export const UserDashboard: React.FC = () => {
       if (result.success) {
         message.success('Work from home request submitted successfully');
         setWfhModalVisible(false);
-        setWfhDate('');
+        setWfhDates([]);
         setWfhReason('');
         fetchActivityRequests(); // Refresh the requests list
       } else {
@@ -678,63 +626,7 @@ export const UserDashboard: React.FC = () => {
     setWfhLoading(false);
   };
 
-  // Partial day request handlers
-  const showPartialDayModal = () => {
-    const today = new Date().toISOString().split('T')[0];
-    setPartialDayDate(today);
-    setPartialDayModalVisible(true);
-  };
-
-  const handlePartialDayConfirm = async () => {
-    if (!partialDayDate || !partialStartTime || !partialEndTime) {
-      message.error('Please fill in all required fields');
-      return;
-    }
-
-    // Validate time range
-    const [startHours, startMinutes] = partialStartTime.split(':').map(Number);
-    const [endHours, endMinutes] = partialEndTime.split(':').map(Number);
-    const startTotalMinutes = startHours * 60 + startMinutes;
-    const endTotalMinutes = endHours * 60 + endMinutes;
-
-    if (endTotalMinutes <= startTotalMinutes) {
-      message.error('End time must be after start time');
-      return;
-    }
-
-    setPartialDayLoading(true);
-    try {
-      const sessionToken = localStorage.getItem('sessionToken');
-      const response = await fetch('/api/activity/partial-day', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${sessionToken}`
-        },
-        body: JSON.stringify({
-          date: partialDayDate,
-          start_time: partialStartTime,
-          end_time: partialEndTime,
-          reason: partialDayReason || 'Partial day request'
-        })
-      });
-      const result = await response.json() as any;
-      if (result.success) {
-        message.success('Partial day request submitted successfully');
-        setPartialDayModalVisible(false);
-        setPartialDayDate('');
-        setPartialStartTime('');
-        setPartialEndTime('');
-        setPartialDayReason('');
-        fetchActivityRequests(); // Refresh the requests list
-      } else {
-        message.error(result.error || 'Failed to submit partial day request');
-      }
-    } catch (error) {
-      message.error('Failed to submit partial day request');
-    }
-    setPartialDayLoading(false);
-  };
+  // (Removed: now defined inside UserDashboard component)
 
   // Fetch activity requests
   const fetchActivityRequests = async () => {
@@ -791,7 +683,13 @@ export const UserDashboard: React.FC = () => {
   };
 
   const handleLogout = async () => {
-    await logout();
+    try {
+      await logout();
+    } catch (error) {
+      console.error('Logout failed:', error);
+    } finally {
+      window.location.href = '/';
+    }
   };
 
   const userMenuItems: MenuProps['items'] = [
@@ -799,13 +697,11 @@ export const UserDashboard: React.FC = () => {
       key: 'profile',
       icon: <UserOutlined />,
       label: 'My Profile',
-      onClick: () => setSelectedMenu('profile'),
     },
     {
       key: 'settings',
       icon: <SettingOutlined />,
       label: 'Settings',
-      onClick: () => setSelectedMenu('settings'),
     },
     {
       type: 'divider',
@@ -814,7 +710,6 @@ export const UserDashboard: React.FC = () => {
       key: 'logout',
       icon: <LogoutOutlined />,
       label: 'Logout',
-      onClick: handleLogout,
     },
   ];
 
@@ -952,7 +847,19 @@ export const UserDashboard: React.FC = () => {
           <Space size="large">
             <Button type="text" icon={<BellOutlined style={{ fontSize: 20 }} />} />
 
-            <Dropdown menu={{ items: userMenuItems }} placement="bottomRight">
+            <Dropdown
+              menu={{
+                items: userMenuItems,
+                onClick: ({ key }) => {
+                  if (key === 'logout') {
+                    handleLogout();
+                  } else {
+                    setSelectedMenu(key);
+                  }
+                }
+              }}
+              placement="bottomRight"
+            >
               <Space style={{ cursor: 'pointer' }}>
                 <Avatar icon={<UserOutlined />} style={{ backgroundColor: '#1890ff' }} />
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
@@ -973,7 +880,7 @@ export const UserDashboard: React.FC = () => {
                 <Row align="middle">
                   <Col flex="auto">
                     <Title level={3} style={{ color: 'white', margin: 0 }}>
-                      Welcome back, {user?.full_name || user?.username}! 👋
+                      Welcome back, {user?.full_name || user?.username}! ðŸ‘‹
                     </Title>
                     <Text style={{ color: 'rgba(255,255,255,0.9)', fontSize: 16 }}>
                       {currentTime.toLocaleDateString('en-US', {
@@ -995,7 +902,7 @@ export const UserDashboard: React.FC = () => {
                         {currentTime.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
                       </Text>
                       <Text style={{ color: 'rgba(255,255,255,0.8)' }}>
-                        {isClockedIn ? '🟢 Active' : '⚪ Not Clocked In'}
+                        {isClockedIn ? 'ðŸŸ¢ Active' : 'âšª Not Clocked In'}
                       </Text>
                     </div>
                   </Col>
@@ -1234,7 +1141,7 @@ export const UserDashboard: React.FC = () => {
                         <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                           <Text strong>Target: 8h 0m (+ 1h lunch)</Text>
                           <Text type="secondary" style={{ fontSize: 11 }}>
-                            {isClockedIn ? '🟢 Working' : '⚪ Not Clocked In'}
+                            {isClockedIn ? 'ðŸŸ¢ Working' : 'âšª Not Clocked In'}
                           </Text>
                         </div>
                       </>
@@ -1364,9 +1271,6 @@ export const UserDashboard: React.FC = () => {
                                 return `${hours}h ${minutes}m`;
                               })()}
                             </Text>
-                            <br />
-                            <Text type="secondary" style={{ fontSize: 10 }}>Gross:</Text>
-                            <Text strong style={{ fontSize: 14, color: '#52c41a', marginLeft: 4 }}>0h 0m</Text>
                           </Col>
                         </Row>
                       </Card>
@@ -1423,7 +1327,7 @@ export const UserDashboard: React.FC = () => {
                           <Text type="secondary" style={{ fontSize: 11 }}>STATUS</Text>
                           <br />
                           <Text strong style={{ color: isClockedIn ? '#52c41a' : '#ff4d4f' }}>
-                            {isClockedIn ? '🟢 Active' : '🔴 Inactive'}
+                            {isClockedIn ? 'ðŸŸ¢ Active' : 'ðŸ”´ Inactive'}
                           </Text>
                         </Col>
                         {todayRecord && (
@@ -1458,16 +1362,76 @@ export const UserDashboard: React.FC = () => {
                       <Space direction="vertical" style={{ width: '100%' }} size={8}>
                         <Button
                           type="link"
-                          icon={<span>🏠</span>}
+                          icon={<HomeOutlined />}
                           style={{ padding: 0, height: 'auto', color: '#1890ff' }}
                           onClick={showWfhModal}
                           disabled={isClockedIn}
                         >
                           Work From Home
                         </Button>
+                        {/* Work From Home Modal (Multi-Day) */}
+                        <Modal
+                          title="Work From Home Request (Multi-Day)"
+                          open={wfhModalVisible}
+                          onOk={handleWfhConfirm}
+                          onCancel={() => {
+                            setWfhModalVisible(false);
+                            setWfhDates([]);
+                            setWfhReason('');
+                          }}
+                          okText="Submit Request"
+                          confirmLoading={wfhLoading}
+                          width={500}
+                        >
+                          <Space direction="vertical" style={{ width: '100%' }} size="middle">
+                            <div>
+                              <Typography.Text strong>Select Dates:</Typography.Text>
+                              <Calendar
+                                fullscreen={false}
+                                dateFullCellRender={date => {
+                                  const dateStr = date.format('YYYY-MM-DD');
+                                  const selected = wfhDates.includes(dateStr);
+                                  return (
+                                    <div
+                                      style={{
+                                        background: selected ? '#1890ff' : undefined,
+                                        color: selected ? '#fff' : undefined,
+                                        borderRadius: 6,
+                                        padding: 2,
+                                        cursor: 'pointer',
+                                      }}
+                                      onClick={() => {
+                                        if (selected) {
+                                          setWfhDates(wfhDates.filter(d => d !== dateStr));
+                                        } else {
+                                          setWfhDates([...wfhDates, dateStr]);
+                                        }
+                                      }}
+                                    >
+                                      {date.date()}
+                                    </div>
+                                  );
+                                }}
+                              />
+                              <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                                Click on dates to select/deselect. Selected: {wfhDates.length}
+                              </Typography.Text>
+                            </div>
+                            <div>
+                              <Typography.Text>Reason:</Typography.Text>
+                              <Input.TextArea
+                                rows={3}
+                                placeholder="Enter reason for WFH..."
+                                value={wfhReason}
+                                onChange={e => setWfhReason(e.target.value)}
+                                style={{ marginTop: 8 }}
+                              />
+                            </div>
+                          </Space>
+                        </Modal>
                         <Button
                           type="link"
-                          icon={<span>📋</span>}
+                          icon={<FileTextOutlined />}
                           style={{ padding: 0, height: 'auto', color: '#1890ff' }}
                           onClick={() => message.info('On Duty request feature coming soon!')}
                         >
@@ -1475,7 +1439,7 @@ export const UserDashboard: React.FC = () => {
                         </Button>
                         <Button
                           type="link"
-                          icon={<span>⏰</span>}
+                          icon={<ClockCircleOutlined />}
                           style={{ padding: 0, height: 'auto', color: '#1890ff' }}
                           onClick={showPartialDayModal}
                         >
@@ -1483,9 +1447,9 @@ export const UserDashboard: React.FC = () => {
                         </Button>
                         <Button
                           type="link"
-                          icon={<span>📜</span>}
+                          icon={<ReadOutlined />}
                           style={{ padding: 0, height: 'auto', color: '#1890ff' }}
-                          onClick={() => message.info('Attendance policy document will be available soon!')}
+                          onClick={showPolicyModal}
                         >
                           Attendance Policy
                         </Button>
@@ -1591,7 +1555,7 @@ export const UserDashboard: React.FC = () => {
                             />
                             {record.notes?.includes('Late') && (
                               <div style={{ position: 'absolute', left: `${startPercent - 2}%`, top: -2 }}>
-                                <span style={{ fontSize: 16 }}>⚠️</span>
+                                <WarningOutlined style={{ fontSize: 16, color: '#faad14' }} />
                               </div>
                             )}
                           </div>
@@ -1604,31 +1568,30 @@ export const UserDashboard: React.FC = () => {
                       key: 'effective_hours',
                       width: 120,
                       render: (hours: string, record: any) => {
-                        // Effective hours = actual working time from working_hours field
                         if (record.status === 'absent' || !record.clock_in) return <Text>-</Text>;
 
-                        // If still working (no clock out), calculate live time
+                        let totalMinutes = 0;
+
                         if (record.has_active_session && record.clock_in) {
-                          const [hours, minutes, seconds] = record.clock_in.split(':').map(Number);
-                          const clockInDate = new Date();
-                          clockInDate.setHours(hours, minutes, seconds || 0, 0);
-
+                          // Active Session: Calculate live time from clock_in
+                          const [h, m] = record.clock_in.split(':').map(Number);
+                          const clockInDates = new Date();
+                          clockInDates.setHours(h, m, 0, 0);
                           const now = new Date();
-                          const diffMs = now.getTime() - clockInDate.getTime();
-                          const totalMins = Math.floor(diffMs / (1000 * 60));
-
-                          const displayHours = Math.floor(totalMins / 60);
-                          const displayMinutes = totalMins % 60;
-
-                          return <Text style={{ color: '#52c41a' }}>{displayHours}h {displayMinutes}m</Text>;
+                          totalMinutes = Math.floor((now.getTime() - clockInDates.getTime()) / 60000);
+                        } else {
+                          // Completed Day: Use total_minutes from DB
+                          totalMinutes = record.total_minutes || 0;
                         }
 
-                        // Use actual total_minutes from the record
-                        const actualMinutes = record.total_minutes || 0;
-                        const displayHours = Math.floor(actualMinutes / 60);
-                        const displayMinutes = actualMinutes % 60;
+                        const displayHours = Math.floor(Math.max(0, totalMinutes) / 60);
+                        const displayMinutes = Math.max(0, totalMinutes) % 60;
 
-                        return <Text>{displayHours}h {displayMinutes}m</Text>;
+                        return (
+                          <Text style={{ color: record.has_active_session ? '#52c41a' : undefined }}>
+                            {displayHours}h {displayMinutes}m
+                          </Text>
+                        );
                       }
                     },
                     {
@@ -1637,41 +1600,33 @@ export const UserDashboard: React.FC = () => {
                       key: 'gross_hours',
                       width: 120,
                       render: (hours: string, record: any) => {
-                        // Gross hours = total time from clock in to clock out (including breaks)
                         if (record.status === 'absent' || !record.clock_in) return <Text>-</Text>;
 
-                        // If still working, calculate total elapsed time from clock in to now
-                        if (record.has_active_session && record.clock_in) {
-                          const [hours, minutes, seconds] = record.clock_in.split(':').map(Number);
-                          const clockInDate = new Date();
-                          clockInDate.setHours(hours, minutes, seconds || 0, 0);
+                        let totalMinutes = 0;
 
-                          const now = new Date();
-                          const diffMs = now.getTime() - clockInDate.getTime();
-                          const totalMins = Math.floor(diffMs / (1000 * 60));
+                        // Gross = Clock Out - Clock In (simple diff)
+                        // If Active: Now - Clock In
+                        const [inH, inM] = record.clock_in.split(':').map(Number);
+                        const start = new Date();
+                        start.setUTCHours(inH, inM, 0, 0);
 
-                          const displayHours = Math.floor(totalMins / 60);
-                          const displayMinutes = totalMins % 60;
+                        let end = new Date(); // Default to Now if active
 
-                          return <Text style={{ color: '#1890ff' }}>{displayHours}h {displayMinutes}m</Text>;
+                        if (record.clock_out) {
+                          const [outH, outM] = record.clock_out.split(':').map(Number);
+                          end.setUTCHours(outH, outM, 0, 0);
                         }
 
-                        // Calculate gross time from clock_in to clock_out
-                        if (record.clock_in && record.clock_out) {
-                          const [inHours, inMinutes, inSeconds] = record.clock_in.split(':').map(Number);
-                          const [outHours, outMinutes, outSeconds] = record.clock_out.split(':').map(Number);
+                        totalMinutes = Math.floor((end.getTime() - start.getTime()) / 60000);
 
-                          const clockInMins = inHours * 60 + inMinutes;
-                          const clockOutMins = outHours * 60 + outMinutes;
-                          const totalMins = clockOutMins - clockInMins;
+                        const displayHours = Math.floor(Math.max(0, totalMinutes) / 60);
+                        const displayMinutes = Math.max(0, totalMinutes) % 60;
 
-                          const displayHours = Math.floor(totalMins / 60);
-                          const displayMinutes = totalMins % 60;
-
-                          return <Text>{displayHours}h {displayMinutes}m</Text>;
-                        }
-
-                        return <Text>-</Text>;
+                        return (
+                          <Text style={{ color: record.has_active_session ? '#1890ff' : undefined }}>
+                            {displayHours}h {displayMinutes}m
+                          </Text>
+                        );
                       }
                     },
                     {
@@ -1684,7 +1639,7 @@ export const UserDashboard: React.FC = () => {
                         const lateNote = record.sessions?.find((s: any) => s.notes?.includes('Late'))?.notes;
                         return (
                           <div>
-                            <span style={{ fontSize: 18 }}>{isLate ? '😟' : '✅'}</span>
+                            {isLate ? <FrownOutlined style={{ fontSize: 18, color: '#faad14' }} /> : <CheckCircleOutlined style={{ fontSize: 18, color: '#52c41a' }} />}
                             {isLate && lateNote && (
                               <>
                                 <br />
@@ -1704,7 +1659,7 @@ export const UserDashboard: React.FC = () => {
                       render: (_: any, record: any) => (
                         <Button
                           type="text"
-                          icon={<span style={{ color: '#faad14', fontSize: 16 }}>ℹ️</span>}
+                          icon={<InfoCircleOutlined style={{ color: '#1890ff', fontSize: 16 }} />}
                           onClick={() => fetchDayDetails(record.date)}
                         />
                       )
@@ -1783,12 +1738,19 @@ export const UserDashboard: React.FC = () => {
                                   {/* Clock In */}
                                   <Row align="middle" style={{ marginBottom: 8 }}>
                                     <Col span={4}>
-                                      <span style={{ fontSize: 18 }}>✅</span>
+                                      <LoginOutlined style={{ fontSize: 18, color: '#52c41a' }} />
                                     </Col>
                                     <Col span={10}>
-                                      <Text strong>{entry.clock_in}</Text>
+                                      <Text strong>
+                                        {(() => {
+                                          const [h, m, s] = entry.clock_in.split(':').map(Number);
+                                          const d = new Date();
+                                          d.setUTCHours(h, m, s || 0);
+                                          return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+                                        })()}
+                                      </Text>
                                       <br />
-                                      <Text type="secondary" style={{ fontSize: 11 }}>Clock In</Text>
+                                      <Text type="secondary" style={{ fontSize: 11 }}>Clock In (Local)</Text>
                                     </Col>
                                     <Col span={10}>
                                       {location && (
@@ -1798,7 +1760,7 @@ export const UserDashboard: React.FC = () => {
                                           rel="noopener noreferrer"
                                           style={{ fontSize: 11 }}
                                         >
-                                          📍 View Location
+                                          <EnvironmentOutlined /> View Location
                                         </a>
                                       )}
                                     </Col>
@@ -1808,12 +1770,19 @@ export const UserDashboard: React.FC = () => {
                                   {entry.clock_out ? (
                                     <Row align="middle" style={{ marginBottom: 8 }}>
                                       <Col span={4}>
-                                        <span style={{ fontSize: 18 }}>⏸️</span>
+                                        <LogoutOutlined style={{ fontSize: 18, color: '#f5222d' }} />
                                       </Col>
                                       <Col span={10}>
-                                        <Text strong>{entry.clock_out}</Text>
+                                        <Text strong>
+                                          {(() => {
+                                            const [h, m, s] = entry.clock_out.split(':').map(Number);
+                                            const d = new Date();
+                                            d.setUTCHours(h, m, s || 0);
+                                            return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+                                          })()}
+                                        </Text>
                                         <br />
-                                        <Text type="secondary" style={{ fontSize: 11 }}>Clock Out</Text>
+                                        <Text type="secondary" style={{ fontSize: 11 }}>Clock Out (Local)</Text>
                                       </Col>
                                       <Col span={10}>
                                         <Tag color="green">{entry.working_hours}</Tag>
@@ -1856,7 +1825,7 @@ export const UserDashboard: React.FC = () => {
                     <Space direction="vertical" style={{ width: '100%' }}>
                       <Button
                         block
-                        icon={<span>✏️</span>}
+                        icon={<EditOutlined />}
                         type="primary"
                         onClick={handleRegularizeAttendance}
                       >
@@ -1864,7 +1833,7 @@ export const UserDashboard: React.FC = () => {
                       </Button>
                       <Button
                         block
-                        icon={<span>📋</span>}
+                        icon={<ClockCircleOutlined />}
                         onClick={showPartialDayModal}
                       >
                         Apply Partial Day
@@ -2051,7 +2020,7 @@ export const UserDashboard: React.FC = () => {
                   </div>
                   <div style={{ backgroundColor: '#e6f7ff', padding: 12, borderRadius: 6, border: '1px solid #91d5ff' }}>
                     <Text style={{ fontSize: 12 }}>
-                      ⏰ Duration will be calculated automatically based on your start and end times
+                      â° Duration will be calculated automatically based on your start and end times
                     </Text>
                   </div>
                 </Space>
@@ -2061,195 +2030,19 @@ export const UserDashboard: React.FC = () => {
 
           {selectedMenu === 'leave' && (
             <div>
-              {/* Leave Summary Stats */}
-              <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
-                <Col xs={24} sm={12} md={6}>
-                  <Card style={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}>
-                    <Statistic
-                      title={<span style={{ color: 'rgba(255,255,255,0.9)' }}>Total Requests</span>}
-                      value={leaveRequests.length}
-                      prefix={<FileTextOutlined />}
-                      valueStyle={{ color: '#fff', fontWeight: 700 }}
-                    />
-                  </Card>
-                </Col>
-                <Col xs={24} sm={12} md={6}>
-                  <Card style={{ background: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)' }}>
-                    <Statistic
-                      title={<span style={{ color: 'rgba(255,255,255,0.9)' }}>Pending</span>}
-                      value={leaveRequests.filter(l => l.status === 'pending').length}
-                      prefix={<HourglassOutlined />}
-                      valueStyle={{ color: '#fff', fontWeight: 700 }}
-                    />
-                  </Card>
-                </Col>
-                <Col xs={24} sm={12} md={6}>
-                  <Card style={{ background: 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)' }}>
-                    <Statistic
-                      title={<span style={{ color: 'rgba(255,255,255,0.9)' }}>Approved</span>}
-                      value={leaveRequests.filter(l => l.status === 'approved').length}
-                      prefix={<CheckCircleOutlined />}
-                      valueStyle={{ color: '#fff', fontWeight: 700 }}
-                    />
-                  </Card>
-                </Col>
-                <Col xs={24} sm={12} md={6}>
-                  <Card style={{ background: 'linear-gradient(135deg, #fa709a 0%, #fee140 100%)' }}>
-                    <Statistic
-                      title={<span style={{ color: 'rgba(255,255,255,0.9)' }}>Total Days</span>}
-                      value={leaveRequests
-                        .filter(l => l.status === 'approved')
-                        .reduce((sum, l) => sum + l.total_days, 0)}
-                      prefix={<CalendarOutlined />}
-                      valueStyle={{ color: '#fff', fontWeight: 700 }}
-                    />
-                  </Card>
-                </Col>
-              </Row>
-
-              {/* Request New Leave Button */}
-              <Card style={{ marginBottom: 16 }}>
-                <Button
-                  type="primary"
-                  icon={<PlusOutlined />}
-                  size="large"
-                  onClick={() => setLeaveModalVisible(true)}
-                >
-                  Request New Leave
-                </Button>
-              </Card>
-
-              {/* Leave Requests Table */}
-              <Card title="My Leave Requests" bordered={false}>
-                <Table
-                  dataSource={leaveRequests}
-                  loading={leaveLoading}
-                  rowKey="id"
-                  pagination={{
-                    pageSize: 10,
-                    showTotal: (total) => `Total ${total} requests`
-                  }}
-                  columns={[
-                    {
-                      title: 'Leave Type',
-                      dataIndex: 'leave_type',
-                      key: 'leave_type',
-                      render: (type: string) => {
-                        if (!type) return '-';
-                        return (
-                          <Tag color={getLeaveTypeColor(type)}>
-                            {type.toUpperCase()}
-                          </Tag>
-                        );
-                      },
-                    },
-                    {
-                      title: 'Duration',
-                      key: 'duration',
-                      render: (_: any, record: LeaveRequest) => {
-                        if (!record.start_date || !record.end_date) return '-';
-                        return (
-                          <Space direction="vertical" size={0}>
-                            <Text strong>
-                              {dayjs(record.start_date).format('MMM DD, YYYY')} - {dayjs(record.end_date).format('MMM DD, YYYY')}
-                            </Text>
-                            <Text type="secondary" style={{ fontSize: 12 }}>
-                              {record.total_days} day{record.total_days > 1 ? 's' : ''}
-                            </Text>
-                          </Space>
-                        );
-                      },
-                    },
-                    {
-                      title: 'Reason',
-                      dataIndex: 'reason',
-                      key: 'reason',
-                      ellipsis: true,
-                    },
-                    {
-                      title: 'Status',
-                      dataIndex: 'status',
-                      key: 'status',
-                      render: (status: string) => {
-                        if (!status) return '-';
-                        return (
-                          <Tag
-                            color={getLeaveStatusColor(status)}
-                            icon={
-                              status === 'approved' ? <CheckCircleOutlined /> :
-                                status === 'rejected' ? <CloseOutlined /> :
-                                  status === 'pending' ? <ClockCircleOutlined /> :
-                                    <CloseOutlined />
-                            }
-                          >
-                            {status.toUpperCase()}
-                          </Tag>
-                        );
-                      },
-                    },
-                    {
-                      title: 'Applied On',
-                      dataIndex: 'created_at',
-                      key: 'created_at',
-                      render: (date: string) => date ? dayjs(date).format('MMM DD, YYYY') : '-',
-                      sorter: (a, b) => {
-                        if (!a.created_at || !b.created_at) return 0;
-                        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
-                      },
-                    },
-                    {
-                      title: 'Rejection Reason',
-                      dataIndex: 'rejection_reason',
-                      key: 'rejection_reason',
-                      width: 200,
-                      render: (reason: string, record: LeaveRequest) => {
-                        if (record.status !== 'rejected' || !reason) return '-';
-                        return (
-                          <Tooltip title={reason}>
-                            <Text type="danger" ellipsis style={{ maxWidth: 180 }}>
-                              <ExclamationCircleOutlined style={{ marginRight: 4 }} />
-                              {reason}
-                            </Text>
-                          </Tooltip>
-                        );
-                      },
-                    },
-                    {
-                      title: 'Actions',
-                      key: 'actions',
-                      render: (_: any, record: LeaveRequest) => (
-                        <Space>
-                          {record.status === 'pending' && (
-                            <>
-                              <Button
-                                type="text"
-                                icon={<EditOutlined />}
-                                onClick={() => handleEditLeave(record)}
-                              >
-                                Edit
-                              </Button>
-                              <Button
-                                type="text"
-                                danger
-                                icon={<DeleteOutlined />}
-                                onClick={() => handleCancelLeave(record.id)}
-                              >
-                                Cancel
-                              </Button>
-                            </>
-                          )}
-                          {record.status === 'approved' && record.approved_by && (
-                            <Text type="secondary" style={{ fontSize: 12 }}>
-                              Approved by {record.approved_by}
-                            </Text>
-                          )}
-                        </Space>
-                      ),
-                    },
-                  ]}
-                />
-              </Card>
-
+              <LeaveDashboard
+                leaveRequests={leaveRequests}
+                loading={leaveLoading}
+                leaveBalance={leaveBalance}
+                onRequestLeave={() => {
+                  setEditingLeave(null);
+                  leaveForm.resetFields();
+                  setLeaveModalVisible(true);
+                }}
+                onCancelLeave={handleCancelLeave}
+                fetchData={fetchLeaveRequests}
+                onRequestPolicy={showPolicyModal}
+              />
               {/* Leave Request Modal */}
               <Modal
                 title={
@@ -2280,15 +2073,70 @@ export const UserDashboard: React.FC = () => {
                     label="Leave Type"
                     rules={[{ required: true, message: 'Please select leave type' }]}
                   >
-                    <Select size="large" placeholder="Select leave type">
+                    <Select
+                      size="large"
+                      placeholder="Select leave type"
+                    >
                       <Option value="sick">Sick Leave</Option>
                       <Option value="vacation">Vacation</Option>
                       <Option value="personal">Personal Leave</Option>
+                      <Option value="emergency">Emergency Leave</Option>
+                      <Option value="birthday">Birthday Leave</Option>
+                      <Option value="anniversary">Marriage Anniversary Leave</Option>
                       <Option value="maternity">Maternity Leave</Option>
                       <Option value="paternity">Paternity Leave</Option>
                       <Option value="unpaid">Unpaid Leave</Option>
+                      <Option value="comp_off">Comp Off</Option>
+                      <Option value="overseas">Overseas Trip</Option>
                     </Select>
                   </Form.Item>
+
+                  {(function () {
+                    // Use top-level state
+                    const selectedType = selectedLeaveType;
+                    let suggestion = null;
+                    let balanceText = null;
+
+                    if (selectedType === 'birthday' || selectedType === 'anniversary') {
+                      suggestion = "Special leave is a paid time off to observe an event, such as employee's birthday, marriage anniversary.";
+                      const used = selectedType === 'birthday' ? leaveBalance?.birthday_leave_used : leaveBalance?.anniversary_leave_used;
+                      balanceText = used ? `${selectedType === 'birthday' ? 'Birthday' : 'Anniversary'} Leave - Not Available` : `${selectedType === 'birthday' ? 'Birthday' : 'Anniversary'} Leave - Available`;
+                    } else if (selectedType === 'comp_off') {
+                      suggestion = "This leave type is used to provide additional leave for the work done by employee on off/extrawork/ etc. Infinite Balance.";
+                      balanceText = "Comp Off - Infinite Balance";
+                    } else if (selectedType === 'overseas') {
+                      suggestion = "Avail after completion of 3 years.";
+                      balanceText = "Overseas Trip - check eligibility";
+                    } else if (selectedType === 'maternity') {
+                      suggestion = "Maternity Benefit: Max 26 Weeks (182 Days). 8 weeks before delivery. From 7th month, WFH is treated as full day work. Eligibility: 36 days service.";
+                      balanceText = "Maternity Leave - Max 90 days (paid)";
+                    } else if (selectedType === 'paternity') {
+                      suggestion = "Paternity Benefit: Max 15 Days. Applicable post delivery.";
+                      balanceText = "Paternity Leave - Max 15 days";
+                    } else if (['sick', 'vacation', 'personal'].includes(selectedType)) {
+                      suggestion = "Paid leave suggestion as per available leave balance.";
+                      if (leaveBalance) {
+                        const available = leaveBalance.paid_leave_quota - leaveBalance.paid_leave_used;
+                        balanceText = `Paid Leave Balance: ${available} / ${leaveBalance.paid_leave_quota}`;
+                      }
+                    }
+
+                    if (suggestion) {
+                      return (
+                        <div style={{ marginBottom: 24 }}>
+                          {balanceText && (
+                            <div style={{ padding: '8px 12px', background: '#1f1f1f', border: '1px solid #303030', borderRadius: '4px 4px 0 0', color: '#e0e0e0', fontSize: '12px' }}>
+                              {balanceText}
+                            </div>
+                          )}
+                          <div style={{ padding: '12px', background: '#002c4c', border: '1px solid #0050b3', borderRadius: balanceText ? '0 0 4px 4px' : '4px', color: '#1890ff' }}>
+                            {suggestion}
+                          </div>
+                        </div>
+                      );
+                    }
+                    return null;
+                  })()}
 
                   <Form.Item
                     name="dateRange"
@@ -2527,7 +2375,7 @@ export const UserDashboard: React.FC = () => {
           </div>
           <div style={{ backgroundColor: '#f0f5ff', padding: 12, borderRadius: 6 }}>
             <Text style={{ fontSize: 12 }}>
-              📍 Your location will be tracked for security purposes
+              ðŸ“ Your location will be tracked for security purposes
             </Text>
           </div>
         </Space>
@@ -2609,75 +2457,28 @@ export const UserDashboard: React.FC = () => {
           </div>
           <div style={{ backgroundColor: '#fff7e6', padding: 12, borderRadius: 6, border: '1px solid #ffd591' }}>
             <Text style={{ fontSize: 12 }}>
-              ⏱️ Your timer will stop after confirmation
+              â±ï¸ Your timer will stop after confirmation
             </Text>
           </div>
         </Space>
       </Modal>
 
-      {/* Work From Home Modal */}
-      <Modal
-        title="Work From Home Request"
-        open={wfhModalVisible}
-        onOk={handleWfhConfirm}
-        onCancel={() => {
-          setWfhModalVisible(false);
-          setWfhDate('');
-          setWfhReason('');
-        }}
-        okText="Submit Request"
-        confirmLoading={wfhLoading}
-        okButtonProps={{ icon: <HomeOutlined /> }}
-        width={500}
-      >
-        <Space direction="vertical" style={{ width: '100%' }} size="middle">
-          <div>
-            <Text strong>Submit a work from home request</Text>
-            <br />
-            <Text type="secondary" style={{ fontSize: 12 }}>
-              Request will be sent to admin for approval
-            </Text>
-          </div>
-          <div>
-            <Text>Date: <Text type="danger">*</Text></Text>
-            <Input
-              type="date"
-              value={wfhDate}
-              onChange={(e) => setWfhDate(e.target.value)}
-              style={{ marginTop: 8 }}
-            />
-          </div>
-          <div>
-            <Text>Reason:</Text>
-            <Input.TextArea
-              rows={4}
-              placeholder="Enter reason for working from home..."
-              value={wfhReason}
-              onChange={(e) => setWfhReason(e.target.value)}
-              style={{ marginTop: 8 }}
-            />
-          </div>
-          <div style={{ backgroundColor: '#e6f7ff', padding: 12, borderRadius: 6, border: '1px solid #91d5ff' }}>
-            <Text style={{ fontSize: 12 }}>
-              🏠 Your request will be submitted for admin approval
-            </Text>
-          </div>
-        </Space>
-      </Modal>
+
 
       {/* Request Details Modal */}
-      <Modal
+      < Modal
         title="Request Details"
         open={requestDetailsModalVisible}
         onCancel={() => {
           setRequestDetailsModalVisible(false);
           setSelectedRequest(null);
         }}
-        footer={[
-          <Button key="close" onClick={() => setRequestDetailsModalVisible(false)}>
-            Close
-          </Button>
-        ]}
+        footer={
+          [
+            <Button key="close" onClick={() => setRequestDetailsModalVisible(false)}>
+              Close
+            </Button>
+          ]}
         width={600}
       >
         {selectedRequest && (
@@ -2763,9 +2564,41 @@ export const UserDashboard: React.FC = () => {
             )}
           </Descriptions>
         )}
+      </Modal >
+      <Modal
+        title="Company Leave Policy & Holidays"
+        open={policyModalVisible}
+        onCancel={() => setPolicyModalVisible(false)}
+        footer={[<Button key="close" onClick={() => setPolicyModalVisible(false)}>Close</Button>]}
+        width={800}
+      >
+        <Tabs items={[
+          {
+            key: 'guidelines',
+            label: 'Guidelines',
+            children: <div style={{ maxHeight: '60vh', overflowY: 'auto' }} dangerouslySetInnerHTML={{ __html: policyText }} />
+          },
+          {
+            key: 'holidays',
+            label: 'Holiday Calendar',
+            children: (
+              <Table
+                dataSource={holidays}
+                rowKey="id"
+                pagination={false}
+                columns={[
+                  { title: 'Date', dataIndex: 'date', render: (d: string) => dayjs(d).format('DD MMM YYYY, dddd') },
+                  { title: 'Holiday', dataIndex: 'name' },
+                  { title: 'Type', dataIndex: 'is_optional', render: (opt: number) => opt ? <Tag color="orange">Optional</Tag> : <Tag color="green">Mandatory</Tag> }
+                ]}
+              />
+            )
+          }
+        ]} />
       </Modal>
     </Layout>
   );
 };
+
 
 export default UserDashboard;

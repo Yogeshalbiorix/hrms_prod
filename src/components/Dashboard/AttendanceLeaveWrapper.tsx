@@ -3,6 +3,7 @@ import { Tabs } from 'antd';
 import { CalendarOutlined, FileTextOutlined } from '@ant-design/icons';
 import AttendanceManagement from './AttendanceManagement';
 import LeaveManagement from './LeaveManagement';
+import LeavePolicyManager from './LeavePolicyManager';
 
 export default function AttendanceLeaveWrapper() {
   const items = [
@@ -25,6 +26,11 @@ export default function AttendanceLeaveWrapper() {
         </span>
       ),
       children: <LeaveManagement />,
+    },
+    {
+      key: 'leave_policy',
+      label: 'Leave Policy',
+      children: <LeavePolicyManager />,
     },
   ];
 

@@ -23,7 +23,7 @@ interface LeaveRecord {
   employee_name: string;
   employee_code: string;
   department_name: string;
-  leave_type: 'sick' | 'vacation' | 'personal' | 'maternity' | 'paternity' | 'unpaid';
+  leave_type: 'sick' | 'vacation' | 'personal' | 'maternity' | 'paternity' | 'unpaid' | 'emergency' | 'birthday' | 'anniversary';
   start_date: string;
   end_date: string;
   total_days: number;
@@ -362,6 +362,26 @@ export default function LeaveManagement() {
     );
   };
 
+  interface LeaveRecord {
+    id: number;
+    employee_id: number;
+    employee_name: string;
+    employee_code: string;
+    department_name: string;
+    leave_type: 'sick' | 'vacation' | 'personal' | 'maternity' | 'paternity' | 'unpaid' | 'emergency' | 'birthday' | 'anniversary' | 'comp_off' | 'overseas';
+    start_date: string;
+    end_date: string;
+    total_days: number;
+    reason: string;
+    notes?: string;
+    status: 'pending' | 'approved' | 'rejected' | 'cancelled';
+    rejection_reason?: string;
+    approval_date?: string;
+    approved_by?: string;
+    created_at: string;
+    updated_at: string;
+  }
+
   const getLeaveTypeTag = (type: string) => {
     const colors: Record<string, string> = {
       sick: 'red',
@@ -369,7 +389,12 @@ export default function LeaveManagement() {
       personal: 'purple',
       maternity: 'magenta',
       paternity: 'cyan',
-      unpaid: 'orange'
+      unpaid: 'orange',
+      emergency: 'volcano',
+      birthday: 'purple',
+      anniversary: 'pink',
+      comp_off: 'geekblue',
+      overseas: 'gold'
     };
     return <Tag color={colors[type] || 'default'}>{type.toUpperCase()}</Tag>;
   };
@@ -411,6 +436,9 @@ export default function LeaveManagement() {
         { text: 'Maternity', value: 'maternity' },
         { text: 'Paternity', value: 'paternity' },
         { text: 'Unpaid', value: 'unpaid' },
+        { text: 'Emergency', value: 'emergency' },
+        { text: 'Birthday', value: 'birthday' },
+        { text: 'Anniversary', value: 'anniversary' },
       ],
       onFilter: (value, record) => record.leave_type === value,
     },
@@ -761,6 +789,11 @@ export default function LeaveManagement() {
               <Select.Option value="maternity">Maternity</Select.Option>
               <Select.Option value="paternity">Paternity</Select.Option>
               <Select.Option value="unpaid">Unpaid</Select.Option>
+              <Select.Option value="emergency">Emergency</Select.Option>
+              <Select.Option value="birthday">Birthday</Select.Option>
+              <Select.Option value="anniversary">Anniversary</Select.Option>
+              <Select.Option value="comp_off">Comp Off</Select.Option>
+              <Select.Option value="overseas">Overseas</Select.Option>
             </Select>
           </Form.Item>
 

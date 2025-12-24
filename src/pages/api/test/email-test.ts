@@ -1,85 +1,69 @@
 import type { APIRoute } from 'astro';
+import { EMAIL_CONFIG } from '../../../lib/email-config';
+import { Resend } from 'resend';
 
 export const GET: APIRoute = async ({ request }) => {
   try {
-    // Test EmailJS REST API
-    const testEmail = 'test@example.com';
-    const testParams = {
-      to_email: testEmail,
-      to_name: 'Test User',
-      subject: 'EmailJS Test',
-      message_html: '<p>This is a test email</p>',
-      from_name: 'HRMS System',
-    };
+    const url = new URL(request.url);
+    const testEmail = url.searchParams.get('email') || 'yogesh.albiorix@gmail.com';
 
-    const EMAILJS_CONFIG = {
-      PUBLIC_KEY: 'LS1lN8SYs5V6vdWUg',
-      SERVICE_ID: 'service_rnku77s',
-      TEMPLATE_ID: 'template_komoohv',
-    };
+    // Allow overriding from query params for debugging
+    const overrideApiKey = url.searchParams.get('api_key');
 
-    console.log('Testing EmailJS with config:', {
-      service_id: EMAILJS_CONFIG.SERVICE_ID,
-      template_id: EMAILJS_CONFIG.TEMPLATE_ID,
-      public_key: EMAILJS_CONFIG.PUBLIC_KEY.substring(0, 5) + '...',
-    });
-
-    const response = await fetch('https://api.emailjs.com/api/v1.0/email/send', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        service_id: EMAILJS_CONFIG.SERVICE_ID,
-        template_id: EMAILJS_CONFIG.TEMPLATE_ID,
-        user_id: EMAILJS_CONFIG.PUBLIC_KEY,
-        template_params: testParams,
-      }),
-    });
-
-    const statusText = response.statusText;
-    const status = response.status;
-
-    let responseData;
-    try {
-      responseData = await response.text();
-    } catch {
-      responseData = 'No response body';
+    if (!EMAIL_CONFIG || !EMAIL_CONFIG.RESEND) {
+      throw new Error('EMAIL_CONFIG or RESEND configuration is missing');
     }
 
-    if (response.ok) {
-      return new Response(
-        JSON.stringify({
-          success: true,
-          message: 'EmailJS test successful! Email service is working.',
-          details: {
-            status,
-            statusText,
-            response: responseData,
-          },
-        }),
-        { status: 200, headers: { 'Content-Type': 'application/json' } }
-      );
-    } else {
+    const API_KEY = overrideApiKey || EMAIL_CONFIG.RESEND.API_KEY;
+
+    console.log('Testing Resend with config:', {
+      api_key_partial: API_KEY.substring(0, 5) + '...',
+      using_override: !!overrideApiKey
+    });
+
+    const resend = new Resend(API_KEY);
+
+    const { data, error } = await resend.emails.send({
+      from: EMAIL_CONFIG.RESEND.FROM_EMAIL,
+      to: testEmail,
+      subject: 'Resend Test - HRMS',
+      html: '<p>This is a test email sent via Resend!</p>'
+    });
+
+    if (error) {
       return new Response(
         JSON.stringify({
           success: false,
-          error: 'EmailJS test failed',
-          details: {
-            status,
-            statusText,
-            response: responseData,
+          error: 'Resend test failed',
+          config_used: {
+            api_key_partial: API_KEY.substring(0, 5) + '...',
+            is_overridden: !!overrideApiKey
           },
+          details: error,
         }),
         { status: 500, headers: { 'Content-Type': 'application/json' } }
       );
     }
+
+    return new Response(
+      JSON.stringify({
+        success: true,
+        message: 'Resend test successful!',
+        data,
+        config_used: {
+          api_key_partial: API_KEY.substring(0, 5) + '...',
+          is_overridden: !!overrideApiKey
+        }
+      }),
+      { status: 200, headers: { 'Content-Type': 'application/json' } }
+    );
+
   } catch (error) {
-    console.error('EmailJS test error:', error);
+    console.error('Resend test error:', error);
     return new Response(
       JSON.stringify({
         success: false,
-        error: 'Failed to test EmailJS',
+        error: 'Failed to test Resend',
         details: error instanceof Error ? error.message : 'Unknown error',
       }),
       { status: 500, headers: { 'Content-Type': 'application/json' } }

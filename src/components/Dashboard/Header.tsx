@@ -110,13 +110,11 @@ export default function Header({ title, onMenuClick }: HeaderProps) {
       key: 'profile',
       icon: <ProfileOutlined />,
       label: 'Profile',
-      onClick: () => handleMenuClick('profile'),
     },
     {
       key: 'settings',
       icon: <SettingOutlined />,
       label: 'Settings',
-      onClick: () => handleMenuClick('settings'),
     },
     {
       type: 'divider',
@@ -126,7 +124,6 @@ export default function Header({ title, onMenuClick }: HeaderProps) {
       icon: <LogoutOutlined />,
       label: 'Logout',
       danger: true,
-      onClick: () => handleMenuClick('logout'),
     },
   ];
 

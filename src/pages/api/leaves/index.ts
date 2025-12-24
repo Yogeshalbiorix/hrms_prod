@@ -1,4 +1,5 @@
-// API endpoint for leave management operations
+// API endpoint for leave management operations (Cloudflare compatible)
+
 import type { APIRoute } from 'astro';
 import {
   getAllLeaves,
@@ -9,329 +10,184 @@ import {
   getDB,
   getUserFromSession
 } from '../../../lib/db';
-import { sendActivityEmail } from '../../../lib/email-service';
+import { sendEmail } from '../../../lib/email-service';
 
+/* ---------------------------------------------------
+   Helper: Send Leave Request Email via Centralized Service
+--------------------------------------------------- */
+async function sendLeaveRequestEmail(
+  to: string,
+  userName: string,
+  leave: Leave
+) {
+  const subject = '📩 New Leave Request Submitted - HRMS';
+
+  const html = `
+    <p>Hello <strong>${userName}</strong>,</p>
+    <p>Your leave request has been submitted successfully.</p>
+
+    <p><b>Leave Type:</b> ${leave.leave_type}</p>
+    <p><b>Start Date:</b> ${leave.start_date}</p>
+    <p><b>End Date:</b> ${leave.end_date}</p>
+    <p><b>Total Days:</b> ${leave.total_days}</p>
+
+    ${leave.reason ? `<p><b>Reason:</b> ${leave.reason}</p>` : ''}
+
+    <p>Status: <strong>${leave.status}</strong></p>
+
+    <p>Regards,<br/><strong>HRMS Team</strong></p>
+  `;
+
+  await sendEmail({
+    to,
+    subject,
+    html,
+    to_name: userName
+  });
+}
+
+/* ---------------------------------------------------
+   GET: List leaves / stats
+--------------------------------------------------- */
 export const GET: APIRoute = async ({ request, locals, url }) => {
   try {
     const db = getDB(locals.runtime?.env || locals.env);
 
-    // Get session token from Authorization header
-    const authHeader = request.headers.get('Authorization');
-    const sessionToken = authHeader?.replace('Bearer ', '');
+    const token = request.headers
+      .get('Authorization')
+      ?.replace('Bearer ', '');
 
-    if (!sessionToken) {
-      return new Response(
-        JSON.stringify({ success: false, error: 'Unauthorized - No session token' }),
-        { status: 401, headers: { 'Content-Type': 'application/json' } }
-      );
-    }
+    if (!token) return json(401, { error: 'Unauthorized' });
 
-    // Validate session and get user
-    const sessionUser = await getUserFromSession(db, sessionToken);
+    const user = await getUserFromSession(db, token);
+    if (!user) return json(401, { error: 'Invalid session' });
 
-    if (!sessionUser) {
-      return new Response(
-        JSON.stringify({ success: false, error: 'Unauthorized - Invalid session' }),
-        { status: 401, headers: { 'Content-Type': 'application/json' } }
-      );
-    }
-
-    // Get query parameters for filtering
-    const employeeId = url.searchParams.get('employee_id');
-    const status = url.searchParams.get('status') || undefined;
-    const leaveType = url.searchParams.get('leave_type') || undefined;
-    const statsOnly = url.searchParams.get('stats') === 'true';
-
-    // Return stats if requested
-    if (statsOnly) {
+    if (url.searchParams.get('stats') === 'true') {
       const stats = await getLeaveStats(db);
-      return new Response(JSON.stringify({
-        success: true,
-        data: stats
-      }), {
-        status: 200,
-        headers: { 'Content-Type': 'application/json' }
-      });
+      return json(200, { success: true, data: stats });
     }
 
     const filters = {
-      employee_id: employeeId ? parseInt(employeeId) : undefined,
-      status,
-      leave_type: leaveType
+      employee_id: url.searchParams.get('employee_id')
+        ? Number(url.searchParams.get('employee_id'))
+        : undefined,
+      status: url.searchParams.get('status') || undefined,
+      leave_type: url.searchParams.get('leave_type') || undefined
     };
 
     const leaves = await getAllLeaves(db, filters);
-
-    return new Response(JSON.stringify({
-      success: true,
-      data: leaves
-    }), {
-      status: 200,
-      headers: { 'Content-Type': 'application/json' }
-    });
-  } catch (error) {
-    console.error('Error fetching leaves:', error);
-    return new Response(JSON.stringify({
-      success: false,
-      error: 'Failed to fetch leave records'
-    }), {
-      status: 500,
-      headers: { 'Content-Type': 'application/json' }
-    });
+    return json(200, { success: true, data: leaves });
+  } catch (err) {
+    console.error(err);
+    return json(500, { error: 'Failed to fetch leaves' });
   }
 };
 
+/* ---------------------------------------------------
+   POST: Create leave + email notification
+--------------------------------------------------- */
 export const POST: APIRoute = async ({ request, locals }) => {
   try {
     const db = getDB(locals.runtime?.env || locals.env);
 
-    // Get session token from Authorization header
-    const authHeader = request.headers.get('Authorization');
-    const sessionToken = authHeader?.replace('Bearer ', '');
+    const token = request.headers
+      .get('Authorization')
+      ?.replace('Bearer ', '');
 
-    if (!sessionToken) {
-      return new Response(
-        JSON.stringify({ success: false, error: 'Unauthorized - No session token' }),
-        { status: 401, headers: { 'Content-Type': 'application/json' } }
-      );
-    }
+    if (!token) return json(401, { error: 'Unauthorized' });
 
-    // Validate session and get user
-    const sessionUser = await getUserFromSession(db, sessionToken);
+    const user = await getUserFromSession(db, token);
+    if (!user) return json(401, { error: 'Invalid session' });
 
-    if (!sessionUser) {
-      return new Response(
-        JSON.stringify({ success: false, error: 'Unauthorized - Invalid session' }),
-        { status: 401, headers: { 'Content-Type': 'application/json' } }
-      );
-    }
+    const body = await request.json();
 
-    const body = await request.json() as any;
-
-    console.log('Leave request payload:', body);
-    console.log('Session user:', sessionUser);
-
-    // Validate required fields
     if (!body.employee_id || !body.leave_type || !body.start_date || !body.end_date) {
-      console.error('Missing required fields:', { body });
-      return new Response(JSON.stringify({
-        success: false,
-        error: 'Missing required fields: employee_id, leave_type, start_date, end_date'
-      }), {
-        status: 400,
-        headers: { 'Content-Type': 'application/json' }
-      });
+      return json(400, { error: 'Missing required fields' });
     }
 
-    // Verify employee_id is a valid number
-    const employeeId = parseInt(String(body.employee_id));
-    if (isNaN(employeeId) || employeeId <= 0) {
-      console.error('Invalid employee_id:', body.employee_id);
-      return new Response(JSON.stringify({
-        success: false,
-        error: 'Invalid employee ID'
-      }), {
-        status: 400,
-        headers: { 'Content-Type': 'application/json' }
-      });
-    }
-
-    // Calculate total days
-    const startDate = new Date(body.start_date);
-    const endDate = new Date(body.end_date);
-
-    // Validate dates
-    if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
-      console.error('Invalid date format:', { start_date: body.start_date, end_date: body.end_date });
-      return new Response(JSON.stringify({
-        success: false,
-        error: 'Invalid date format. Expected YYYY-MM-DD'
-      }), {
-        status: 400,
-        headers: { 'Content-Type': 'application/json' }
-      });
-    }
-
-    if (endDate < startDate) {
-      console.error('End date is before start date:', { start_date: body.start_date, end_date: body.end_date });
-      return new Response(JSON.stringify({
-        success: false,
-        error: 'End date must be after or equal to start date'
-      }), {
-        status: 400,
-        headers: { 'Content-Type': 'application/json' }
-      });
-    }
-
-    const totalDays = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
-
-    // Validate leave_type
-    const validLeaveTypes = ['sick', 'vacation', 'personal', 'maternity', 'paternity', 'unpaid'];
-    if (!validLeaveTypes.includes(body.leave_type)) {
-      console.error('Invalid leave type:', body.leave_type);
-      return new Response(JSON.stringify({
-        success: false,
-        error: `Invalid leave type. Must be one of: ${validLeaveTypes.join(', ')}`
-      }), {
-        status: 400,
-        headers: { 'Content-Type': 'application/json' }
-      });
-    }
+    const start = new Date(body.start_date);
+    const end = new Date(body.end_date);
+    const totalDays =
+      Math.ceil((end.getTime() - start.getTime()) / 86400000) + 1;
 
     const leave: Leave = {
-      employee_id: employeeId,
+      employee_id: Number(body.employee_id),
       leave_type: body.leave_type,
       start_date: body.start_date,
       end_date: body.end_date,
       total_days: totalDays,
       reason: body.reason,
-      status: body.status || 'pending',
+      status: 'pending',
       notes: body.notes
     };
 
-    console.log('Creating leave with data:', leave);
-
     const id = await createLeave(db, leave, false);
+    if (!id) return json(500, { error: 'Failed to create leave' });
 
-    if (!id) {
-      console.error('Failed to create leave - no ID returned');
-      return new Response(JSON.stringify({
-        success: false,
-        error: 'Failed to create leave record in database'
-      }), {
-        status: 500,
-        headers: { 'Content-Type': 'application/json' }
-      });
-    }
-
-    console.log('Leave created successfully with ID:', id);
-
-    // Get employee details for email notification
+    // Email notification (non-blocking)
     try {
-      const employee = await db.prepare(
-        'SELECT email, first_name, last_name FROM employees WHERE id = ?'
-      ).bind(body.employee_id).first();
+      const emp = await db
+        .prepare('SELECT email, first_name, last_name FROM employees WHERE id = ?')
+        .bind(leave.employee_id)
+        .first();
 
-      if (employee && employee.email) {
-        const userName = `${employee.first_name} ${employee.last_name}`;
-
-        // Send email notification asynchronously (don't block response)
-        sendActivityEmail(
-          employee.email,
-          userName,
-          'leave_request',
-          {
-            leave_type: leave.leave_type,
-            start_date: leave.start_date,
-            end_date: leave.end_date,
-            total_days: leave.total_days,
-            reason: leave.reason,
-            status: leave.status
-          }
-        ).catch(err => console.error('Failed to send leave request email:', err));
+      if (emp?.email) {
+        sendLeaveRequestEmail(
+          emp.email,
+          `${emp.first_name} ${emp.last_name}`,
+          leave
+        ).catch(console.error);
       }
-    } catch (emailError) {
-      console.error('Error sending leave notification email:', emailError);
-      // Don't fail the request if email fails
+    } catch (e) {
+      console.error('Email error:', e);
     }
 
-    return new Response(JSON.stringify({
+    return json(201, {
       success: true,
       data: { id },
       message: 'Leave request created successfully'
-    }), {
-      status: 201,
-      headers: { 'Content-Type': 'application/json' }
     });
-  } catch (error) {
-    console.error('Error creating leave:', error);
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    return new Response(JSON.stringify({
-      success: false,
-      error: 'Failed to create leave request',
-      details: errorMessage
-    }), {
-      status: 500,
-      headers: { 'Content-Type': 'application/json' }
-    });
+  } catch (err) {
+    console.error(err);
+    return json(500, { error: 'Failed to create leave request' });
   }
 };
 
+/* ---------------------------------------------------
+   DELETE: Delete leave
+--------------------------------------------------- */
 export const DELETE: APIRoute = async ({ request, locals }) => {
   try {
     const db = getDB(locals.runtime?.env || locals.env);
 
-    // Get session token from Authorization header
-    const authHeader = request.headers.get('Authorization');
-    const sessionToken = authHeader?.replace('Bearer ', '');
+    const token = request.headers
+      .get('Authorization')
+      ?.replace('Bearer ', '');
 
-    if (!sessionToken) {
-      return new Response(
-        JSON.stringify({ success: false, error: 'Unauthorized - No session token' }),
-        { status: 401, headers: { 'Content-Type': 'application/json' } }
-      );
-    }
+    if (!token) return json(401, { error: 'Unauthorized' });
 
-    // Validate session and get user
-    const sessionUser = await getUserFromSession(db, sessionToken);
+    const user = await getUserFromSession(db, token);
+    if (!user) return json(401, { error: 'Invalid session' });
 
-    if (!sessionUser) {
-      return new Response(
-        JSON.stringify({ success: false, error: 'Unauthorized - Invalid session' }),
-        { status: 401, headers: { 'Content-Type': 'application/json' } }
-      );
-    }
+    const { id } = await request.json();
+    if (!id) return json(400, { error: 'Missing id' });
 
-    if (!db) {
-      return new Response(JSON.stringify({
-        success: false,
-        error: 'Database not configured'
-      }), {
-        status: 500,
-        headers: { 'Content-Type': 'application/json' }
-      });
-    }
+    const ok = await deleteLeave(db, id);
+    if (!ok) return json(404, { error: 'Leave not found' });
 
-    const body = await request.json() as { id: number };
-
-    if (!body.id) {
-      return new Response(JSON.stringify({
-        success: false,
-        error: 'Missing required field: id'
-      }), {
-        status: 400,
-        headers: { 'Content-Type': 'application/json' }
-      });
-    }
-
-    const success = await deleteLeave(db, body.id);
-
-    if (!success) {
-      return new Response(JSON.stringify({
-        success: false,
-        error: 'Leave record not found'
-      }), {
-        status: 404,
-        headers: { 'Content-Type': 'application/json' }
-      });
-    }
-
-    return new Response(JSON.stringify({
-      success: true,
-      message: 'Leave request deleted successfully'
-    }), {
-      status: 200,
-      headers: { 'Content-Type': 'application/json' }
-    });
-  } catch (error) {
-    console.error('Error deleting leave:', error);
-    return new Response(JSON.stringify({
-      success: false,
-      error: 'Failed to delete leave request'
-    }), {
-      status: 500,
-      headers: { 'Content-Type': 'application/json' }
-    });
+    return json(200, { success: true, message: 'Leave deleted successfully' });
+  } catch (err) {
+    console.error(err);
+    return json(500, { error: 'Failed to delete leave' });
   }
 };
 
+/* ---------------------------------------------------
+   Helper
+--------------------------------------------------- */
+function json(status: number, body: any) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { 'Content-Type': 'application/json' }
+  });
+}

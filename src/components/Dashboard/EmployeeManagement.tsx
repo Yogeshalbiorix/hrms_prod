@@ -20,7 +20,8 @@ import {
   Tooltip,
   Empty,
   Spin,
-  message
+  message,
+  Steps
 } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import {
@@ -80,6 +81,7 @@ export default function EmployeeManagement() {
   const [statusFilter, setStatusFilter] = useState('all');
   const [departmentFilter, setDepartmentFilter] = useState('all');
   const [showAddDialog, setShowAddDialog] = useState(false);
+  const [currentStep, setCurrentStep] = useState(0);
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [showViewDialog, setShowViewDialog] = useState(false);
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
@@ -192,6 +194,7 @@ export default function EmployeeManagement() {
       if (data.success) {
         setShowAddDialog(false);
         resetForm();
+        setCurrentStep(0);
         fetchEmployees();
 
         // Show success message with username and password if created
@@ -517,6 +520,7 @@ export default function EmployeeManagement() {
           size="large"
           onClick={() => {
             resetForm();
+            setCurrentStep(0);
             setShowAddDialog(true);
           }}
         >
@@ -651,316 +655,320 @@ export default function EmployeeManagement() {
         />
       </Card>
 
-      {/* Add Employee Modal - Redesigned with Ant Design */}
-      < Modal
+      {/* Add Employee Modal - Multi-step Form */}
+      <Modal
         title={
-          < div style={{ fontSize: '20px', fontWeight: 600, color: '#1e40af' }}>
+          <div style={{ fontSize: '20px', fontWeight: 600, color: '#1e40af' }}>
             <UserOutlined style={{ marginRight: 8 }} />
             Add New Employee
-          </div >
+          </div>
         }
         open={showAddDialog}
         onCancel={() => {
           setShowAddDialog(false);
           resetForm();
+          setCurrentStep(0);
         }}
-        onOk={handleAddEmployee}
         width={900}
-        okText="Add Employee"
-        cancelText="Cancel"
-        okButtonProps={{ size: 'large', icon: <PlusOutlined /> }}
-        cancelButtonProps={{ size: 'large' }}
+        footer={
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', paddingTop: '16px' }}>
+            {currentStep > 0 && (
+              <Button onClick={() => setCurrentStep(currentStep - 1)}>
+                Back
+              </Button>
+            )}
+            {currentStep < 2 ? (
+              <Button type="primary" onClick={() => setCurrentStep(currentStep + 1)}>
+                Next
+              </Button>
+            ) : (
+              <Button type="primary" icon={<PlusOutlined />} onClick={handleAddEmployee}>
+                Add Employee
+              </Button>
+            )}
+          </div>
+        }
         styles={{
           body: { maxHeight: '70vh', overflowY: 'auto', paddingTop: 24 }
         }}
       >
-        <Tabs
-          defaultActiveKey="personal"
-          type="card"
+        <Steps
+          current={currentStep}
           items={[
             {
-              key: 'personal',
-              label: (
-                <span>
-                  <UserOutlined style={{ marginRight: 4 }} />
-                  Personal Info
-                </span>
-              ),
-              children: (
-                <div style={{ padding: '16px 0' }}>
-                  <Form layout="vertical">
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-                      <Form.Item
-                        label={<span style={{ fontWeight: 500 }}>First Name <span style={{ color: '#ef4444' }}>*</span></span>}
-                        required
-                      >
-                        <Input
-                          size="large"
-                          prefix={<UserOutlined style={{ color: '#9ca3af' }} />}
-                          placeholder="Enter first name"
-                          value={formData.first_name}
-                          onChange={(e: any) => setFormData({ ...formData, first_name: e.target.value })}
-                        />
-                      </Form.Item>
-
-                      <Form.Item
-                        label={<span style={{ fontWeight: 500 }}>Last Name <span style={{ color: '#ef4444' }}>*</span></span>}
-                        required
-                      >
-                        <Input
-                          size="large"
-                          prefix={<UserOutlined style={{ color: '#9ca3af' }} />}
-                          placeholder="Enter last name"
-                          value={formData.last_name}
-                          onChange={(e: any) => setFormData({ ...formData, last_name: e.target.value })}
-                        />
-                      </Form.Item>
-
-                      <Form.Item
-                        label={<span style={{ fontWeight: 500 }}>Email <span style={{ color: '#ef4444' }}>*</span></span>}
-                        required
-                      >
-                        <Input
-                          size="large"
-                          type="email"
-                          prefix={<MailOutlined style={{ color: '#9ca3af' }} />}
-                          placeholder="employee@company.com"
-                          value={formData.email}
-                          onChange={(e: any) => setFormData({ ...formData, email: e.target.value })}
-                        />
-                      </Form.Item>
-
-                      <Form.Item label={<span style={{ fontWeight: 500 }}>Phone Number</span>}>
-                        <Input
-                          size="large"
-                          prefix={<PhoneOutlined style={{ color: '#9ca3af' }} />}
-                          placeholder="+1 (555) 123-4567"
-                          value={formData.phone}
-                          onChange={(e: any) => setFormData({ ...formData, phone: e.target.value })}
-                        />
-                      </Form.Item>
-
-                      <Form.Item label={<span style={{ fontWeight: 500 }}>Date of Birth</span>}>
-                        <DatePicker
-                          size="large"
-                          style={{ width: '100%' }}
-                          placeholder="Select date"
-                          value={formData.date_of_birth ? dayjs(formData.date_of_birth) : null}
-                          onChange={(date) => setFormData({ ...formData, date_of_birth: date ? date.format('YYYY-MM-DD') : '' })}
-                          format="YYYY-MM-DD"
-                          disabledDate={(current) => {
-                            // Disable dates less than 18 years ago
-                            return current && current > dayjs().subtract(18, 'year');
-                          }}
-                        />
-                      </Form.Item>
-
-                      <Form.Item label={<span style={{ fontWeight: 500 }}>Gender</span>}>
-                        <Select
-                          size="large"
-                          placeholder="Select gender"
-                          value={formData.gender || undefined}
-                          onChange={(value: any) => setFormData({ ...formData, gender: value })}
-                        >
-                          <Select.Option value="male">Male</Select.Option>
-                          <Select.Option value="female">Female</Select.Option>
-                          <Select.Option value="other">Other</Select.Option>
-                        </Select>
-                      </Form.Item>
-                    </div>
-                  </Form>
-                </div>
-              ),
+              title: 'Personal Info',
+              icon: <UserOutlined />,
             },
             {
-              key: 'employment',
-              label: (
-                <span>
-                  <IdcardOutlined style={{ marginRight: 4 }} />
-                  Employment
-                </span>
-              ),
-              children: (
-                <div style={{ padding: '16px 0' }}>
-                  <Form layout="vertical">
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-                      <Form.Item
-                        label={<span style={{ fontWeight: 500 }}>Position <span style={{ color: '#ef4444' }}>*</span></span>}
-                        required
-                      >
-                        <Input
-                          size="large"
-                          prefix={<IdcardOutlined style={{ color: '#9ca3af' }} />}
-                          placeholder="e.g., Software Engineer"
-                          value={formData.position}
-                          onChange={(e: any) => setFormData({ ...formData, position: e.target.value })}
-                        />
-                      </Form.Item>
-
-                      <Form.Item label={<span style={{ fontWeight: 500 }}>Department</span>}>
-                        <Select
-                          size="large"
-                          placeholder={departments.length > 0 ? "Select department" : "No departments available"}
-                          value={formData.department_id || undefined}
-                          onChange={(value: any) => setFormData({ ...formData, department_id: value })}
-                        >
-                          {departments.map((dept) => (
-                            <Select.Option key={dept.id} value={dept.id.toString()}>
-                              {dept.name}
-                            </Select.Option>
-                          ))}
-                        </Select>
-                        {departments.length === 0 && (
-                          <div style={{ color: '#f59e0b', fontSize: 12, marginTop: 4, display: 'flex', alignItems: 'center', gap: 4 }}>
-                            <ExclamationCircleOutlined style={{ width: 12, height: 12 }} />
-                            Please create departments first
-                          </div>
-                        )}
-                      </Form.Item>
-
-                      <Form.Item label={<span style={{ fontWeight: 500 }}>Employment Type</span>}>
-                        <Select
-                          size="large"
-                          value={formData.employment_type}
-                          onChange={(value: any) => setFormData({ ...formData, employment_type: value })}
-                        >
-                          <Select.Option value="full-time">Full-time</Select.Option>
-                          <Select.Option value="part-time">Part-time</Select.Option>
-                          <Select.Option value="contract">Contract</Select.Option>
-                          <Select.Option value="intern">Intern</Select.Option>
-                        </Select>
-                      </Form.Item>
-
-                      <Form.Item
-                        label={<span style={{ fontWeight: 500 }}>Join Date <span style={{ color: '#ef4444' }}>*</span></span>}
-                        required
-                      >
-                        <DatePicker
-                          size="large"
-                          style={{ width: '100%' }}
-                          placeholder="Select join date"
-                          value={formData.join_date ? dayjs(formData.join_date) : null}
-                          onChange={(date) => setFormData({ ...formData, join_date: date ? date.format('YYYY-MM-DD') : '' })}
-                          format="YYYY-MM-DD"
-                        />
-                      </Form.Item>
-
-                      <Form.Item label={<span style={{ fontWeight: 500 }}>Base Salary (USD)</span>}>
-                        <InputNumber
-                          size="large"
-                          style={{ width: '100%' }}
-                          prefix={<DollarOutlined />}
-                          placeholder="50000"
-                          min={0}
-                          formatter={value => `$ ${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
-                          parser={value => value!.replace(/\$\s?|(,*)/g, '') as any}
-                          value={formData.base_salary ? parseFloat(formData.base_salary) : undefined}
-                          onChange={(value: any) => setFormData({ ...formData, base_salary: value?.toString() || '' })}
-                        />
-                      </Form.Item>
-
-                      <Form.Item label={<span style={{ fontWeight: 500 }}>Status</span>}>
-                        <Select
-                          size="large"
-                          value={formData.status}
-                          onChange={(value: any) => setFormData({ ...formData, status: value })}
-                        >
-                          <Select.Option value="active">
-                            <span style={{ color: '#10b981' }}>● Active</span>
-                          </Select.Option>
-                          <Select.Option value="on-leave">
-                            <span style={{ color: '#f59e0b' }}>● On Leave</span>
-                          </Select.Option>
-                          <Select.Option value="inactive">
-                            <span style={{ color: '#6b7280' }}>● Inactive</span>
-                          </Select.Option>
-                        </Select>
-                      </Form.Item>
-                    </div>
-                  </Form>
-                </div>
-              ),
+              title: 'Employment',
+              icon: <IdcardOutlined />,
             },
             {
-              key: 'address',
-              label: (
-                <span>
-                  <EnvironmentOutlined style={{ marginRight: 4 }} />
-                  Address & Contact
-                </span>
-              ),
-              children: (
-                <div style={{ padding: '16px 0' }}>
-                  <Form layout="vertical">
-                    <Divider orientationMargin={0} style={{ margin: '0 0 16px 0' }}>Address Information</Divider>
-                    <Form.Item label={<span style={{ fontWeight: 500 }}>Street Address</span>}>
-                      <Input
-                        size="large"
-                        prefix={<EnvironmentOutlined style={{ color: '#9ca3af' }} />}
-                        placeholder="123 Main Street, Apt 4B"
-                        value={formData.address}
-                        onChange={(e: any) => setFormData({ ...formData, address: e.target.value })}
-                      />
-                    </Form.Item>
-
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-                      <Form.Item label={<span style={{ fontWeight: 500 }}>City</span>}>
-                        <Input
-                          size="large"
-                          placeholder="San Francisco"
-                          value={formData.city}
-                          onChange={(e: any) => setFormData({ ...formData, city: e.target.value })}
-                        />
-                      </Form.Item>
-
-                      <Form.Item label={<span style={{ fontWeight: 500 }}>State</span>}>
-                        <Input
-                          size="large"
-                          placeholder="CA"
-                          value={formData.state}
-                          onChange={(e: any) => setFormData({ ...formData, state: e.target.value })}
-                        />
-                      </Form.Item>
-
-                      <Form.Item label={<span style={{ fontWeight: 500 }}>Zip Code</span>}>
-                        <Input
-                          size="large"
-                          placeholder="94102"
-                          value={formData.zip_code}
-                          onChange={(e: any) => setFormData({ ...formData, zip_code: e.target.value })}
-                        />
-                      </Form.Item>
-                    </div>
-
-                    <Divider orientationMargin={0} style={{ margin: '24px 0 16px 0' }}>Emergency Contact</Divider>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-                      <Form.Item label={<span style={{ fontWeight: 500 }}>Contact Name</span>}>
-                        <Input
-                          size="large"
-                          prefix={<ContactsOutlined style={{ color: '#9ca3af' }} />}
-                          placeholder="John Doe"
-                          value={formData.emergency_contact_name}
-                          onChange={(e: any) => setFormData({ ...formData, emergency_contact_name: e.target.value })}
-                        />
-                      </Form.Item>
-
-                      <Form.Item label={<span style={{ fontWeight: 500 }}>Contact Phone</span>}>
-                        <Input
-                          size="large"
-                          prefix={<PhoneOutlined style={{ color: '#9ca3af' }} />}
-                          placeholder="+1 (555) 987-6543"
-                          value={formData.emergency_contact_phone}
-                          onChange={(e: any) => setFormData({ ...formData, emergency_contact_phone: e.target.value })}
-                        />
-                      </Form.Item>
-                    </div>
-                  </Form>
-                </div>
-              ),
+              title: 'Address & Contact',
+              icon: <EnvironmentOutlined />,
             },
           ]}
+          style={{ marginBottom: 24 }}
         />
-      </Modal >
+
+        <div style={{ marginTop: 16 }}>
+          {currentStep === 0 && (
+            <div style={{ padding: '16px 0' }}>
+              <Form layout="vertical">
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                  <Form.Item
+                    label={<span style={{ fontWeight: 500 }}>First Name <span style={{ color: '#ef4444' }}>*</span></span>}
+                    required
+                  >
+                    <Input
+                      size="large"
+                      prefix={<UserOutlined style={{ color: '#9ca3af' }} />}
+                      placeholder="Enter first name"
+                      value={formData.first_name}
+                      onChange={(e: any) => setFormData({ ...formData, first_name: e.target.value })}
+                    />
+                  </Form.Item>
+
+                  <Form.Item
+                    label={<span style={{ fontWeight: 500 }}>Last Name <span style={{ color: '#ef4444' }}>*</span></span>}
+                    required
+                  >
+                    <Input
+                      size="large"
+                      prefix={<UserOutlined style={{ color: '#9ca3af' }} />}
+                      placeholder="Enter last name"
+                      value={formData.last_name}
+                      onChange={(e: any) => setFormData({ ...formData, last_name: e.target.value })}
+                    />
+                  </Form.Item>
+
+                  <Form.Item
+                    label={<span style={{ fontWeight: 500 }}>Email <span style={{ color: '#ef4444' }}>*</span></span>}
+                    required
+                  >
+                    <Input
+                      size="large"
+                      type="email"
+                      prefix={<MailOutlined style={{ color: '#9ca3af' }} />}
+                      placeholder="employee@company.com"
+                      value={formData.email}
+                      onChange={(e: any) => setFormData({ ...formData, email: e.target.value })}
+                    />
+                  </Form.Item>
+
+                  <Form.Item label={<span style={{ fontWeight: 500 }}>Phone Number</span>}>
+                    <Input
+                      size="large"
+                      prefix={<PhoneOutlined style={{ color: '#9ca3af' }} />}
+                      placeholder="+1 (555) 123-4567"
+                      value={formData.phone}
+                      onChange={(e: any) => setFormData({ ...formData, phone: e.target.value })}
+                    />
+                  </Form.Item>
+
+                  <Form.Item label={<span style={{ fontWeight: 500 }}>Date of Birth</span>}>
+                    <DatePicker
+                      size="large"
+                      style={{ width: '100%' }}
+                      placeholder="Select date"
+                      value={formData.date_of_birth ? dayjs(formData.date_of_birth) : null}
+                      onChange={(date) => setFormData({ ...formData, date_of_birth: date ? date.format('YYYY-MM-DD') : '' })}
+                      format="YYYY-MM-DD"
+                      disabledDate={(current) => {
+                        // Disable dates less than 18 years ago
+                        return current && current > dayjs().subtract(18, 'year');
+                      }}
+                    />
+                  </Form.Item>
+
+                  <Form.Item label={<span style={{ fontWeight: 500 }}>Gender</span>}>
+                    <Select
+                      size="large"
+                      placeholder="Select gender"
+                      value={formData.gender || undefined}
+                      onChange={(value: any) => setFormData({ ...formData, gender: value })}
+                    >
+                      <Select.Option value="male">Male</Select.Option>
+                      <Select.Option value="female">Female</Select.Option>
+                      <Select.Option value="other">Other</Select.Option>
+                    </Select>
+                  </Form.Item>
+                </div>
+              </Form>
+            </div>
+          )}
+
+          {currentStep === 1 && (
+            <div style={{ padding: '16px 0' }}>
+              <Form layout="vertical">
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                  <Form.Item
+                    label={<span style={{ fontWeight: 500 }}>Position <span style={{ color: '#ef4444' }}>*</span></span>}
+                    required
+                  >
+                    <Input
+                      size="large"
+                      prefix={<IdcardOutlined style={{ color: '#9ca3af' }} />}
+                      placeholder="e.g., Software Engineer"
+                      value={formData.position}
+                      onChange={(e: any) => setFormData({ ...formData, position: e.target.value })}
+                    />
+                  </Form.Item>
+
+                  <Form.Item label={<span style={{ fontWeight: 500 }}>Department</span>}>
+                    <Select
+                      size="large"
+                      placeholder={departments.length > 0 ? "Select department" : "No departments available"}
+                      value={formData.department_id || undefined}
+                      onChange={(value: any) => setFormData({ ...formData, department_id: value })}
+                    >
+                      {departments.map((dept) => (
+                        <Select.Option key={dept.id} value={dept.id.toString()}>
+                          {dept.name}
+                        </Select.Option>
+                      ))}
+                    </Select>
+                    {departments.length === 0 && (
+                      <div style={{ color: '#f59e0b', fontSize: 12, marginTop: 4, display: 'flex', alignItems: 'center', gap: 4 }}>
+                        <ExclamationCircleOutlined style={{ width: 12, height: 12 }} />
+                        Please create departments first
+                      </div>
+                    )}
+                  </Form.Item>
+
+                  <Form.Item label={<span style={{ fontWeight: 500 }}>Employment Type</span>}>
+                    <Select
+                      size="large"
+                      value={formData.employment_type}
+                      onChange={(value: any) => setFormData({ ...formData, employment_type: value })}
+                    >
+                      <Select.Option value="full-time">Full-time</Select.Option>
+                      <Select.Option value="part-time">Part-time</Select.Option>
+                      <Select.Option value="contract">Contract</Select.Option>
+                      <Select.Option value="intern">Intern</Select.Option>
+                    </Select>
+                  </Form.Item>
+
+                  <Form.Item
+                    label={<span style={{ fontWeight: 500 }}>Join Date <span style={{ color: '#ef4444' }}>*</span></span>}
+                    required
+                  >
+                    <DatePicker
+                      size="large"
+                      style={{ width: '100%' }}
+                      placeholder="Select join date"
+                      value={formData.join_date ? dayjs(formData.join_date) : null}
+                      onChange={(date) => setFormData({ ...formData, join_date: date ? date.format('YYYY-MM-DD') : '' })}
+                      format="YYYY-MM-DD"
+                    />
+                  </Form.Item>
+
+                  <Form.Item label={<span style={{ fontWeight: 500 }}>Base Salary (USD)</span>}>
+                    <InputNumber
+                      size="large"
+                      style={{ width: '100%' }}
+                      prefix={<DollarOutlined />}
+                      placeholder="50000"
+                      min={0}
+                      formatter={value => `$ ${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
+                      parser={value => value!.replace(/\$\s?|(,*)/g, '') as any}
+                      value={formData.base_salary ? parseFloat(formData.base_salary) : undefined}
+                      onChange={(value: any) => setFormData({ ...formData, base_salary: value?.toString() || '' })}
+                    />
+                  </Form.Item>
+
+                  <Form.Item label={<span style={{ fontWeight: 500 }}>Status</span>}>
+                    <Select
+                      size="large"
+                      value={formData.status}
+                      onChange={(value: any) => setFormData({ ...formData, status: value })}
+                    >
+                      <Select.Option value="active">
+                        <span style={{ color: '#10b981' }}>● Active</span>
+                      </Select.Option>
+                      <Select.Option value="on-leave">
+                        <span style={{ color: '#f59e0b' }}>● On Leave</span>
+                      </Select.Option>
+                      <Select.Option value="inactive">
+                        <span style={{ color: '#6b7280' }}>● Inactive</span>
+                      </Select.Option>
+                    </Select>
+                  </Form.Item>
+                </div>
+              </Form>
+            </div>
+          )}
+
+          {currentStep === 2 && (
+            <div style={{ padding: '16px 0' }}>
+              <Form layout="vertical">
+                <Divider orientationMargin={0} style={{ margin: '0 0 16px 0' }}>Address Information</Divider>
+                <Form.Item label={<span style={{ fontWeight: 500 }}>Street Address</span>}>
+                  <Input
+                    size="large"
+                    prefix={<EnvironmentOutlined style={{ color: '#9ca3af' }} />}
+                    placeholder="123 Main Street, Apt 4B"
+                    value={formData.address}
+                    onChange={(e: any) => setFormData({ ...formData, address: e.target.value })}
+                  />
+                </Form.Item>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                  <Form.Item label={<span style={{ fontWeight: 500 }}>City</span>}>
+                    <Input
+                      size="large"
+                      placeholder="San Francisco"
+                      value={formData.city}
+                      onChange={(e: any) => setFormData({ ...formData, city: e.target.value })}
+                    />
+                  </Form.Item>
+
+                  <Form.Item label={<span style={{ fontWeight: 500 }}>State</span>}>
+                    <Input
+                      size="large"
+                      placeholder="CA"
+                      value={formData.state}
+                      onChange={(e: any) => setFormData({ ...formData, state: e.target.value })}
+                    />
+                  </Form.Item>
+
+                  <Form.Item label={<span style={{ fontWeight: 500 }}>Zip Code</span>}>
+                    <Input
+                      size="large"
+                      placeholder="94102"
+                      value={formData.zip_code}
+                      onChange={(e: any) => setFormData({ ...formData, zip_code: e.target.value })}
+                    />
+                  </Form.Item>
+                </div>
+
+                <Divider orientationMargin={0} style={{ margin: '24px 0 16px 0' }}>Emergency Contact</Divider>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                  <Form.Item label={<span style={{ fontWeight: 500 }}>Contact Name</span>}>
+                    <Input
+                      size="large"
+                      prefix={<ContactsOutlined style={{ color: '#9ca3af' }} />}
+                      placeholder="John Doe"
+                      value={formData.emergency_contact_name}
+                      onChange={(e: any) => setFormData({ ...formData, emergency_contact_name: e.target.value })}
+                    />
+                  </Form.Item>
+
+                  <Form.Item label={<span style={{ fontWeight: 500 }}>Contact Phone</span>}>
+                    <Input
+                      size="large"
+                      prefix={<PhoneOutlined style={{ color: '#9ca3af' }} />}
+                      placeholder="+1 (555) 987-6543"
+                      value={formData.emergency_contact_phone}
+                      onChange={(e: any) => setFormData({ ...formData, emergency_contact_phone: e.target.value })}
+                    />
+                  </Form.Item>
+                </div>
+              </Form>
+            </div>
+          )}
+        </div>
+      </Modal>
 
       {/* Edit Employee Modal */}
       <Modal
