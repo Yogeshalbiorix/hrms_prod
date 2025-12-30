@@ -863,15 +863,15 @@ export default function EmployeeManagement() {
                     />
                   </Form.Item>
 
-                  <Form.Item label={<span style={{ fontWeight: 500 }}>Base Salary (USD)</span>}>
+                  <Form.Item label={<span style={{ fontWeight: 500 }}>Base Salary (INR)</span>}>
                     <InputNumber
                       size="large"
                       style={{ width: '100%' }}
-                      prefix={<DollarOutlined />}
+                      prefix="₹"
                       placeholder="50000"
                       min={0}
-                      formatter={value => `$ ${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
-                      parser={value => value!.replace(/\$\s?|(,*)/g, '') as any}
+                      formatter={value => `₹ ${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
+                      parser={value => value!.replace(/₹\s?|(,*)/g, '') as any}
                       value={formData.base_salary ? parseFloat(formData.base_salary) : undefined}
                       onChange={(value: any) => setFormData({ ...formData, base_salary: value?.toString() || '' })}
                     />
@@ -1165,7 +1165,7 @@ export default function EmployeeManagement() {
                   <div>
                     <p style={{ fontSize: 12, color: '#6b7280', marginBottom: 4 }}>Base Salary</p>
                     <p style={{ fontWeight: 600, color: '#1e40af', marginBottom: 0 }}>
-                      ${selectedEmployee.base_salary.toLocaleString()}
+                      ₹{selectedEmployee.base_salary.toLocaleString()}
                     </p>
                   </div>
                 </Col>

@@ -4,6 +4,7 @@ export type LeaveType =
     | 'sick'
     | 'vacation'
     | 'personal'
+    | 'paid_leave'
     | 'maternity'
     | 'paternity'
     | 'unpaid'
@@ -22,20 +23,57 @@ interface ValidationResult {
 
 // Initialize balance for a user if not exists
 export async function ensureLeaveBalance(db: any, employeeId: number, year: number) {
-    const balance = await db.prepare('SELECT * FROM employee_leave_balances WHERE employee_id = ? AND year = ?')
-        .bind(employeeId, year).first();
-
-    if (!balance) {
-        // Determine default quotas based on employment? For now use defaults (15 paid).
-        await db.prepare(`
-      INSERT INTO employee_leave_balances (employee_id, year, paid_leave_quota)
-      VALUES (?, ?, 15.0)
-    `).bind(employeeId, year).run();
-
-        return await db.prepare('SELECT * FROM employee_leave_balances WHERE employee_id = ? AND year = ?')
+    try {
+        const balance = await db.prepare('SELECT * FROM employee_leave_balances WHERE employee_id = ? AND year = ?')
             .bind(employeeId, year).first();
+
+        if (!balance) {
+            await db.prepare(`
+              INSERT INTO employee_leave_balances (employee_id, year, paid_leave_quota)
+              VALUES (?, ?, 15.0)
+            `).bind(employeeId, year).run();
+
+            return await db.prepare('SELECT * FROM employee_leave_balances WHERE employee_id = ? AND year = ?')
+                .bind(employeeId, year).first();
+        }
+        return balance;
+    } catch (error: any) {
+        // Self-healing: Create table if not exists
+        if (error.message?.includes('no such table')) {
+            await db.prepare(`
+                CREATE TABLE IF NOT EXISTS employee_leave_balances (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    employee_id INTEGER NOT NULL,
+                    year INTEGER NOT NULL,
+                    paid_leave_quota REAL DEFAULT 15.0,
+                    paid_leave_used REAL DEFAULT 0.0,
+                    emergency_leave_used_count INTEGER DEFAULT 0,
+                    birthday_leave_used BOOLEAN DEFAULT 0,
+                    anniversary_leave_used BOOLEAN DEFAULT 0,
+                    maternity_leave_quota INTEGER DEFAULT 0,
+                    maternity_leave_used INTEGER DEFAULT 0,
+                    paternity_leave_quota INTEGER DEFAULT 0,
+                    paternity_leave_used INTEGER DEFAULT 0,
+                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (employee_id) REFERENCES employees(id) ON DELETE CASCADE,
+                    UNIQUE(employee_id, year)
+                );
+            `).run();
+            // Create Index
+            try { await db.prepare(`CREATE INDEX IF NOT EXISTS idx_leave_balances_employee ON employee_leave_balances(employee_id);`).run(); } catch (e) { }
+
+            // Retry insertion
+            await db.prepare(`
+              INSERT INTO employee_leave_balances (employee_id, year, paid_leave_quota)
+              VALUES (?, ?, 15.0)
+            `).bind(employeeId, year).run();
+
+            return await db.prepare('SELECT * FROM employee_leave_balances WHERE employee_id = ? AND year = ?')
+                .bind(employeeId, year).first();
+        }
+        throw error;
     }
-    return balance;
 }
 
 export async function validateLeaveRequest(
@@ -44,12 +82,19 @@ export async function validateLeaveRequest(
     type: LeaveType,
     startDate: string,
     endDate: string,
-    reason: string
+    reason: string,
+    customDuration?: number
 ): Promise<ValidationResult> {
     const start = new Date(startDate);
     const end = new Date(endDate);
-    const diffTime = Math.abs(end.getTime() - start.getTime());
-    const totalDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+
+    // Use custom duration if provided (e.g. 0.5 for half day), else calculate
+    let totalDays = customDuration;
+    if (totalDays === undefined) {
+        const diffTime = Math.abs(end.getTime() - start.getTime());
+        totalDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+    }
+
     const currentYear = start.getFullYear();
     const currentMonth = start.getMonth();
 
@@ -80,9 +125,9 @@ export async function validateLeaveRequest(
 
     // 2. Policy Checks based on Type
 
-    // PAID LEAVE (Vacation/Sick/Personal mapped to 'paid' concept in policy, but detailed in type)
-    // Assuming 'vacation', 'sick', 'personal' consume PAID LEAVE QUOTA
-    if (['vacation', 'sick', 'personal'].includes(type)) {
+    // PAID LEAVE (Vacation/Sick/Personal/Paid_Leave mapped to 'paid' concept in policy)
+    // Assuming 'vacation', 'sick', 'personal', 'paid_leave' consume PAID LEAVE QUOTA
+    if (['vacation', 'sick', 'personal', 'paid_leave'].includes(type)) {
         // Check Notice Period
         const today = new Date();
         const noticeDays = Math.ceil((start.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
@@ -186,7 +231,8 @@ export async function updateLeaveBalance(
     const year = new Date().getFullYear();
     await ensureLeaveBalance(db, employeeId, year);
 
-    if (['vacation', 'sick', 'personal'].includes(type)) {
+    // Paid Leave Types (aggregated into paid_leave_used)
+    if (['vacation', 'sick', 'personal', 'paid_leave'].includes(type)) {
         await db.prepare('UPDATE employee_leave_balances SET paid_leave_used = paid_leave_used + ? WHERE employee_id = ? AND year = ?')
             .bind(days, employeeId, year).run();
     }

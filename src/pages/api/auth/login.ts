@@ -78,6 +78,61 @@ export const POST: APIRoute = async ({ request, locals }) => {
     }
 
     // ---------------------------------------------------
+    // CHECK ROLE: 2FA required for 'employee', 'manager', 'hr', but OPTIONAL for 'admin' (User Request)
+    // ---------------------------------------------------
+
+    if (user.role === 'admin') {
+      // ---------------------------------------------------
+      // DIRECT LOGIN (No 2FA for Admin)
+      // ---------------------------------------------------
+      // Generate session token
+      const sessionToken = generateSessionToken();
+      const expiresAt = getExpirationDate();
+
+      // Get IP and User-Agent
+      const ipAddress = request.headers.get('x-forwarded-for') || request.headers.get('cf-connecting-ip') || 'unknown';
+      const userAgent = request.headers.get('user-agent') || 'unknown';
+
+      // Create session
+      await db
+        .prepare(
+          'INSERT INTO sessions (user_id, session_token, expires_at, ip_address, user_agent) VALUES (?, ?, ?, ?, ?)'
+        )
+        .bind(user.id, sessionToken, expiresAt, ipAddress, userAgent)
+        .run();
+
+      // Update last login
+      await db
+        .prepare('UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE id = ?')
+        .bind(user.id)
+        .run();
+
+      // Return user data (without password hash) and session token
+      const userData = {
+        id: user.id,
+        username: user.username,
+        email: user.email,
+        full_name: user.full_name,
+        role: user.role,
+        employee_id: user.employee_id,
+      };
+
+      return new Response(
+        JSON.stringify({
+          success: true,
+          require_2fa: false,
+          user: userData,
+          sessionToken,
+          expiresAt,
+        }),
+        {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        }
+      );
+    }
+
+    // ---------------------------------------------------
     // 2FA IMPLEMENTATION
     // ---------------------------------------------------
 

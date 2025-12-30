@@ -82,9 +82,14 @@ export default function LeaveDashboard({
                 <div>
                     <div style={{ fontWeight: 'bold' }}>
                         {dayjs(record.start_date).format('DD MMM YYYY')}
-                        {record.start_date !== record.end_date && ` - ${dayjs(record.end_date).format('DD MMM YYYY')}`}
+                        {(!record.is_half_day && record.start_date !== record.end_date) && ` - ${dayjs(record.end_date).format('DD MMM YYYY')}`}
                     </div>
-                    <div style={{ fontSize: '12px', color: '#888' }}>{record.total_days} Day{record.total_days > 1 ? 's' : ''}</div>
+                    <div style={{ fontSize: '12px', color: '#888' }}>
+                        {record.is_half_day
+                            ? `Half Day (${record.half_day_period === 'first_half' ? 'First Half' : 'Second Half'})`
+                            : `${record.total_days} Day${record.total_days > 1 ? 's' : ''}`
+                        }
+                    </div>
                 </div>
             )
         },
@@ -280,13 +285,19 @@ export default function LeaveDashboard({
                 <Col xs={24} md={6}>
                     <Card title="Paid Leave" extra={<a href="#">View details</a>} size="small" style={{ height: '100%' }}>
                         <div style={{ textAlign: 'center', padding: '10px 0' }}>
-                            <Progress type="circle" percent={Math.round(((15 - (leaveBalance?.paid_leave_used || 0)) / 15) * 100)} format={() => `${15 - (leaveBalance?.paid_leave_used || 0)} Days`} width={80} strokeColor="#1890ff" />
-                            <div style={{ marginTop: 8 }}><Text type="secondary">Available</Text></div>
+                            <Progress
+                                type="circle"
+                                percent={Math.round((((leaveBalance?.paid_leave_quota || 15) - (leaveBalance?.paid_leave_used || 0)) / (leaveBalance?.paid_leave_quota || 15)) * 100)}
+                                format={() => `${(leaveBalance?.paid_leave_quota || 15) - (leaveBalance?.paid_leave_used || 0)} Days`}
+                                width={80}
+                                strokeColor="#1890ff"
+                            />
+                            <div style={{ marginTop: 8 }}><Text type="secondary">Remaining</Text></div>
                         </div>
                         <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid #f0f0f0', paddingTop: 8, marginTop: 8 }}>
                             <div style={{ fontSize: 10 }}>
                                 <div style={{ color: '#888' }}>ACCRUED</div>
-                                <div>15 days</div>
+                                <div>{leaveBalance?.paid_leave_quota || 15} days</div>
                             </div>
                             <div style={{ fontSize: 10, textAlign: 'right' }}>
                                 <div style={{ color: '#888' }}>CONSUMED</div>
@@ -319,7 +330,7 @@ export default function LeaveDashboard({
                 <Text type="secondary">Other Leave Types Available: Birthday OR Marriage Anniversary Leave, Paternity Leave</Text>
             </div>
 
-            <Card bodyStyle={{ padding: 0 }}>
+            <Card styles={{ body: { padding: 0 } }}>
                 <Table
                     columns={columns}
                     dataSource={leaveRequests}

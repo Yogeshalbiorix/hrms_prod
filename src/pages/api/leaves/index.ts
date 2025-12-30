@@ -51,7 +51,7 @@ async function sendLeaveRequestEmail(
 --------------------------------------------------- */
 export const GET: APIRoute = async ({ request, locals, url }) => {
   try {
-    const db = getDB(locals.runtime?.env || locals.env);
+    const db = getDB(locals.runtime?.env || (locals as any).env);
 
     const token = request.headers
       .get('Authorization')
@@ -88,7 +88,7 @@ export const GET: APIRoute = async ({ request, locals, url }) => {
 --------------------------------------------------- */
 export const POST: APIRoute = async ({ request, locals }) => {
   try {
-    const db = getDB(locals.runtime?.env || locals.env);
+    const db = getDB(locals.runtime?.env || (locals as any).env);
 
     const token = request.headers
       .get('Authorization')
@@ -99,26 +99,46 @@ export const POST: APIRoute = async ({ request, locals }) => {
     const user = await getUserFromSession(db, token);
     if (!user) return json(401, { error: 'Invalid session' });
 
-    const body = await request.json();
+    const body = await request.json() as any;
 
-    if (!body.employee_id || !body.leave_type || !body.start_date || !body.end_date) {
-      return json(400, { error: 'Missing required fields' });
+    // Resolve employee_id from session (preferred) or body
+    const employeeId = user.employee_id || Number(body.employee_id);
+
+    if (!employeeId || !body.leave_type || !body.start_date || !body.end_date) {
+      return json(400, { error: 'Missing required fields: employee_id, leave_type, start_date, end_date' });
     }
 
     const start = new Date(body.start_date);
     const end = new Date(body.end_date);
-    const totalDays =
-      Math.ceil((end.getTime() - start.getTime()) / 86400000) + 1;
+
+    // Calculate total days (integer)
+    const dayDiff = Math.ceil((end.getTime() - start.getTime()) / 86400000) + 1;
+
+    let totalDays = dayDiff;
+    let duration = dayDiff;
+
+    // Handle Half Day Logic
+    if (body.is_half_day) {
+      // Ideally start and end date should be same for half day
+      totalDays = 0.5; // Storing 0.5 in total_days as well for backward compatibility if it was REAL, but it is INTEGER in DB? 
+      // Wait, schema check: total_days INTEGER NOT NULL. duration REAL.
+      // So total_days MUST be an integer. Let's store 1 if it's a half day on a single day.
+      totalDays = 1;
+      duration = 0.5;
+    }
 
     const leave: Leave = {
-      employee_id: Number(body.employee_id),
+      employee_id: employeeId,
       leave_type: body.leave_type,
       start_date: body.start_date,
       end_date: body.end_date,
       total_days: totalDays,
       reason: body.reason,
       status: 'pending',
-      notes: body.notes
+      notes: body.notes,
+      is_half_day: body.is_half_day,
+      half_day_period: body.half_day_period,
+      duration: duration
     };
 
     const id = await createLeave(db, leave, false);
@@ -126,20 +146,25 @@ export const POST: APIRoute = async ({ request, locals }) => {
 
     // Email notification (non-blocking)
     try {
+      console.log(`[Leave Request] Fetching employee details for ID: ${leave.employee_id}`);
       const emp = await db
         .prepare('SELECT email, first_name, last_name FROM employees WHERE id = ?')
         .bind(leave.employee_id)
         .first();
 
       if (emp?.email) {
-        sendLeaveRequestEmail(
+        console.log(`[Leave Request] Sending email to: ${emp.email}`);
+        await sendLeaveRequestEmail(
           emp.email,
           `${emp.first_name} ${emp.last_name}`,
           leave
-        ).catch(console.error);
+        ).then(() => console.log(`[Leave Request] Email sent successfully to ${emp.email}`))
+          .catch(err => console.error(`[Leave Request] Failed to send email to ${emp.email}:`, err));
+      } else {
+        console.warn(`[Leave Request] No email found for employee ID: ${leave.employee_id}`);
       }
     } catch (e) {
-      console.error('Email error:', e);
+      console.error('[Leave Request] Email logic error:', e);
     }
 
     return json(201, {
@@ -158,7 +183,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
 --------------------------------------------------- */
 export const DELETE: APIRoute = async ({ request, locals }) => {
   try {
-    const db = getDB(locals.runtime?.env || locals.env);
+    const db = getDB(locals.runtime?.env || (locals as any).env);
 
     const token = request.headers
       .get('Authorization')
@@ -169,7 +194,8 @@ export const DELETE: APIRoute = async ({ request, locals }) => {
     const user = await getUserFromSession(db, token);
     if (!user) return json(401, { error: 'Invalid session' });
 
-    const { id } = await request.json();
+    const body = await request.json() as any;
+    const { id } = body;
     if (!id) return json(400, { error: 'Missing id' });
 
     const ok = await deleteLeave(db, id);

@@ -36,7 +36,7 @@ export default function StatsCard({
     <Card
       bordered={false}
       className="shadow-sm hover:shadow-md transition-shadow"
-      bodyStyle={{ padding: '24px' }}
+      styles={{ body: { padding: '24px' } }}
     >
       <div className="flex items-start justify-between">
         <div className="flex-1">

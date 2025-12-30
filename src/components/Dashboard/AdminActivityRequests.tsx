@@ -42,7 +42,7 @@ const AdminActivityRequests: React.FC = () => {
   const [requests, setRequests] = useState<ActivityRequest[]>([]);
   const [loading, setLoading] = useState(false);
   const [filterType, setFilterType] = useState<string>('all');
-  const [filterStatus, setFilterStatus] = useState<string>('pending');
+  const [filterStatus, setFilterStatus] = useState<string>('all');
   const [detailsModalVisible, setDetailsModalVisible] = useState(false);
   const [actionModalVisible, setActionModalVisible] = useState(false);
   const [selectedRequest, setSelectedRequest] = useState<ActivityRequest | null>(null);

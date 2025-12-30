@@ -58,11 +58,14 @@ export const POST: APIRoute = async ({ request, locals }) => {
       );
     }
 
+    // Use IST for all time calculations
     const now = new Date();
-    // Format time as HH:MM:SS
-    const hours = String(now.getHours()).padStart(2, '0');
-    const minutes = String(now.getMinutes()).padStart(2, '0');
-    const seconds = String(now.getSeconds()).padStart(2, '0');
+    const istDate = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }));
+
+    // Format time as HH:MM:SS in IST
+    const hours = String(istDate.getHours()).padStart(2, '0');
+    const minutes = String(istDate.getMinutes()).padStart(2, '0');
+    const seconds = String(istDate.getSeconds()).padStart(2, '0');
     const clockInTime = `${hours}:${minutes}:${seconds}`;
 
     if (!user?.employee_id) {
@@ -72,9 +75,9 @@ export const POST: APIRoute = async ({ request, locals }) => {
       );
     }
 
-    // Check if late (office hours: 10:30 AM)
-    const clockInHour = parseInt(clockInTime.split(':')[0]);
-    const clockInMinute = parseInt(clockInTime.split(':')[1]);
+    // Check if late (office hours: 10:30 AM IST)
+    const clockInHour = parseInt(hours, 10);
+    const clockInMinute = parseInt(minutes, 10);
     const expectedTime = 10 * 60 + 30; // 10:30 AM in minutes
     const actualTime = clockInHour * 60 + clockInMinute;
     const lateMinutes = Math.max(0, actualTime - expectedTime);

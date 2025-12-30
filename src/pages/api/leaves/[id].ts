@@ -9,6 +9,7 @@ import {
   getUserFromSession
 } from '../../../lib/db';
 import { sendEmail } from '../../../lib/email-service';
+import { updateLeaveBalance, type LeaveType } from '../../../lib/leave-logic';
 
 /* ---------------------------------------------------
    Helper: Send Leave Status Email via Centralized Service
@@ -148,32 +149,44 @@ export const PUT: APIRoute = async ({ params, request, locals }) => {
       try {
         const leaveDetails = await db.prepare(`
           SELECT l.*, e.email, e.first_name, e.last_name
-          FROM leaves l
+          FROM employee_leave_history l
           JOIN employees e ON l.employee_id = e.id
           WHERE l.id = ?
         `).bind(id).first();
 
-        if (leaveDetails?.email) {
-          const userName =
-            `${leaveDetails.first_name} ${leaveDetails.last_name}`;
+        if (leaveDetails) {
+          // Update Balance if Approved
+          if (body.status === 'approved') {
+            await updateLeaveBalance(
+              db,
+              leaveDetails.employee_id,
+              leaveDetails.leave_type as LeaveType,
+              leaveDetails.duration || leaveDetails.total_days
+            );
+          }
 
-          await sendLeaveStatusEmail(
-            leaveDetails.email,
-            userName,
-            body.status,
-            {
-              leave_type: leaveDetails.leave_type,
-              start_date: leaveDetails.start_date,
-              end_date: leaveDetails.end_date,
-              total_days: leaveDetails.total_days,
-              approved_by: body.approved_by || 'Manager',
-              rejection_reason: body.rejection_reason || body.notes
-            }
-          );
+          if (leaveDetails.email) {
+            const userName =
+              `${leaveDetails.first_name} ${leaveDetails.last_name}`;
+
+            await sendLeaveStatusEmail(
+              leaveDetails.email,
+              userName,
+              body.status,
+              {
+                leave_type: leaveDetails.leave_type,
+                start_date: leaveDetails.start_date,
+                end_date: leaveDetails.end_date,
+                total_days: leaveDetails.total_days,
+                approved_by: body.approved_by || 'Manager',
+                rejection_reason: body.rejection_reason || body.notes
+              }
+            );
+          }
         }
       } catch (emailErr) {
-        console.error('Leave status email failed:', emailErr);
-        // Do NOT fail API if email fails
+        console.error('Leave status email/balance update failed:', emailErr);
+        // Do NOT fail API if email/balance fails, though balance failure is critical.
       }
     }
 

@@ -1,6 +1,6 @@
 ﻿
 import React, { useState, useEffect, Suspense, lazy } from 'react';
-import { Layout, Menu, Card, Row, Col, Statistic, Avatar, Dropdown, Button, Typography, Space, Calendar, Badge, List, message, Table, Tag, Progress, Drawer, Timeline, Divider, Modal, Input, Spin, Form, DatePicker, Select, Descriptions, Tooltip, TimePicker, Tabs } from 'antd';
+import { Layout, Menu, Card, Row, Col, Statistic, Avatar, Dropdown, Button, Typography, Space, Calendar, Badge, List, message, Table, Tag, Progress, Drawer, Timeline, Divider, Modal, Input, Spin, Form, DatePicker, Select, Descriptions, Tooltip, TimePicker, Tabs, Alert, Radio } from 'antd';
 import {
   UserOutlined,
   CalendarOutlined,
@@ -41,6 +41,9 @@ import dayjs from 'dayjs';
 const ProfilePage = lazy(() => import('./ProfilePage'));
 const Settings = lazy(() => import('./Settings'));
 const MyTeam = lazy(() => import('./MyTeam'));
+import AttendanceCalendar from './AttendanceCalendar';
+import LocationMapModal from '../common/LocationMapModal';
+
 
 const { Header, Sider, Content } = Layout;
 const { Title, Text } = Typography;
@@ -57,44 +60,31 @@ const UserDashboard: React.FC = () => {
     try {
       const sessionToken = localStorage.getItem('sessionToken');
       const response = await fetch('/api/attendance/my-attendance?days=30', {
-        headers: { 'Authorization': `Bearer ${sessionToken}` }
+        headers: { 'Authorization': `Bearer ${sessionToken} ` }
       });
       const data = (await response.json()) as { success: boolean; data?: any };
 
       if (data.success && data.data) {
-        // Helper to convert UTC time string (HH:MM:SS) to Local time string (HH:MM:SS)
-        const convertUTCToLocalTime = (utcTimeStr: string) => {
-          if (!utcTimeStr) return null;
-          const [h, m, s] = utcTimeStr.split(':').map(Number);
-          const date = new Date();
-          date.setUTCHours(h, m, s || 0);
-          const localH = String(date.getHours()).padStart(2, '0');
-          const localM = String(date.getMinutes()).padStart(2, '0');
-          const localS = String(date.getSeconds()).padStart(2, '0');
-          return `${localH}:${localM}:${localS}`;
-        };
-
         // Transform records
+        // Note: Backend now returns time in IST (or server local time) so we use it directly
+        // to avoid double conversion issues.
         const transformRecord = (record: any) => {
           if (!record) return null;
           return {
             ...record,
-            clock_in: record.clock_in ? convertUTCToLocalTime(record.clock_in) : null,
-            clock_out: record.clock_out ? convertUTCToLocalTime(record.clock_out) : null,
+            // Use raw strings as they are already stored as local time (IST) by backend
+            clock_in: record.clock_in || null,
+            clock_out: record.clock_out || null,
             sessions: record.sessions?.map((s: any) => ({
               ...s,
-              clock_in: s.clock_in ? convertUTCToLocalTime(s.clock_in) : null,
-              clock_out: s.clock_out ? convertUTCToLocalTime(s.clock_out) : null,
+              clock_in: s.clock_in || null,
+              clock_out: s.clock_out || null,
             }))
           };
         };
 
         const localRecords = data.data.records.map(transformRecord);
         const localToday = transformRecord(data.data.today); // This might be null if no record today
-
-        // If localToday is null, check if one of the records matches "today" in local date
-        // This handles edge case where UTC date was "yesterday" but Local date is "today" or vice versa
-        // But for now, relying on backend's "today" specific field is safer for logic continuity
 
         const transformedData = {
           ...data.data,
@@ -138,10 +128,32 @@ const UserDashboard: React.FC = () => {
   const [elapsedTime, setElapsedTime] = useState(0);
   const [attendanceData, setAttendanceData] = useState<any>(null);
   const [todayRecord, setTodayRecord] = useState<any>(null);
+  const [activeTab, setActiveTab] = useState<'log' | 'calendar' | 'requests'>('log');
   const [isClockedIn, setIsClockedIn] = useState(false); // Policy State
   const [policyModalVisible, setPolicyModalVisible] = useState(false);
   const [policyText, setPolicyText] = useState('');
   const [holidays, setHolidays] = useState<any[]>([]);
+
+  // Map Modal State
+  const [mapModalVisible, setMapModalVisible] = useState(false);
+  const [mapLocation, setMapLocation] = useState<{
+    latitude: number;
+    longitude: number;
+    address?: string;
+    title: string;
+    timestamp?: string;
+  } | null>(null);
+
+  const showLocationMap = (latitude: number, longitude: number, address: string, title: string, timestamp?: string) => {
+    setMapLocation({
+      latitude,
+      longitude,
+      address,
+      title,
+      timestamp
+    });
+    setMapModalVisible(true);
+  };
 
   const fetchPolicy = async () => {
     try {
@@ -184,6 +196,9 @@ const UserDashboard: React.FC = () => {
   const [wfhModalVisible, setWfhModalVisible] = useState(false);
   const [wfhDates, setWfhDates] = useState<string[]>([]);
   const [wfhReason, setWfhReason] = useState('');
+  const [wfhType, setWfhType] = useState<string>('full'); // 'full', 'half', 'hourly'
+  const [wfhStartTime, setWfhStartTime] = useState<string>('');
+  const [wfhEndTime, setWfhEndTime] = useState<string>('');
   const [wfhLoading, setWfhLoading] = useState(false);
   const [partialDayModalVisible, setPartialDayModalVisible] = useState(false);
   const [partialDayDate, setPartialDayDate] = useState('');
@@ -227,6 +242,8 @@ const UserDashboard: React.FC = () => {
   };
 
   const [leaveBalance, setLeaveBalance] = useState<any>(null);
+  const [isHalfDay, setIsHalfDay] = useState(false);
+  const [halfDayPeriod, setHalfDayPeriod] = useState('first_half');
 
   // Leave Request Handlers & Logic
   const fetchLeaveRequests = async () => {
@@ -234,7 +251,7 @@ const UserDashboard: React.FC = () => {
     try {
       const sessionToken = localStorage.getItem('sessionToken');
       const response = await fetch('/api/leave', {
-        headers: { 'Authorization': `Bearer ${sessionToken}` }
+        headers: { 'Authorization': `Bearer ${sessionToken} ` }
       });
       const result = await response.json() as { success: boolean; data?: any[] };
       if (result.success && result.data) {
@@ -250,7 +267,7 @@ const UserDashboard: React.FC = () => {
     try {
       const sessionToken = localStorage.getItem('sessionToken');
       const response = await fetch('/api/leave/balance', {
-        headers: { 'Authorization': `Bearer ${sessionToken}` }
+        headers: { 'Authorization': `Bearer ${sessionToken} ` }
       });
       const result = await response.json() as { success: boolean, data: any };
       if (result.success) {
@@ -297,11 +314,11 @@ const UserDashboard: React.FC = () => {
       onOk: async () => {
         try {
           const sessionToken = localStorage.getItem('sessionToken');
-          const response = await fetch(`/api/leave/${id}`, {
+          const response = await fetch(`/ api / leave / ${id} `, {
             method: 'PATCH',
             headers: {
               'Content-Type': 'application/json',
-              'Authorization': `Bearer ${sessionToken}`
+              'Authorization': `Bearer ${sessionToken} `
             },
             body: JSON.stringify({ status: 'cancelled' })
           });
@@ -329,16 +346,19 @@ const UserDashboard: React.FC = () => {
       const sessionToken = localStorage.getItem('sessionToken');
       const payload = {
         leave_type: values.leave_type,
-        start_date: values.dateRange[0].format('YYYY-MM-DD'),
-        end_date: values.dateRange[1].format('YYYY-MM-DD'),
-        reason: values.reason
+        start_date: isHalfDay ? values.leaveDate.format('YYYY-MM-DD') : values.dateRange[0].format('YYYY-MM-DD'),
+        end_date: isHalfDay ? values.leaveDate.format('YYYY-MM-DD') : values.dateRange[1].format('YYYY-MM-DD'),
+        reason: values.reason,
+        is_half_day: isHalfDay,
+        half_day_period: isHalfDay ? halfDayPeriod : undefined,
+        duration: isHalfDay ? 0.5 : undefined,
       };
 
       const response = await fetch('/api/leave', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${sessionToken}`
+          'Authorization': `Bearer ${sessionToken} `
         },
         body: JSON.stringify(payload)
       });
@@ -388,7 +408,7 @@ const UserDashboard: React.FC = () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${sessionToken}`
+          'Authorization': `Bearer ${sessionToken} `
         },
         body: JSON.stringify({
           date: partialDayDate,
@@ -434,6 +454,7 @@ const UserDashboard: React.FC = () => {
       'sick': 'red',
       'vacation': 'blue',
       'personal': 'purple',
+      'paid_leave': 'blue',
       'maternity': 'pink',
       'paternity': 'cyan',
       'unpaid': 'default'
@@ -588,6 +609,9 @@ const UserDashboard: React.FC = () => {
   // Work from home handlers
   const showWfhModal = () => {
     setWfhDates([]);
+    setWfhType('full');
+    setWfhStartTime('');
+    setWfhEndTime('');
     setWfhModalVisible(true);
   };
 
@@ -596,6 +620,12 @@ const UserDashboard: React.FC = () => {
       message.error('Please select at least one date');
       return;
     }
+
+    if ((wfhType === 'half' || wfhType === 'hourly') && (!wfhStartTime || !wfhEndTime)) {
+      message.error('Please select start and end time for ' + wfhType + ' day request');
+      return;
+    }
+
     setWfhLoading(true);
     try {
       const sessionToken = localStorage.getItem('sessionToken');
@@ -607,7 +637,10 @@ const UserDashboard: React.FC = () => {
         },
         body: JSON.stringify({
           dates: wfhDates, // send array of dates
-          reason: wfhReason || 'Working from home'
+          reason: wfhReason || 'Working from home',
+          request_type: wfhType,
+          start_time: wfhStartTime,
+          end_time: wfhEndTime
         })
       });
       const result = await response.json() as any;
@@ -1384,37 +1417,78 @@ const UserDashboard: React.FC = () => {
                           width={500}
                         >
                           <Space direction="vertical" style={{ width: '100%' }} size="middle">
+                            <Alert
+                              message="WFH Policy"
+                              description="Limit: 2 days/quarter. Notice: 1 day prior. Window: Past 1 month."
+                              type="info"
+                              showIcon
+                              style={{ marginBottom: 10 }}
+                            />
+
+                            <div>
+                              <Typography.Text strong>Request Type:</Typography.Text>
+                              <div style={{ marginTop: 8 }}>
+                                <Radio.Group value={wfhType} onChange={e => setWfhType(e.target.value)} buttonStyle="solid">
+                                  <Radio.Button value="full">Full Day</Radio.Button>
+                                  <Radio.Button value="half">Half Day</Radio.Button>
+                                  <Radio.Button value="hourly">Hourly</Radio.Button>
+                                </Radio.Group>
+                              </div>
+                            </div>
+
+                            {(wfhType === 'half' || wfhType === 'hourly') && (
+                              <div>
+                                <Typography.Text strong>Time Range:</Typography.Text>
+                                <div style={{ marginTop: 8 }}>
+                                  <TimePicker.RangePicker
+                                    format="HH:mm"
+                                    onChange={(times, timeStrings) => {
+                                      if (times) {
+                                        setWfhStartTime(timeStrings[0]);
+                                        setWfhEndTime(timeStrings[1]);
+                                      } else {
+                                        setWfhStartTime('');
+                                        setWfhEndTime('');
+                                      }
+                                    }}
+                                  />
+                                </div>
+                              </div>
+                            )}
+
                             <div>
                               <Typography.Text strong>Select Dates:</Typography.Text>
-                              <Calendar
-                                fullscreen={false}
-                                dateFullCellRender={date => {
-                                  const dateStr = date.format('YYYY-MM-DD');
-                                  const selected = wfhDates.includes(dateStr);
-                                  return (
-                                    <div
-                                      style={{
-                                        background: selected ? '#1890ff' : undefined,
-                                        color: selected ? '#fff' : undefined,
-                                        borderRadius: 6,
-                                        padding: 2,
-                                        cursor: 'pointer',
-                                      }}
-                                      onClick={() => {
-                                        if (selected) {
-                                          setWfhDates(wfhDates.filter(d => d !== dateStr));
-                                        } else {
-                                          setWfhDates([...wfhDates, dateStr]);
+                              <div style={{ marginTop: 8, marginBottom: 16 }}>
+                                <RangePicker
+                                  style={{ width: '100%' }}
+                                  disabledDate={(current) => {
+                                    // Disable weekends (Saturday=6, Sunday=0)
+                                    return current && (current.day() === 0 || current.day() === 6);
+                                  }}
+                                  onChange={(dates) => {
+                                    if (dates && dates[0] && dates[1]) {
+                                      const start = dates[0];
+                                      const end = dates[1];
+                                      const days = [];
+                                      let current = start;
+
+                                      while (current.isBefore(end) || current.isSame(end, 'day')) {
+                                        // Only add weekdays (Mon-Fri)
+                                        if (current.day() !== 0 && current.day() !== 6) {
+                                          days.push(current.format('YYYY-MM-DD'));
                                         }
-                                      }}
-                                    >
-                                      {date.date()}
-                                    </div>
-                                  );
-                                }}
-                              />
+                                        current = current.add(1, 'day');
+                                      }
+                                      setWfhDates(days);
+                                    } else {
+                                      setWfhDates([]);
+                                    }
+                                  }}
+                                  format="YYYY-MM-DD"
+                                />
+                              </div>
                               <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-                                Click on dates to select/deselect. Selected: {wfhDates.length}
+                                Selected: {wfhDates.length} days
                               </Typography.Text>
                             </div>
                             <div>
@@ -1478,194 +1552,287 @@ const UserDashboard: React.FC = () => {
                 {/* Tabs */}
                 <div style={{ borderBottom: '2px solid #f0f0f0', marginBottom: 16 }}>
                   <Space size={32}>
-                    <Button type="link" style={{ fontWeight: 'bold', color: '#1890ff', borderBottom: '2px solid #1890ff' }}>
+                    <Button
+                      type="link"
+                      style={{
+                        fontWeight: activeTab === 'log' ? 'bold' : 'normal',
+                        color: activeTab === 'log' ? '#1890ff' : '#666',
+                        borderBottom: activeTab === 'log' ? '2px solid #1890ff' : 'none',
+                        paddingLeft: 0, paddingRight: 0, borderRadius: 0
+                      }}
+                      onClick={() => setActiveTab('log')}
+                    >
                       Attendance Log
                     </Button>
-                    <Button type="link" style={{ color: '#666' }}>Calendar</Button>
-                    <Button type="link" style={{ color: '#666' }}>Attendance Requests</Button>
+                    <Button
+                      type="link"
+                      style={{
+                        fontWeight: activeTab === 'calendar' ? 'bold' : 'normal',
+                        color: activeTab === 'calendar' ? '#1890ff' : '#666',
+                        borderBottom: activeTab === 'calendar' ? '2px solid #1890ff' : 'none',
+                        paddingLeft: 0, paddingRight: 0, borderRadius: 0
+                      }}
+                      onClick={() => setActiveTab('calendar')}
+                    >
+                      Calendar
+                    </Button>
+                    <Button
+                      type="link"
+                      style={{
+                        fontWeight: activeTab === 'requests' ? 'bold' : 'normal',
+                        color: activeTab === 'requests' ? '#1890ff' : '#666',
+                        borderBottom: activeTab === 'requests' ? '2px solid #1890ff' : 'none',
+                        paddingLeft: 0, paddingRight: 0, borderRadius: 0
+                      }}
+                      onClick={() => setActiveTab('requests')}
+                    >
+                      Attendance Requests
+                    </Button>
                   </Space>
                 </div>
 
-                <Text strong style={{ fontSize: 16, marginBottom: 16, display: 'block' }}>Last 30 Days</Text>
+                {activeTab === 'calendar' ? (
+                  <AttendanceCalendar attendanceData={attendanceData?.records || []} />
+                ) : activeTab === 'requests' ? (
+                  <div style={{ padding: 20, textAlign: 'center', color: '#888' }}>
+                    {/* Placeholder or Move Requests Table here if existing */}
+                    Attendance Requests implementation coming soon.
+                  </div>
+                ) : (
+                  <>
+                    <Text strong style={{ fontSize: 16, marginBottom: 16, display: 'block' }}>Last 30 Days</Text>
 
-                <Table
-                  dataSource={attendanceData?.records || []}
-                  rowKey="id"
-                  pagination={false}
-                  scroll={{ x: 'max-content' }}
-                  columns={[
-                    {
-                      title: 'DATE',
-                      dataIndex: 'date',
-                      key: 'date',
-                      width: 180,
-                      render: (date: string, record: any) => {
-                        const d = new Date(date);
-                        const dayName = d.toLocaleDateString('en-US', { weekday: 'short' });
-                        const dateStr = d.toLocaleDateString('en-US', { day: 'numeric', month: 'short' });
-                        return (
-                          <div>
-                            <Text strong>{dayName}, {dateStr}</Text>
-                            {record.session_count > 1 && (
+
+                    <Table
+                      dataSource={attendanceData?.records || []}
+                      rowKey="id"
+                      pagination={false}
+                      scroll={{ x: 'max-content' }}
+                      columns={[
+                        {
+                          title: 'DATE',
+                          dataIndex: 'date',
+                          key: 'date',
+                          width: 180,
+                          render: (date: string, record: any) => {
+                            const d = new Date(date);
+                            const dayName = d.toLocaleDateString('en-US', { weekday: 'short' });
+                            const dateStr = d.toLocaleDateString('en-US', { day: 'numeric', month: 'short' });
+                            return (
                               <div>
-                                <Tag color="blue" style={{ fontSize: 10, marginTop: 4 }}>
-                                  {record.session_count} Sessions
-                                </Tag>
+                                <Text strong>{dayName}, {dateStr}</Text>
+                                {record.session_count > 1 && (
+                                  <div>
+                                    <Tag color="blue" style={{ fontSize: 10, marginTop: 4 }}>
+                                      {record.session_count} Sessions
+                                    </Tag>
+                                  </div>
+                                )}
                               </div>
-                            )}
-                          </div>
-                        );
-                      }
-                    },
-                    {
-                      title: 'ATTENDANCE VISUAL',
-                      key: 'visual',
-                      width: 300,
-                      render: (_: any, record: any) => {
-                        if (!record.clock_in) return <Text type="secondary">-</Text>;
+                            );
+                          }
+                        },
+                        {
+                          title: <EnvironmentOutlined />,
+                          key: 'location',
+                          width: 50,
+                          align: 'center',
+                          render: (_: any, record: any) => {
+                            if (!record.location || record.location === 'undefined') return <Text type="secondary">-</Text>;
+                            try {
+                              const loc = JSON.parse(record.location);
+                              // Check for clock in location (root) or clockOut
+                              const hasLoc = (loc.latitude && loc.longitude) || (loc.clockOut?.latitude && loc.clockOut?.longitude);
 
-                        const clockIn = record.clock_in;
-                        const clockOut = record.clock_out;
+                              if (!hasLoc) return <Text type="secondary">-</Text>;
 
-                        // Calculate position and width for visual bar
-                        const startHour = parseInt(clockIn.split(':')[0]);
-                        const startMin = parseInt(clockIn.split(':')[1]);
-                        const startPercent = ((startHour * 60 + startMin) / (24 * 60)) * 100;
+                              return (
+                                <Button
+                                  type="text"
+                                  icon={<EnvironmentOutlined />}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    // Prefer Clock In location for the main summary, or show the first available
+                                    const lat = loc.latitude || loc.clockOut?.latitude;
+                                    const lng = loc.longitude || loc.clockOut?.longitude;
+                                    const addr = loc.address || loc.clockOut?.address;
+                                    const time = record.clock_in; // Simplified for main view
 
-                        let endPercent = 100;
-                        if (clockOut) {
-                          const endHour = parseInt(clockOut.split(':')[0]);
-                          const endMin = parseInt(clockOut.split(':')[1]);
-                          endPercent = ((endHour * 60 + endMin) / (24 * 60)) * 100;
-                        }
+                                    if (lat && lng) {
+                                      showLocationMap(lat, lng, addr, 'Web Clock In', time);
+                                    }
+                                  }}
+                                />
+                              );
+                            } catch {
+                              return <Text type="secondary">-</Text>;
+                            }
+                          }
+                        },
+                        {
+                          title: 'ATTENDANCE VISUAL',
+                          key: 'visual',
+                          width: 300,
+                          render: (_: any, record: any) => {
+                            if (!record.clock_in) return <Text type="secondary">-</Text>;
 
-                        const width = endPercent - startPercent;
+                            const clockIn = record.clock_in;
+                            const clockOut = record.clock_out;
 
-                        return (
-                          <div style={{ position: 'relative', height: 20, backgroundColor: '#f0f0f0', borderRadius: 4 }}>
-                            <div
-                              style={{
-                                position: 'absolute',
-                                left: `${startPercent}%`,
-                                width: `${width}%`,
-                                height: '100%',
-                                backgroundColor: clockOut ? '#52c41a' : '#1890ff',
-                                borderRadius: 4
-                              }}
+                            // Calculate position and width for visual bar
+                            const startHour = parseInt(clockIn.split(':')[0]);
+                            const startMin = parseInt(clockIn.split(':')[1]);
+                            const startPercent = ((startHour * 60 + startMin) / (24 * 60)) * 100;
+
+                            let endPercent = 100;
+                            if (clockOut) {
+                              const endHour = parseInt(clockOut.split(':')[0]);
+                              const endMin = parseInt(clockOut.split(':')[1]);
+                              endPercent = ((endHour * 60 + endMin) / (24 * 60)) * 100;
+                            }
+
+                            const width = endPercent - startPercent;
+
+                            return (
+                              <div style={{ position: 'relative', height: 20, backgroundColor: '#f0f0f0', borderRadius: 4 }}>
+                                <div
+                                  style={{
+                                    position: 'absolute',
+                                    left: `${startPercent}%`,
+                                    width: `${width}%`,
+                                    height: '100%',
+                                    backgroundColor: clockOut ? '#52c41a' : '#1890ff',
+                                    borderRadius: 4
+                                  }}
+                                />
+                                {record.notes?.includes('Late') && (
+                                  <div style={{ position: 'absolute', left: `${startPercent - 2}%`, top: -2 }}>
+                                    <WarningOutlined style={{ fontSize: 16, color: '#faad14' }} />
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          }
+                        },
+
+                        {
+                          title: 'EFFECTIVE HOURS',
+                          dataIndex: 'working_hours',
+                          key: 'effective_hours',
+                          width: 120,
+                          render: (hours: string, record: any) => {
+                            if (record.status === 'absent' || !record.clock_in) return <Text>-</Text>;
+
+                            let totalMinutes = 0;
+
+                            if (record.has_active_session && record.clock_in) {
+                              // Active Session: Calculate live time from clock_in
+                              const [h, m] = record.clock_in.split(':').map(Number);
+                              const clockInDates = new Date();
+                              clockInDates.setHours(h, m, 0, 0);
+                              const now = new Date();
+                              totalMinutes = Math.floor((now.getTime() - clockInDates.getTime()) / 60000);
+                            } else {
+                              // Completed Day: Use total_minutes from DB
+                              totalMinutes = record.total_minutes || 0;
+                            }
+
+                            const displayHours = Math.floor(Math.max(0, totalMinutes) / 60);
+                            const displayMinutes = Math.max(0, totalMinutes) % 60;
+
+                            return (
+                              <Text style={{ color: record.has_active_session ? '#52c41a' : undefined }}>
+                                {displayHours}h {displayMinutes}m
+                              </Text>
+                            );
+                          }
+                        },
+                        {
+                          title: 'GROSS HOURS',
+                          dataIndex: 'working_hours',
+                          key: 'gross_hours',
+                          width: 120,
+                          render: (hours: string, record: any) => {
+                            if (record.status === 'absent' || !record.clock_in) return <Text>-</Text>;
+
+                            let totalMinutes = 0;
+
+
+                            // Gross = Clock Out - Clock In (simple diff)
+                            // If Active: Now - Clock In
+                            const [inH, inM] = record.clock_in.split(':').map(Number);
+                            const start = new Date();
+                            start.setHours(inH, inM, 0, 0);
+
+                            let end = new Date(); // Default to Now if active
+
+                            if (record.clock_out) {
+                              const [outH, outM] = record.clock_out.split(':').map(Number);
+                              end.setHours(outH, outM, 0, 0);
+                            }
+
+                            // Handle overnight shifts (if end is before start)
+                            if (end < start) {
+                              end.setDate(end.getDate() + 1);
+                            }
+
+                            totalMinutes = Math.floor((end.getTime() - start.getTime()) / 60000);
+
+                            const displayHours = Math.floor(Math.max(0, totalMinutes) / 60);
+                            const displayMinutes = Math.max(0, totalMinutes) % 60;
+
+                            return (
+                              <Text style={{ color: record.has_active_session ? '#1890ff' : undefined }}>
+                                {displayHours}h {displayMinutes}m
+                              </Text>
+                            );
+                          }
+                        },
+                        {
+                          title: 'ARRIVAL',
+                          key: 'arrival',
+                          width: 120,
+                          render: (_: any, record: any) => {
+                            if (record.status === 'absent') return <Text>-</Text>;
+                            const isLate = record.sessions?.some((s: any) => s.notes?.includes('Late'));
+                            const lateNote = record.sessions?.find((s: any) => s.notes?.includes('Late'))?.notes;
+                            return (
+                              <div>
+                                {isLate ? <FrownOutlined style={{ fontSize: 18, color: '#faad14' }} /> : <CheckCircleOutlined style={{ fontSize: 18, color: '#52c41a' }} />}
+                                {isLate && lateNote && (
+                                  <>
+                                    <br />
+                                    <Text type="danger" style={{ fontSize: 11 }}>
+                                      {(() => {
+                                        const mins = parseInt(lateNote.match(/\d+/)?.[0] || '0');
+                                        const h = Math.floor(mins / 60);
+                                        const m = mins % 60;
+                                        if (h > 0) return `${h}h ${m}m late`;
+                                        return `${m} min late`;
+                                      })()}
+                                    </Text>
+                                  </>
+                                )}
+                              </div>
+                            );
+                          }
+                        },
+                        {
+                          title: 'LOG',
+                          key: 'log',
+                          width: 60,
+                          render: (_: any, record: any) => (
+                            <Button
+                              type="text"
+                              icon={<InfoCircleOutlined style={{ color: '#1890ff', fontSize: 16 }} />}
+                              onClick={() => fetchDayDetails(record.date)}
                             />
-                            {record.notes?.includes('Late') && (
-                              <div style={{ position: 'absolute', left: `${startPercent - 2}%`, top: -2 }}>
-                                <WarningOutlined style={{ fontSize: 16, color: '#faad14' }} />
-                              </div>
-                            )}
-                          </div>
-                        );
-                      }
-                    },
-                    {
-                      title: 'EFFECTIVE HOURS',
-                      dataIndex: 'working_hours',
-                      key: 'effective_hours',
-                      width: 120,
-                      render: (hours: string, record: any) => {
-                        if (record.status === 'absent' || !record.clock_in) return <Text>-</Text>;
-
-                        let totalMinutes = 0;
-
-                        if (record.has_active_session && record.clock_in) {
-                          // Active Session: Calculate live time from clock_in
-                          const [h, m] = record.clock_in.split(':').map(Number);
-                          const clockInDates = new Date();
-                          clockInDates.setHours(h, m, 0, 0);
-                          const now = new Date();
-                          totalMinutes = Math.floor((now.getTime() - clockInDates.getTime()) / 60000);
-                        } else {
-                          // Completed Day: Use total_minutes from DB
-                          totalMinutes = record.total_minutes || 0;
+                          )
                         }
-
-                        const displayHours = Math.floor(Math.max(0, totalMinutes) / 60);
-                        const displayMinutes = Math.max(0, totalMinutes) % 60;
-
-                        return (
-                          <Text style={{ color: record.has_active_session ? '#52c41a' : undefined }}>
-                            {displayHours}h {displayMinutes}m
-                          </Text>
-                        );
-                      }
-                    },
-                    {
-                      title: 'GROSS HOURS',
-                      dataIndex: 'working_hours',
-                      key: 'gross_hours',
-                      width: 120,
-                      render: (hours: string, record: any) => {
-                        if (record.status === 'absent' || !record.clock_in) return <Text>-</Text>;
-
-                        let totalMinutes = 0;
-
-                        // Gross = Clock Out - Clock In (simple diff)
-                        // If Active: Now - Clock In
-                        const [inH, inM] = record.clock_in.split(':').map(Number);
-                        const start = new Date();
-                        start.setUTCHours(inH, inM, 0, 0);
-
-                        let end = new Date(); // Default to Now if active
-
-                        if (record.clock_out) {
-                          const [outH, outM] = record.clock_out.split(':').map(Number);
-                          end.setUTCHours(outH, outM, 0, 0);
-                        }
-
-                        totalMinutes = Math.floor((end.getTime() - start.getTime()) / 60000);
-
-                        const displayHours = Math.floor(Math.max(0, totalMinutes) / 60);
-                        const displayMinutes = Math.max(0, totalMinutes) % 60;
-
-                        return (
-                          <Text style={{ color: record.has_active_session ? '#1890ff' : undefined }}>
-                            {displayHours}h {displayMinutes}m
-                          </Text>
-                        );
-                      }
-                    },
-                    {
-                      title: 'ARRIVAL',
-                      key: 'arrival',
-                      width: 120,
-                      render: (_: any, record: any) => {
-                        if (record.status === 'absent') return <Text>-</Text>;
-                        const isLate = record.sessions?.some((s: any) => s.notes?.includes('Late'));
-                        const lateNote = record.sessions?.find((s: any) => s.notes?.includes('Late'))?.notes;
-                        return (
-                          <div>
-                            {isLate ? <FrownOutlined style={{ fontSize: 18, color: '#faad14' }} /> : <CheckCircleOutlined style={{ fontSize: 18, color: '#52c41a' }} />}
-                            {isLate && lateNote && (
-                              <>
-                                <br />
-                                <Text type="danger" style={{ fontSize: 11 }}>
-                                  {lateNote.match(/\d+/)?.[0] || '0'} min late
-                                </Text>
-                              </>
-                            )}
-                          </div>
-                        );
-                      }
-                    },
-                    {
-                      title: 'LOG',
-                      key: 'log',
-                      width: 60,
-                      render: (_: any, record: any) => (
-                        <Button
-                          type="text"
-                          icon={<InfoCircleOutlined style={{ color: '#1890ff', fontSize: 16 }} />}
-                          onClick={() => fetchDayDetails(record.date)}
-                        />
-                      )
-                    }
-                  ]}
-                />
+                      ]}
+                    />
+                  </>
+                )}
               </Card>
 
               {/* Detailed Day Log Drawer */}
@@ -1742,26 +1909,34 @@ const UserDashboard: React.FC = () => {
                                     </Col>
                                     <Col span={10}>
                                       <Text strong>
-                                        {(() => {
-                                          const [h, m, s] = entry.clock_in.split(':').map(Number);
+                                        {entry.clock_in ? (() => {
+                                          // Directly parse Hours:Minutes from the stored local string
+                                          const [h, m] = entry.clock_in.split(':').map(Number);
                                           const d = new Date();
-                                          d.setUTCHours(h, m, s || 0);
+                                          d.setHours(h, m, 0); // Use setHours (local), not setUTCHours
                                           return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-                                        })()}
+                                        })() : '--:--'}
                                       </Text>
                                       <br />
-                                      <Text type="secondary" style={{ fontSize: 11 }}>Clock In (Local)</Text>
+                                      <Text type="secondary" style={{ fontSize: 11 }}>Clock In</Text>
                                     </Col>
                                     <Col span={10}>
                                       {location && (
-                                        <a
-                                          href={`https://www.google.com/maps?q=${location.latitude},${location.longitude}`}
-                                          target="_blank"
-                                          rel="noopener noreferrer"
-                                          style={{ fontSize: 11 }}
+                                        <Button
+                                          type="link"
+                                          size="small"
+                                          icon={<EnvironmentOutlined />}
+                                          onClick={() => showLocationMap(
+                                            location.latitude,
+                                            location.longitude,
+                                            location.address,
+                                            'Web Clock In',
+                                            entry.clock_in
+                                          )}
+                                          style={{ fontSize: 11, padding: 0, height: 'auto' }}
                                         >
-                                          <EnvironmentOutlined /> View Location
-                                        </a>
+                                          View Location
+                                        </Button>
                                       )}
                                     </Col>
                                   </Row>
@@ -1775,17 +1950,35 @@ const UserDashboard: React.FC = () => {
                                       <Col span={10}>
                                         <Text strong>
                                           {(() => {
-                                            const [h, m, s] = entry.clock_out.split(':').map(Number);
+                                            const [h, m] = entry.clock_out.split(':').map(Number);
                                             const d = new Date();
-                                            d.setUTCHours(h, m, s || 0);
+                                            d.setHours(h, m, 0); // Use setHours (local)
                                             return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
                                           })()}
                                         </Text>
                                         <br />
-                                        <Text type="secondary" style={{ fontSize: 11 }}>Clock Out (Local)</Text>
+                                        <Text type="secondary" style={{ fontSize: 11 }}>Clock Out</Text>
                                       </Col>
                                       <Col span={10}>
-                                        <Tag color="green">{entry.working_hours}</Tag>
+                                        {/* Clock Out Location Link */}
+                                        {location && location.clockOut && (
+                                          <Button
+                                            type="link"
+                                            size="small"
+                                            icon={<EnvironmentOutlined />}
+                                            onClick={() => showLocationMap(
+                                              location.clockOut.latitude,
+                                              location.clockOut.longitude,
+                                              location.clockOut.address,
+                                              'Web Clock Out',
+                                              entry.clock_out
+                                            )}
+                                            style={{ fontSize: 11, padding: 0, height: 'auto' }}
+                                          >
+                                            View Location
+                                          </Button>
+                                        )}
+                                        {!location?.clockOut && <Tag color="green">{entry.working_hours}</Tag>}
                                       </Col>
                                     </Row>
                                   ) : (
@@ -1983,29 +2176,35 @@ const UserDashboard: React.FC = () => {
                   </div>
                   <div>
                     <Text>Date: <Text type="danger">*</Text></Text>
-                    <Input
-                      type="date"
-                      value={partialDayDate}
-                      onChange={(e) => setPartialDayDate(e.target.value)}
-                      style={{ marginTop: 8 }}
+                    <DatePicker
+                      style={{ width: '100%', marginTop: 8 }}
+                      format="YYYY-MM-DD"
+                      value={partialDayDate ? dayjs(partialDayDate) : null}
+                      onChange={(date, dateString) => setPartialDayDate(dateString as string)}
+                      disabledDate={(current) => {
+                        // Optional: Disable past dates if strictly future request, or keep open
+                        return false;
+                      }}
                     />
                   </div>
                   <div>
                     <Text>Start Time: <Text type="danger">*</Text></Text>
-                    <Input
-                      type="time"
-                      value={partialStartTime}
-                      onChange={(e) => setPartialStartTime(e.target.value)}
-                      style={{ marginTop: 8 }}
+                    <TimePicker
+                      style={{ width: '100%', marginTop: 8 }}
+                      format="HH:mm"
+                      value={partialStartTime ? dayjs(partialStartTime, 'HH:mm') : null}
+                      onChange={(time, timeString) => setPartialStartTime(timeString as string)}
+                      minuteStep={5}
                     />
                   </div>
                   <div>
                     <Text>End Time: <Text type="danger">*</Text></Text>
-                    <Input
-                      type="time"
-                      value={partialEndTime}
-                      onChange={(e) => setPartialEndTime(e.target.value)}
-                      style={{ marginTop: 8 }}
+                    <TimePicker
+                      style={{ width: '100%', marginTop: 8 }}
+                      format="HH:mm"
+                      value={partialEndTime ? dayjs(partialEndTime, 'HH:mm') : null}
+                      onChange={(time, timeString) => setPartialEndTime(timeString as string)}
+                      minuteStep={5}
                     />
                   </div>
                   <div>
@@ -2077,9 +2276,7 @@ const UserDashboard: React.FC = () => {
                       size="large"
                       placeholder="Select leave type"
                     >
-                      <Option value="sick">Sick Leave</Option>
-                      <Option value="vacation">Vacation</Option>
-                      <Option value="personal">Personal Leave</Option>
+                      <Option value="paid_leave">Paid Leave</Option>
                       <Option value="emergency">Emergency Leave</Option>
                       <Option value="birthday">Birthday Leave</Option>
                       <Option value="anniversary">Marriage Anniversary Leave</Option>
@@ -2113,7 +2310,7 @@ const UserDashboard: React.FC = () => {
                     } else if (selectedType === 'paternity') {
                       suggestion = "Paternity Benefit: Max 15 Days. Applicable post delivery.";
                       balanceText = "Paternity Leave - Max 15 days";
-                    } else if (['sick', 'vacation', 'personal'].includes(selectedType)) {
+                    } else if (selectedType === 'paid_leave' || ['sick', 'vacation', 'personal'].includes(selectedType)) {
                       suggestion = "Paid leave suggestion as per available leave balance.";
                       if (leaveBalance) {
                         const available = leaveBalance.paid_leave_quota - leaveBalance.paid_leave_used;
@@ -2138,20 +2335,53 @@ const UserDashboard: React.FC = () => {
                     return null;
                   })()}
 
-                  <Form.Item
-                    name="dateRange"
-                    label="Leave Period"
-                    rules={[{ required: true, message: 'Please select leave dates' }]}
-                  >
-                    <RangePicker
-                      size="large"
-                      style={{ width: '100%' }}
-                      format="YYYY-MM-DD"
-                      disabledDate={(current) => {
-                        return current && current < dayjs().startOf('day');
-                      }}
-                    />
+                  <Form.Item label="Duration Type" style={{ marginBottom: 16 }}>
+                    <Radio.Group value={isHalfDay} onChange={(e) => setIsHalfDay(e.target.value)}>
+                      <Radio.Button value={false}>Full Day</Radio.Button>
+                      <Radio.Button value={true}>Half Day</Radio.Button>
+                    </Radio.Group>
                   </Form.Item>
+
+                  {isHalfDay && (
+                    <Form.Item label="Half Day Period" style={{ marginBottom: 16 }}>
+                      <Radio.Group value={halfDayPeriod} onChange={(e) => setHalfDayPeriod(e.target.value)}>
+                        <Radio.Button value="first_half">First Half</Radio.Button>
+                        <Radio.Button value="second_half">Second Half</Radio.Button>
+                      </Radio.Group>
+                    </Form.Item>
+                  )}
+
+                  {isHalfDay ? (
+                    <Form.Item
+                      name="leaveDate"
+                      label="Leave Date"
+                      rules={[{ required: true, message: 'Please select leave date' }]}
+                    >
+                      <DatePicker
+                        size="large"
+                        style={{ width: '100%' }}
+                        format="YYYY-MM-DD"
+                        disabledDate={(current) => {
+                          return current && current < dayjs().startOf('day');
+                        }}
+                      />
+                    </Form.Item>
+                  ) : (
+                    <Form.Item
+                      name="dateRange"
+                      label="Leave Period"
+                      rules={[{ required: true, message: 'Please select leave dates' }]}
+                    >
+                      <RangePicker
+                        size="large"
+                        style={{ width: '100%' }}
+                        format="YYYY-MM-DD"
+                        disabledDate={(current) => {
+                          return current && current < dayjs().startOf('day');
+                        }}
+                      />
+                    </Form.Item>
+                  )}
 
                   <Form.Item
                     name="reason"
@@ -2596,6 +2826,19 @@ const UserDashboard: React.FC = () => {
           }
         ]} />
       </Modal>
+
+      {mapLocation && (
+        <LocationMapModal
+          visible={mapModalVisible}
+          onClose={() => setMapModalVisible(false)}
+          latitude={mapLocation.latitude}
+          longitude={mapLocation.longitude}
+          address={mapLocation.address}
+          title={mapLocation.title}
+          timestamp={mapLocation.timestamp}
+          userName={(user as any)?.full_name || (user as any)?.username || 'User'}
+        />
+      )}
     </Layout>
   );
 };

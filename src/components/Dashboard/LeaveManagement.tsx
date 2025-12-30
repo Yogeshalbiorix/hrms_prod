@@ -387,6 +387,7 @@ export default function LeaveManagement() {
       sick: 'red',
       vacation: 'blue',
       personal: 'purple',
+      paid_leave: 'blue',
       maternity: 'magenta',
       paternity: 'cyan',
       unpaid: 'orange',
@@ -430,6 +431,7 @@ export default function LeaveManagement() {
       width: 120,
       render: (type: string) => getLeaveTypeTag(type),
       filters: [
+        { text: 'Paid Leave', value: 'paid_leave' },
         { text: 'Sick', value: 'sick' },
         { text: 'Vacation', value: 'vacation' },
         { text: 'Personal', value: 'personal' },
@@ -643,6 +645,7 @@ export default function LeaveManagement() {
               onChange={setFilterLeaveType}
               allowClear
             >
+              <Select.Option value="paid_leave">Paid Leave</Select.Option>
               <Select.Option value="sick">Sick Leave</Select.Option>
               <Select.Option value="vacation">Vacation</Select.Option>
               <Select.Option value="personal">Personal</Select.Option>
@@ -703,32 +706,7 @@ export default function LeaveManagement() {
                   <div>
                     <p>No leave requests found</p>
                     {leaveRecords.length === 0 && !loading && (
-                      <Button
-                        type="primary"
-                        style={{ marginTop: 16 }}
-                        onClick={async () => {
-                          try {
-                            const response = await fetch('/api/test/seed-attendance', {
-                              method: 'POST',
-                              headers: {
-                                'Authorization': `Bearer ${localStorage.getItem('sessionToken')}`
-                              }
-                            });
-                            const result = await response.json() as { success: boolean; error?: string };
-                            if (result.success) {
-                              message.success('Sample data created successfully!');
-                              fetchLeaves();
-                              fetchStats();
-                            } else {
-                              message.error(result.error || 'Failed to seed data');
-                            }
-                          } catch (err) {
-                            message.error('Error seeding data');
-                          }
-                        }}
-                      >
-                        Generate Sample Data
-                      </Button>
+                      <span />
                     )}
                   </div>
                 }
@@ -783,9 +761,7 @@ export default function LeaveManagement() {
             rules={[{ required: true, message: 'Please select leave type' }]}
           >
             <Select>
-              <Select.Option value="sick">Sick Leave</Select.Option>
-              <Select.Option value="vacation">Vacation</Select.Option>
-              <Select.Option value="personal">Personal</Select.Option>
+              <Select.Option value="paid_leave">Paid Leave</Select.Option>
               <Select.Option value="maternity">Maternity</Select.Option>
               <Select.Option value="paternity">Paternity</Select.Option>
               <Select.Option value="unpaid">Unpaid</Select.Option>

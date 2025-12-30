@@ -36,14 +36,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const storedToken = localStorage.getItem('sessionToken');
       const storedUser = localStorage.getItem('user');
 
-      if (storedToken && storedUser) {
-        setSessionToken(storedToken);
-        setUser(JSON.parse(storedUser));
+      if (storedToken && storedUser && storedUser !== 'undefined') {
+        try {
+          setSessionToken(storedToken);
+          setUser(JSON.parse(storedUser));
 
-        // Verify session is still valid
-        const isValid = await verifySession(storedToken);
-        if (!isValid) {
-          // Clear invalid session
+          // Verify session is still valid
+          const isValid = await verifySession(storedToken);
+          if (!isValid) {
+            // Clear invalid session
+            localStorage.removeItem('sessionToken');
+            localStorage.removeItem('user');
+            setSessionToken(null);
+            setUser(null);
+          }
+        } catch (e) {
+          console.error('Error parsing stored user:', e);
           localStorage.removeItem('sessionToken');
           localStorage.removeItem('user');
           setSessionToken(null);
@@ -73,7 +81,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (data.authenticated) {
           setUser(data.user);
           // Update localStorage with latest user data
-          localStorage.setItem('user', JSON.stringify(data.user));
+          if (data.user) {
+            localStorage.setItem('user', JSON.stringify(data.user));
+          }
           return true;
         }
       }
@@ -116,7 +126,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // CASE: STANDARD LOGIN (or verified session returned immediately)
         // Store session data
         localStorage.setItem('sessionToken', data.sessionToken!);
-        localStorage.setItem('user', JSON.stringify(data.user));
+        if (data.user) {
+          localStorage.setItem('user', JSON.stringify(data.user));
+        }
 
         setSessionToken(data.sessionToken!);
         setUser(data.user);

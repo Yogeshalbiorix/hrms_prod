@@ -31,7 +31,34 @@ export const GET: APIRoute = async ({ request, locals }) => {
         }
 
         const year = new Date().getFullYear();
-        const balance = await ensureLeaveBalance(db, employee.id, year);
+        // Ensure record exists
+        await ensureLeaveBalance(db, employee.id, year);
+
+        // Auto-Repair: Recalculate consumed leave from history to ensure accuracy
+        const leaves = await db.prepare(`
+            SELECT total_days, duration 
+            FROM employee_leave_history 
+            WHERE employee_id = ? 
+            AND status = 'approved'
+            AND leave_type IN ('vacation', 'sick', 'personal', 'paid_leave')
+            AND strftime('%Y', start_date) = ?
+        `).bind(employee.id, String(year)).all();
+
+        let totalConsumed = 0;
+        for (const leave of leaves.results || []) {
+            totalConsumed += (leave.duration !== null ? leave.duration : leave.total_days);
+        }
+
+        // Update the balance with the recalculated value
+        await db.prepare(`
+            UPDATE employee_leave_balances 
+            SET paid_leave_used = ? 
+            WHERE employee_id = ? AND year = ?
+        `).bind(totalConsumed, employee.id, year).run();
+
+        // Fetch fresh balance
+        const balance = await db.prepare('SELECT * FROM employee_leave_balances WHERE employee_id = ? AND year = ?')
+            .bind(employee.id, year).first();
 
         return new Response(JSON.stringify({ success: true, data: balance }), { status: 200 });
     } catch (error) {

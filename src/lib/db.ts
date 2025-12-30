@@ -214,7 +214,7 @@ export async function createEmployee(db: any, employee: Employee, syncRemote: bo
     employee.status || 'active',
     employee.join_date,
     employee.base_salary || 0,
-    employee.currency || 'USD',
+    employee.currency || 'INR',
     toNull(employee.emergency_contact_name),
     toNull(employee.emergency_contact_phone),
     toNull(employee.emergency_contact_relationship),
@@ -744,6 +744,9 @@ export interface Leave {
   rejection_reason?: string;
   created_at?: string;
   updated_at?: string;
+  duration?: number;
+  is_half_day?: boolean;
+  half_day_period?: 'first_half' | 'second_half';
 }
 
 export interface LeaveWithEmployee extends Leave {
@@ -816,8 +819,8 @@ export async function createLeave(db: any, leave: Leave, syncRemote: boolean = f
     const query = `
       INSERT INTO employee_leave_history (
         employee_id, leave_type, start_date, end_date, total_days,
-        reason, status, notes
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        reason, status, notes, duration, is_half_day, half_day_period
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `;
 
     const params = [
@@ -828,7 +831,10 @@ export async function createLeave(db: any, leave: Leave, syncRemote: boolean = f
       leave.total_days,
       leave.reason || null,
       leave.status,
-      leave.notes || null
+      leave.notes || null,
+      leave.duration !== undefined ? leave.duration : leave.total_days, // Default to total_days if not provided
+      leave.is_half_day ? 1 : 0,
+      leave.half_day_period || null
     ];
 
     console.log('Creating leave with params:', params);

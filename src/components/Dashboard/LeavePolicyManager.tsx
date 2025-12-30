@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Card, Tabs, Table, Button, Input, Modal, Form, DatePicker, Switch, message, Typography, Space, Divider } from 'antd';
-import { PlusOutlined, DeleteOutlined, SaveOutlined, ReloadOutlined } from '@ant-design/icons';
+import { PlusOutlined, DeleteOutlined, SaveOutlined, ReloadOutlined, EditOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 
 const { Title, Paragraph } = Typography;
@@ -12,6 +12,7 @@ export default function LeavePolicyManager() {
     const [holidays, setHolidays] = useState<any[]>([]);
     const [loading, setLoading] = useState(false);
     const [holidayModalVisible, setHolidayModalVisible] = useState(false);
+    const [editingHoliday, setEditingHoliday] = useState<any>(null);
     const [form] = Form.useForm();
 
     // Fetch Logic
@@ -61,31 +62,46 @@ export default function LeavePolicyManager() {
         }
     };
 
-    // Add Holiday
+    // Add or Update Holiday
     const handleAddHoliday = async (values: any) => {
         try {
             const payload = {
+                id: editingHoliday ? editingHoliday.id : undefined,
                 name: values.name,
                 date: values.date.format('YYYY-MM-DD'),
                 year: values.date.year(),
                 is_optional: values.is_optional
             };
+
+            const method = editingHoliday ? 'PUT' : 'POST';
             const res = await fetch('/api/admin/holidays', {
-                method: 'POST',
+                method: method,
                 body: JSON.stringify(payload),
                 headers: { 'Content-Type': 'application/json' }
             });
+
             if (res.ok) {
-                message.success('Holiday added');
+                message.success(editingHoliday ? 'Holiday updated' : 'Holiday added');
                 setHolidayModalVisible(false);
+                setEditingHoliday(null);
                 form.resetFields();
                 fetchHolidays();
             } else {
-                message.error('Failed to add holiday');
+                message.error('Failed to save holiday');
             }
         } catch (err) {
-            message.error('Error adding holiday');
+            message.error('Error saving holiday');
         }
+    };
+
+    const handleEditHoliday = (record: any) => {
+        setEditingHoliday(record);
+        form.setFieldsValue({
+            name: record.name,
+            date: dayjs(record.date),
+            is_optional: !!record.is_optional
+        });
+        setHolidayModalVisible(true);
     };
 
     // Delete Holiday
@@ -101,9 +117,17 @@ export default function LeavePolicyManager() {
 
     const holidayColumns = [
         { title: 'Date', dataIndex: 'date', key: 'date', render: (d: string) => dayjs(d).format('DD MMM YYYY') },
+        { title: 'Day', dataIndex: 'date', key: 'day', render: (d: string) => dayjs(d).format('dddd') },
         { title: 'Holiday Name', dataIndex: 'name', key: 'name' },
         { title: 'Type', dataIndex: 'is_optional', key: 'is_optional', render: (opt: number) => opt ? 'Optional' : 'Mandatory' },
-        { title: 'Action', key: 'action', render: (_: any, r: any) => <Button danger icon={<DeleteOutlined />} size="small" onClick={() => handleDeleteHoliday(r.id)} /> }
+        {
+            title: 'Action', key: 'action', render: (_: any, r: any) => (
+                <Space>
+                    <Button icon={<EditOutlined />} size="small" onClick={() => handleEditHoliday(r)} />
+                    <Button danger icon={<DeleteOutlined />} size="small" onClick={() => handleDeleteHoliday(r.id)} />
+                </Space>
+            )
+        }
     ];
 
     return (
@@ -135,7 +159,11 @@ export default function LeavePolicyManager() {
                     children: (
                         <div>
                             <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'flex-end' }}>
-                                <Button type="primary" icon={<PlusOutlined />} onClick={() => setHolidayModalVisible(true)}>Add Holiday</Button>
+                                <Button type="primary" icon={<PlusOutlined />} onClick={() => {
+                                    setEditingHoliday(null);
+                                    form.resetFields();
+                                    setHolidayModalVisible(true);
+                                }}>Add Holiday</Button>
                             </div>
                             <Table
                                 dataSource={holidays}
@@ -150,7 +178,7 @@ export default function LeavePolicyManager() {
             ]} />
 
             <Modal
-                title="Add Public Holiday"
+                title={editingHoliday ? "Edit Public Holiday" : "Add Public Holiday"}
                 open={holidayModalVisible}
                 onCancel={() => setHolidayModalVisible(false)}
                 onOk={() => form.submit()}

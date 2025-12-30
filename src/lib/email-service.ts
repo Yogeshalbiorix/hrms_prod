@@ -12,9 +12,17 @@ async function sendEmailViaResend(params: {
   subject: string;
   html: string;
   to_name?: string;
-}): Promise<{ success: boolean; error?: string }> {
+}, env?: any): Promise<{ success: boolean; error?: string }> {
   try {
-    const resend = new Resend(RESEND_CONFIG.API_KEY);
+    // Try to get API key from passed env, then config, then process
+    const apiKey = env?.RESEND_API_KEY || RESEND_CONFIG.API_KEY;
+
+    if (!apiKey) {
+      console.error('❌ Resend API Key is missing');
+      return { success: false, error: 'Resend API Key is missing' };
+    }
+
+    const resend = new Resend(apiKey);
 
     const { data, error } = await resend.emails.send({
       from: RESEND_CONFIG.FROM_EMAIL,
@@ -88,13 +96,14 @@ export async function sendEmail(params: {
   subject: string;
   html: string;
   to_name?: string;
-}): Promise<{ success: boolean; error?: string }> {
+}, env?: any): Promise<{ success: boolean; error?: string }> {
   console.log(`📧 Sending email via ${EMAIL_SERVICE_TYPE}...`);
 
   if (EMAIL_SERVICE_TYPE === 'smtp') {
     return await sendEmailViaSMTP(params);
   } else {
-    return await sendEmailViaResend(params);
+    // Pass env to Resend
+    return await sendEmailViaResend(params, env);
   }
 }
 
@@ -105,7 +114,8 @@ export async function sendPasswordResetEmail(
   userEmail: string,
   userName: string,
   resetLink: string,
-  expiresAt: string
+  expiresAt: string,
+  env?: any
 ): Promise<{ success: boolean; error?: string }> {
   const subject = '🔐 Password Reset Request - HRMS';
 
@@ -121,7 +131,7 @@ export async function sendPasswordResetEmail(
     subject,
     html,
     to_name: userName
-  });
+  }, env);
 }
 
 /**
@@ -129,7 +139,8 @@ export async function sendPasswordResetEmail(
  */
 export async function sendPasswordChangedEmail(
   userEmail: string,
-  userName: string
+  userName: string,
+  env?: any
 ): Promise<{ success: boolean; error?: string }> {
   const subject = '🔐 Password Changed Successfully - HRMS';
 
@@ -144,5 +155,152 @@ export async function sendPasswordChangedEmail(
     subject,
     html,
     to_name: userName
-  });
+  }, env);
+}
+
+/**
+ * Send leave request acknowledgement email
+ */
+export async function sendLeaveRequestEmail(
+  to: string,
+  employeeName: string,
+  leave: {
+    leave_type: string;
+    start_date: string;
+    end_date: string;
+    total_days: number;
+    reason: string;
+    status: string;
+  },
+  env?: any
+): Promise<{ success: boolean; error?: string }> {
+  const subject = `🌴 Leave Request Submitted - ${leave.leave_type}`;
+  const html = `
+    <div style="font-family: Arial, sans-serif; color: #333;">
+      <h2>Leave Request Submitted</h2>
+      <p>Hello <strong>${employeeName}</strong>,</p>
+      <p>Your leave request has been submitted successfully and is pending approval.</p>
+      
+      <table style="width: 100%; border-collapse: collapse; margin: 20px 0;">
+        <tr>
+          <td style="padding: 10px; border-bottom: 1px solid #eee;"><strong>Leave Type:</strong></td>
+          <td style="padding: 10px; border-bottom: 1px solid #eee;">${leave.leave_type}</td>
+        </tr>
+        <tr>
+          <td style="padding: 10px; border-bottom: 1px solid #eee;"><strong>Duration:</strong></td>
+          <td style="padding: 10px; border-bottom: 1px solid #eee;">
+            ${leave.start_date} to ${leave.end_date} (${leave.total_days} days)
+          </td>
+        </tr>
+        <tr>
+          <td style="padding: 10px; border-bottom: 1px solid #eee;"><strong>Reason:</strong></td>
+          <td style="padding: 10px; border-bottom: 1px solid #eee;">${leave.reason}</td>
+        </tr>
+        <tr>
+          <td style="padding: 10px; border-bottom: 1px solid #eee;"><strong>Status:</strong></td>
+          <td style="padding: 10px; border-bottom: 1px solid #eee;">
+            <span style="background-color: #fff3cd; color: #856404; padding: 4px 8px; border-radius: 4px; font-size: 0.9em;">
+              ${leave.status.toUpperCase()}
+            </span>
+          </td>
+        </tr>
+      </table>
+
+      <p>You will receive another email once your request is reviewed.</p>
+      <br />
+      <p>Best regards,<br />HR Team</p>
+    </div>
+  `;
+
+  return await sendEmail({
+    to,
+    subject,
+    html,
+    to_name: employeeName
+  }, env);
+}
+
+/**
+ * Send leave request status update email (Approved/Rejected)
+ */
+export async function sendLeaveStatusEmail(
+  to: string,
+  employeeName: string,
+  leave: {
+    leave_type: string;
+    start_date: string;
+    end_date: string;
+    total_days: number;
+    status: string;
+    rejection_reason?: string;
+    approved_by?: string;
+  },
+  env?: any
+): Promise<{ success: boolean; error?: string }> {
+  const isApproved = leave.status === 'approved';
+  const subject = `Leave Request ${isApproved ? 'Approved ✅' : 'Rejected ❌'} - ${leave.leave_type}`;
+
+  const statusColor = isApproved ? '#28a745' : '#dc3545';
+  const statusText = leave.status.toUpperCase();
+
+  let html = `
+    <div style="font-family: Arial, sans-serif; color: #333;">
+      <h2>Leave Request Update</h2>
+      <p>Hello <strong>${employeeName}</strong>,</p>
+      <p>Your leave request has been <strong>${leave.status}</strong>.</p>
+      
+      <table style="width: 100%; border-collapse: collapse; margin: 20px 0;">
+        <tr>
+          <td style="padding: 10px; border-bottom: 1px solid #eee;"><strong>Leave Type:</strong></td>
+          <td style="padding: 10px; border-bottom: 1px solid #eee;">${leave.leave_type}</td>
+        </tr>
+        <tr>
+          <td style="padding: 10px; border-bottom: 1px solid #eee;"><strong>Duration:</strong></td>
+          <td style="padding: 10px; border-bottom: 1px solid #eee;">
+            ${leave.start_date} to ${leave.end_date} (${leave.total_days} days)
+          </td>
+        </tr>
+        <tr>
+          <td style="padding: 10px; border-bottom: 1px solid #eee;"><strong>Status:</strong></td>
+          <td style="padding: 10px; border-bottom: 1px solid #eee;">
+            <span style="background-color: ${statusColor}; color: white; padding: 4px 8px; border-radius: 4px; font-size: 0.9em;">
+              ${statusText}
+            </span>
+          </td>
+        </tr>
+  `;
+
+  if (!isApproved && leave.rejection_reason) {
+    html += `
+        <tr>
+          <td style="padding: 10px; border-bottom: 1px solid #eee;"><strong>Rejection Reason:</strong></td>
+          <td style="padding: 10px; border-bottom: 1px solid #eee; color: #dc3545;">${leave.rejection_reason}</td>
+        </tr>
+    `;
+  }
+
+  if (leave.approved_by) {
+    html += `
+        <tr>
+          <td style="padding: 10px; border-bottom: 1px solid #eee;"><strong>Reviewed By:</strong></td>
+          <td style="padding: 10px; border-bottom: 1px solid #eee;">${leave.approved_by}</td>
+        </tr>
+    `;
+  }
+
+  html += `
+      </table>
+
+      <p>Please contact HR if you have any questions.</p>
+      <br />
+      <p>Best regards,<br />HR Team</p>
+    </div>
+  `;
+
+  return await sendEmail({
+    to,
+    subject,
+    html,
+    to_name: employeeName
+  }, env);
 }

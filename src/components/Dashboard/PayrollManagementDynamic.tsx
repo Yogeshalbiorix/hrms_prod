@@ -523,7 +523,7 @@ export default function PayrollManagementDynamic() {
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
-      currency: 'USD'
+      currency: 'INR'
     }).format(amount);
   };
 
@@ -785,7 +785,7 @@ export default function PayrollManagementDynamic() {
               <Form.Item label="Base Salary" name="base_salary">
                 <InputNumber
                   style={{ width: '100%' }}
-                  prefix="$"
+                  prefix="₹"
                   precision={2}
                   min={0}
                 />
@@ -795,7 +795,7 @@ export default function PayrollManagementDynamic() {
               <Form.Item label="Bonuses" name="bonuses">
                 <InputNumber
                   style={{ width: '100%' }}
-                  prefix="$"
+                  prefix="₹"
                   precision={2}
                   min={0}
                 />
@@ -808,7 +808,7 @@ export default function PayrollManagementDynamic() {
               <Form.Item label="Deductions" name="deductions">
                 <InputNumber
                   style={{ width: '100%' }}
-                  prefix="$"
+                  prefix="₹"
                   precision={2}
                   min={0}
                 />
@@ -818,7 +818,7 @@ export default function PayrollManagementDynamic() {
               <Form.Item label="Tax" name="tax">
                 <InputNumber
                   style={{ width: '100%' }}
-                  prefix="$"
+                  prefix="₹"
                   precision={2}
                   min={0}
                 />

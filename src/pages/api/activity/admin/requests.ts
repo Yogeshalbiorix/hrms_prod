@@ -215,6 +215,76 @@ export const PUT: APIRoute = async ({ request, locals }) => {
       .bind(newStatus, user.id, approvalDate, notes || null, id)
       .run();
 
+    // ---------------------------------------------------
+    // SEND EMAIL NOTIFICATION
+    // ---------------------------------------------------
+    try {
+      // Fetch request details with employee email
+      const requestDetails = await db.prepare(`
+        SELECT r.*, e.email, e.first_name, e.last_name
+        FROM ${tableName} r
+        JOIN employees e ON r.employee_id = e.id
+        WHERE r.id = ?
+      `).bind(id).first();
+
+      if (requestDetails?.email) {
+        const { sendEmail } = await import('../../../../lib/email-service');
+        const userName = `${requestDetails.first_name} ${requestDetails.last_name}`;
+
+        let subject = '';
+        let detailsHtml = '';
+
+        const statusLabel = newStatus.toUpperCase();
+        const statusColor = newStatus === 'approved' ? '#4CAF50' : '#F44336'; // Green or Red
+
+        // Define subject and specific details based on type
+        if (type === 'wfh') {
+          subject = `🏠 Work From Home Request ${statusLabel}`;
+          detailsHtml = `<p><b>Date:</b> ${requestDetails.date}</p>`;
+        } else if (type === 'partial') {
+          subject = `⏰ Partial Day Request ${statusLabel}`;
+          detailsHtml = `
+            <p><b>Date:</b> ${requestDetails.date}</p>
+            <p><b>Time:</b> ${requestDetails.start_time} - ${requestDetails.end_time}</p>
+            <p><b>Duration:</b> ${requestDetails.duration} hrs</p>
+          `;
+        } else if (type === 'regularization') {
+          subject = `📝 Attendance Regularization ${statusLabel}`;
+          detailsHtml = `
+            <p><b>Date:</b> ${requestDetails.date}</p>
+            <p><b>Clock In:</b> ${requestDetails.clock_in}</p>
+            <p><b>Clock Out:</b> ${requestDetails.clock_out}</p>
+          `;
+        }
+
+        const html = `
+          <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
+            <p>Hello <strong>${userName}</strong>,</p>
+            <p>Your request has been <strong style="color: ${statusColor}">${statusLabel}</strong>.</p>
+            
+            <div style="background: #f9f9f9; padding: 15px; border-radius: 4px; margin: 15px 0;">
+              ${detailsHtml}
+              ${notes ? `<p><b>Admin Notes:</b> ${notes}</p>` : ''}
+              <p><b>Status:</b> ${statusLabel}</p>
+            </div>
+
+            <p>Regards,<br/><strong>HRMS Team</strong></p>
+          </div>
+        `;
+
+        await sendEmail({
+          to: requestDetails.email,
+          subject,
+          html,
+          to_name: userName
+        });
+        console.log(`✅ Email sent to ${requestDetails.email} for ${type} request ${id}`);
+      }
+    } catch (emailErr) {
+      console.error('Failed to send status update email:', emailErr);
+      // Don't fail the request if email fails
+    }
+
     return new Response(
       JSON.stringify({
         success: true,

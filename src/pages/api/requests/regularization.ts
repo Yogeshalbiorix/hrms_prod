@@ -74,6 +74,41 @@ export const POST: APIRoute = async ({ request, locals }) => {
       });
     }
 
+    // POLICY CHECKS
+    const requestDate = new Date(date);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    // 1. Past Window Check (2 months)
+    const maxPastDate = new Date(today);
+    maxPastDate.setMonth(today.getMonth() - 2);
+
+    if (requestDate < maxPastDate) {
+      return json(400, {
+        error: `Policy Check Failed: You can only regularize attendance for the past 2 months.`
+      });
+    }
+
+    // 2. Monthly Limit Check (30 times in a month)
+    const currentYear = requestDate.getFullYear();
+    const currentMonth = requestDate.getMonth();
+    const monthStart = new Date(currentYear, currentMonth, 1).toISOString().split('T')[0];
+    const monthEnd = new Date(currentYear, currentMonth + 1, 0).toISOString().split('T')[0];
+
+    const countResult = await db.prepare(`
+      WHERE employee_id = ? 
+      AND date BETWEEN ? AND ? 
+      AND status != 'rejected'
+    `).bind(employee_id, monthStart, monthEnd).first();
+
+    const currentCount = countResult?.count || 0;
+
+    if (currentCount >= 30) {
+      return json(400, {
+        error: `Policy Check Failed: Monthly limit of 30 regularization requests exceeded.`
+      });
+    }
+
     const result = await db.prepare(`
       INSERT INTO regularization_requests
       (employee_id, date, clock_in, clock_out, reason, status, created_at)

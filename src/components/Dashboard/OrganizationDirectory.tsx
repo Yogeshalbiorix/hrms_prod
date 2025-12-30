@@ -563,7 +563,7 @@ export default function OrganizationDirectory() {
                   cursor: 'pointer',
                   transition: 'all 0.3s',
                 }}
-                bodyStyle={{ padding: '20px' }}
+                styles={{ body: { padding: '20px' } }}
               >
                 <Space direction="vertical" size="middle" style={{ width: '100%' }}>
                   {/* Avatar */}

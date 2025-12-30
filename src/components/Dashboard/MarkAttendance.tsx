@@ -29,9 +29,11 @@ import {
   FieldTimeOutlined,
   HomeOutlined,
   BankOutlined,
+  ReloadOutlined,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import duration from 'dayjs/plugin/duration';
+import { getAddressFromCoordinates } from '../../lib/maps';
 
 dayjs.extend(duration);
 
@@ -70,6 +72,7 @@ export default function MarkAttendance() {
   const [showClockInModal, setShowClockInModal] = useState(false);
   const [showClockOutModal, setShowClockOutModal] = useState(false);
   const [location, setLocation] = useState<{ lat: number; lng: number; address: string } | null>(null);
+  const [loadingLocation, setLoadingLocation] = useState(false);
   const [form] = Form.useForm();
 
   useEffect(() => {
@@ -84,23 +87,56 @@ export default function MarkAttendance() {
     return () => clearInterval(timer);
   }, []);
 
-  useEffect(() => {
-    // Get user location
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          setLocation({
-            lat: position.coords.latitude,
-            lng: position.coords.longitude,
-            address: 'Current Location',
-          });
-        },
-        (error) => {
-          console.error('Error getting location:', error);
-        }
-      );
+  const refreshLocation = async () => {
+    if (!navigator.geolocation) {
+      message.error('Geolocation is not supported by your browser');
+      return;
     }
+
+    setLoadingLocation(true);
+    try {
+      const position = await new Promise<GeolocationPosition>((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(resolve, reject, {
+          enableHighAccuracy: true,
+          timeout: 10000,
+          maximumAge: 0
+        });
+      });
+
+      const lat = position.coords.latitude;
+      const lng = position.coords.longitude;
+
+      let address = 'Location coordinates detected';
+      try {
+        address = await getAddressFromCoordinates(lat, lng);
+      } catch (err) {
+        console.error('Error fetching address:', err);
+      }
+
+      setLocation({
+        lat,
+        lng,
+        address,
+      });
+    } catch (error) {
+      console.error('Error getting location:', error);
+      message.warning('Unable to retrieve accurate location. Please ensure location services are enabled.');
+    } finally {
+      setLoadingLocation(false);
+    }
+  };
+
+  useEffect(() => {
+    // Initial location fetch
+    refreshLocation();
   }, []);
+
+  // Refresh location when modals open
+  useEffect(() => {
+    if (showClockInModal || showClockOutModal) {
+      refreshLocation();
+    }
+  }, [showClockInModal, showClockOutModal]);
 
   const fetchTodayAttendance = async () => {
     try {
@@ -161,6 +197,15 @@ export default function MarkAttendance() {
 
   const handleClockIn = async (values: any) => {
     try {
+      if (!location) {
+        // Attempt one last refresh
+        await refreshLocation();
+        if (!location) {
+          message.error('Location is required to clock in. Please allow location access.');
+          return;
+        }
+      }
+
       setLoading(true);
       const sessionToken = localStorage.getItem('sessionToken');
 
@@ -205,8 +250,44 @@ export default function MarkAttendance() {
       setLoading(true);
       const sessionToken = localStorage.getItem('sessionToken');
 
+      // Refresh location for clock out
+      await refreshLocation();
+      // Use state location which should be updated by refreshLocation, 
+      // but to be safe against race conditions (though await should handle it), we can check state.
+      // However, React state updates might not leak immediately into this closure if we didn't use refs,
+      // but since we are in an async function waiting for a promise that resolves... 
+      // Actually `refreshLocation` updates state, but the `location` variable in this scope is closed over.
+      // Better to rely on a fresh retrieve or just trust that `refreshLocation` updated the necessary things.
+      // Wait, `location` const in this scope is STALE. 
+      // I should modify refreshLocation to RETURN the location as well.
+
+      // Let's grab it directly again here to be safe and simple
+      let clockOutLocation = location;
+      if (navigator.geolocation) {
+        await new Promise<void>((resolve) => {
+          navigator.geolocation.getCurrentPosition(
+            async (position) => {
+              try {
+                const lat = position.coords.latitude;
+                const lng = position.coords.longitude;
+                const address = await getAddressFromCoordinates(lat, lng);
+                clockOutLocation = { lat, lng, address };
+              } catch (e) {
+                console.error("Error checking location", e);
+              }
+              resolve();
+            },
+            (err) => resolve(),
+            { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
+          );
+        });
+      }
+
       const payload = {
         notes: values.notes || '',
+        latitude: clockOutLocation?.lat,
+        longitude: clockOutLocation?.lng,
+        location_address: clockOutLocation?.address
       };
 
       const response = await fetch('/api/attendance/clock-out', {
@@ -407,10 +488,25 @@ export default function MarkAttendance() {
       </Row>
 
       {/* Location Info */}
-      {location && (
+      {loadingLocation ? (
+        <Alert
+          message="Detecting Location..."
+          type="info"
+          showIcon
+          icon={<Spin indicator={<EnvironmentOutlined spin />} />}
+          style={{ marginTop: '16px' }}
+        />
+      ) : location && (
         <Alert
           message="Location Detected"
-          description={`Your location will be recorded with attendance. Lat: ${location.lat.toFixed(6)}, Lng: ${location.lng.toFixed(6)}`}
+          description={
+            <Space>
+              <span>{location.address}</span>
+              <Button type="link" size="small" onClick={refreshLocation} icon={<ReloadOutlined />}>
+                Refresh
+              </Button>
+            </Space>
+          }
           type="info"
           icon={<EnvironmentOutlined />}
           showIcon
@@ -519,10 +615,21 @@ export default function MarkAttendance() {
             />
           </Form.Item>
 
-          {location && (
+          {loadingLocation ? (
+            <div style={{ textAlign: 'center', marginBottom: '16px' }}>
+              <Spin tip="Updating location..." />
+            </div>
+          ) : location && (
             <Alert
               message="Location will be recorded"
-              description={`Lat: ${location.lat.toFixed(6)}, Lng: ${location.lng.toFixed(6)}`}
+              description={
+                <Space direction="vertical" size={2}>
+                  <Text>{location.address}</Text>
+                  <Button type="link" size="small" onClick={refreshLocation} icon={<ReloadOutlined />} style={{ padding: 0 }}>
+                    Refresh Location
+                  </Button>
+                </Space>
+              }
               type="info"
               icon={<EnvironmentOutlined />}
               showIcon

@@ -55,9 +55,15 @@ export const POST: APIRoute = async ({ request, locals }) => {
       );
     }
 
-    // Get notes from request body
-    const body = await request.json().catch(() => ({})) as { notes?: string };
+    // Get notes and location from request body
+    const body = await request.json().catch(() => ({})) as {
+      notes?: string;
+      latitude?: number;
+      longitude?: number;
+      location_address?: string;
+    };
     const notes = body.notes || '';
+    const { latitude, longitude, location_address } = body;
 
     // Format time as HH:MM:SS
     const now = new Date();
@@ -85,14 +91,32 @@ export const POST: APIRoute = async ({ request, locals }) => {
       updatedNotes = updatedNotes ? `${updatedNotes} | Clock-out: ${notes}` : `Clock-out: ${notes}`;
     }
 
+    // Handle Location Update
+    let currentLocation = attendance.location ? JSON.parse(attendance.location as string) : {};
+
+    // If it was just a simple lat/lng object (legacy), preserve it as 'clockIn' implicitly or explicitly?
+    // Let's assume the previous clock-in stored it flat. We can keep it flat and add a 'clockOut' property.
+    // Or simpler: just add clockOut property to the object.
+
+    if (latitude && longitude) {
+      currentLocation.clockOut = {
+        latitude,
+        longitude,
+        address: location_address || 'Unknown',
+        timestamp: now.toISOString()
+      };
+    }
+
+    const locationJson = JSON.stringify(currentLocation);
+
     // Update attendance record
     await db
       .prepare(`
         UPDATE attendance 
-        SET clock_out = ?, working_hours = ?, notes = ?, updated_at = CURRENT_TIMESTAMP
+        SET clock_out = ?, working_hours = ?, notes = ?, location = ?, updated_at = CURRENT_TIMESTAMP
         WHERE id = ?
       `)
-      .bind(clockOutTime, workingHoursFormatted, updatedNotes, attendance.id)
+      .bind(clockOutTime, workingHoursFormatted, updatedNotes, locationJson, attendance.id)
       .run();
 
     return new Response(
@@ -105,7 +129,8 @@ export const POST: APIRoute = async ({ request, locals }) => {
           clock_in: clockIn,
           clock_out: clockOutTime,
           working_hours: workingHoursFormatted,
-          total_minutes: totalMinutes
+          total_minutes: totalMinutes,
+          location: currentLocation
         }
       }),
       { status: 200, headers: { 'Content-Type': 'application/json' } }

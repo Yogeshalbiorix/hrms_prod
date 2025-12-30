@@ -299,24 +299,48 @@ export default function AdminAttendanceView() {
       title: 'Location',
       dataIndex: 'location',
       key: 'location',
-      width: 150,
+      width: 200,
       render: (location: string | null) => {
-        if (!location) return <Tag>No Location</Tag>;
+        if (!location || location === 'undefined') return <Tag>No Location</Tag>;
         try {
           const loc = JSON.parse(location);
+          const hasClockIn = loc.latitude && loc.longitude;
+          const hasClockOut = loc.clockOut?.latitude && loc.clockOut?.longitude;
+
+          if (!hasClockIn && !hasClockOut) return <Tag>No Location Data</Tag>;
+
           return (
-            <Tooltip title={loc.address}>
-              <a
-                href={`https://www.google.com/maps?q=${loc.latitude},${loc.longitude}`}
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                <EnvironmentOutlined /> View Map
-              </a>
-            </Tooltip>
+            <Space direction="vertical" size={2}>
+              {hasClockIn && (
+                <Tooltip title={`Clock In: ${loc.address || 'Unknown Address'}`}>
+                  <a
+                    href={`https://www.google.com/maps?q=${loc.latitude},${loc.longitude}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{ fontSize: '12px', display: 'flex', alignItems: 'center', gap: '4px' }}
+                  >
+                    <EnvironmentOutlined style={{ color: '#52c41a' }} />
+                    <span>In: {loc.address ? (loc.address.length > 20 ? loc.address.substring(0, 18) + '...' : loc.address) : 'Map'}</span>
+                  </a>
+                </Tooltip>
+              )}
+              {hasClockOut && (
+                <Tooltip title={`Clock Out: ${loc.clockOut.address || 'Unknown Address'}`}>
+                  <a
+                    href={`https://www.google.com/maps?q=${loc.clockOut.latitude},${loc.clockOut.longitude}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{ fontSize: '12px', display: 'flex', alignItems: 'center', gap: '4px' }}
+                  >
+                    <EnvironmentOutlined style={{ color: '#ff4d4f' }} />
+                    <span>Out: {loc.clockOut.address ? (loc.clockOut.address.length > 20 ? loc.clockOut.address.substring(0, 18) + '...' : loc.clockOut.address) : 'Map'}</span>
+                  </a>
+                </Tooltip>
+              )}
+            </Space>
           );
         } catch {
-          return <Tag>Invalid</Tag>;
+          return <Tag>Invalid Data</Tag>;
         }
       },
     },
