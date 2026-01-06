@@ -410,6 +410,37 @@ export async function updateEmployee(db: any, id: number, employee: Partial<Empl
   try {
     const result = await db.prepare(query).bind(...values).run();
     console.log('Update result:', result);
+
+    // SYNC: Update linked user account if email or name changes
+    if (result.success) {
+      try {
+        // Fetch the updated employee to get complete name and email
+        const updatedEmployee = await getEmployeeById(db, id);
+        if (updatedEmployee) {
+          const fullName = `${updatedEmployee.first_name} ${updatedEmployee.last_name}`;
+
+          // Update linked user
+          // We update both email and full_name to keep them in sync
+          const userUpdateQuery = `
+            UPDATE users 
+            SET email = ?, 
+                full_name = ?,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE employee_id = ?
+          `;
+
+          await db.prepare(userUpdateQuery)
+            .bind(updatedEmployee.email, fullName, id)
+            .run();
+
+          console.log(`Synced changes to user account for employee ${id}`);
+        }
+      } catch (syncError) {
+        console.error('Error syncing employee changes to user account:', syncError);
+        // Don't throw here, as the primary update succeeded
+      }
+    }
+
     return result.success !== false; // Return true if success is not explicitly false
   } catch (error) {
     console.error('Error in updateEmployee:', error);
@@ -1574,6 +1605,60 @@ export async function updateUserProfile(
     values.push(userId);
 
     const result = await db.prepare(query).bind(...values).run();
+
+    // SYNC: Update linked employee record if email or name changes
+    if (result.success) {
+      try {
+        // We need to find the user's employee_id
+        // We can't use getUserFromSession here easily because we only have userId
+        const user = await db.prepare('SELECT employee_id FROM users WHERE id = ?').bind(userId).first();
+
+        if (user && user.employee_id) {
+          const employeeUpdates: string[] = [];
+          const employeeValues: any[] = [];
+
+          if (updates.email !== undefined) {
+            employeeUpdates.push('email = ?');
+            employeeValues.push(updates.email);
+          }
+
+          if (updates.full_name !== undefined) {
+            // Attempt to split full name into first and last
+            const parts = updates.full_name.trim().split(/\s+/);
+            const firstName = parts[0];
+            const lastName = parts.slice(1).join(' ') || ''; // Handle single word names
+
+            employeeUpdates.push('first_name = ?');
+            employeeValues.push(firstName);
+
+            employeeUpdates.push('last_name = ?');
+            employeeValues.push(lastName);
+          }
+
+          if (updates.phone !== undefined) {
+            employeeUpdates.push('phone = ?');
+            employeeValues.push(updates.phone);
+          }
+
+          if (employeeUpdates.length > 0) {
+            employeeUpdates.push('updated_at = CURRENT_TIMESTAMP');
+
+            // Add system or user as updater? We don't have the current username handy easily, assume system sync
+            employeeUpdates.push("updated_by = 'system_sync'");
+
+            const empQuery = `UPDATE employees SET ${employeeUpdates.join(', ')} WHERE id = ?`;
+            employeeValues.push(user.employee_id);
+
+            await db.prepare(empQuery).bind(...employeeValues).run();
+            console.log(`Synced user profile changes to employee ${user.employee_id}`);
+          }
+        }
+      } catch (syncError) {
+        console.error('Error syncing user profile changes to employee record:', syncError);
+        // Don't fail the operation
+      }
+    }
+
     return result.success;
   } catch (error) {
     console.error('Error updating user profile:', error);
